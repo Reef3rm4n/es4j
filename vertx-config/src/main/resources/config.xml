@@ -1,0 +1,68 @@
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+  http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
+>
+
+  <!-- Configuration table -->
+  <changeSet id="configuration-table" author="benato.j" context="vertx">
+    <createSequence sequenceName="configuration_seq" schemaName="${schema}"/>
+    <createTable tableName="configuration" schemaName="${schema}">
+      <column type="text" name="name"/>
+      <column type="text" name="class"/>
+      <column type="jsonb" name="data"/>
+      <!--  Repository Entity    -->
+      <column type="bigint" name="id" defaultValueSequenceNext="configuration_seq"/>
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="creation_date" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="last_update" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="configuration-index" author="benato.j" context="vertx">
+    <addPrimaryKey tableName="configuration" columnNames="name, class, tenant" schemaName="${schema}"/>
+    <createIndex tableName="configuration" indexName="configuration-index" schemaName="${schema}">
+      <column name="name"/>
+      <column name="class"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="configuration" indexName="configuration-index-1" schemaName="${schema}">
+      <column name="name"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="configuration" indexName="configuration-index-2" schemaName="${schema}">
+      <column name="name"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+  <!-- Configuration Publisher -->
+  <changeSet id="configuration-pub-function" author="benato.j" context="vertx">
+    <sql splitStatements="false">
+      CREATE
+      OR REPLACE FUNCTION ${schema}.configuration_publisher()
+    RETURNS trigger AS
+$$
+      BEGIN
+    if (TG_OP = 'DELETE' or TG_OP = 'TRUNCATE') then
+        perform pg_notify('configuration_channel',
+                          concat(OLD.name::text, '::', OLD.class::text, '::', OLD.tenant::text));
+      else
+        perform pg_notify('configuration_channel',
+                          concat(NEW.name::text, '::', NEW.class::text, '::', NEW.tenant::text));
+      end if;
+      RETURN null;
+      END;
+$$
+      LANGUAGE plpgsql;
+    </sql>
+  </changeSet>
+  <!--  -->
+  <!-- Configuration Trigger -->
+  <changeSet id="configuration-trigger" author="benato.j" context="vertx">
+    <sql splitStatements="false">
+      CREATE TRIGGER configuration_trigger AFTER INSERT OR UPDATE OR DELETE ON ${schema}.configuration FOR EACH ROW EXECUTE PROCEDURE configuration_publisher();
+    </sql>
+  </changeSet>
+  <!---->
+</databaseChangeLog>

@@ -1,0 +1,5 @@
+package io.vertx.skeleton.models;
+
+public enum MessageState {
+  CREATED, PROCESSING, SCHEDULED, EXPIRED, RETRY, RETRIES_EXHAUSTED, RECOVERY, PROCESSED, FATAL_FAILURE
+}
