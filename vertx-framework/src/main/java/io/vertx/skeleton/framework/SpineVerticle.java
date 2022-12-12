@@ -1,5 +1,7 @@
 package io.vertx.skeleton.framework;
 
+import io.activej.inject.module.Module;
+import io.smallrye.mutiny.Multi;
 import io.vertx.skeleton.ccp.QueueDeployer;
 import io.vertx.skeleton.config.ConfigurationHandler;
 import io.vertx.skeleton.config.ConfigurationDeployer;
@@ -18,12 +20,12 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
-import io.vertx.mutiny.ext.web.client.WebClient;
 import io.vertx.skeleton.task.TaskDeployer;
 import io.vertx.skeleton.utils.CustomClassLoader;
 import org.reflections.Reflections;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class SpineVerticle extends AbstractVerticle {
@@ -95,6 +97,7 @@ public class SpineVerticle extends AbstractVerticle {
           .flatMap(injector -> configurationDeployer.deploy(injector, repositoryHandler).replaceWith(injector))
           .flatMap(injector -> RouterDeployer.deploy(repositoryHandler, deploymentIds, modules).replaceWith(injector))
           .flatMap(injector -> QueueDeployer.deploy(vertx, newConfiguration, modules).replaceWith(injector))
+          .flatMap(injector -> deployVerticles(newConfiguration, modules, injector).replaceWith(injector))
 //          .flatMap(injector -> EventSourcingDeployer.deploy(vertx, repositoryHandler, deploymentIds, injector).replaceWith(injector))
           .invoke(injector -> taskDeployer.deploy(repositoryHandler, newConfiguration, injector))
           .subscribe()
@@ -111,6 +114,17 @@ public class SpineVerticle extends AbstractVerticle {
           );
       }
     );
+  }
+
+  private Uni<Void> deployVerticles(JsonObject newConfiguration, Collection<Module> modules, Injector injector) {
+    if (CustomClassLoader.checkPresenceInModules(Verticle.class, modules)) {
+      return Multi.createFrom().iterable(CustomClassLoader.loadFromInjector(injector, Verticle.class))
+        .onItem().transformToUniAndMerge(
+          verticle -> vertx.deployVerticle(verticle.supplier(), verticle.options().setConfig(newConfiguration))
+        ).collect().last()
+        .replaceWithVoid();
+    }
+    return Uni.createFrom().voidItem();
   }
 
 
