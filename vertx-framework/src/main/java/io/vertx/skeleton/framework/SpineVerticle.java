@@ -86,7 +86,6 @@ public class SpineVerticle extends AbstractVerticle {
           .flatMap(avoid -> {
               this.repositoryHandler = RepositoryHandler.leasePool(newConfiguration, vertx);
               moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
-              moduleBuilder.bind(WebClient.class).toInstance(WebClient.create(vertx));
               moduleBuilder.bind(Vertx.class).toInstance(vertx);
               moduleBuilder.bind(JsonObject.class).toInstance(newConfiguration);
               final var injector = Injector.of(moduleBuilder.build());

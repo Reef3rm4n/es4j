@@ -23,7 +23,7 @@ public class CustomClassLoader {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(CustomClassLoader.class);
 
-  public static final String PACKAGE_NAME = System.getenv().getOrDefault("PACKAGE_NAME", "io.vertx.skeleton");
+  public static final String PACKAGE_NAME = System.getenv().getOrDefault("PACKAGE_NAME", "io.vertx");
   public static final Reflections REFLECTIONS = new Reflections(PACKAGE_NAME);
 
   public static <T> List<T> loadImplementations(Class<T> tClass, Reflections reflections) {

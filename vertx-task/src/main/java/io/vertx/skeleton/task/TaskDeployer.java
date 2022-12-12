@@ -38,7 +38,7 @@ public class TaskDeployer {
       this.taskWrappers = CustomClassLoader.loadFromInjector(injector, SynchronizedTask.class).stream()
         .map(task -> {
             LOGGER.info("Task found -> " + task.getClass().getName());
-            final var taskConfiguration = configuration.getJsonObject(task.getClass().getSimpleName());
+            final var taskConfiguration = configuration.getJsonObject(task.getClass().getSimpleName(), new JsonObject());
             return new TaskWrapper(task, taskConfiguration, LoggerFactory.getLogger(task.getClass()));
           }
         )
@@ -54,10 +54,8 @@ public class TaskDeployer {
       delay -> {
         final var start = Instant.now();
         final var lockUni = switch (taskWrapper.task().strategy()) {
-          case CLUSTER_WIDE ->
-            vertx.sharedData().getLock(taskWrapper.configuration().getString("lockName", taskWrapper.task().getClass().getName()));
-          case LOCAL ->
-            vertx.sharedData().getLocalLock(taskWrapper.configuration().getString("lockName", taskWrapper.task().getClass().getName()));
+          case CLUSTER_WIDE -> vertx.sharedData().getLock(taskWrapper.task().getClass().getName());
+          case LOCAL -> vertx.sharedData().getLocalLock(taskWrapper.task().getClass().getName());
           case NONE -> Uni.createFrom().item(Lock.newInstance(() -> {
           }));
         };
@@ -66,22 +64,22 @@ public class TaskDeployer {
           .with(avoid -> {
               final var end = Instant.now();
               taskWrapper.logger().info("Task ran in " + Duration.between(start, end).toMillis() + "ms");
-              final var emptyTaskBackOff = taskWrapper.configuration().getLong("emptyBackOff", 1L) * 60000;
-              taskWrapper.logger().info("Task throttling for " + emptyTaskBackOff + "m");
+              final var emptyTaskBackOff = taskWrapper.configuration().getLong("backOff", 100L);
+              taskWrapper.logger().info("Task throttling for " + emptyTaskBackOff + "ms");
               triggerTask(taskWrapper, vertx, emptyTaskBackOff);
             },
             throwable -> {
               if (throwable instanceof OrmNotFoundException) {
-                final var emptyTaskBackOff = taskWrapper.configuration().getLong("emptyBackOff", 1L) * 60000;
-                taskWrapper.logger().info("Task is empty, backing off for " + emptyTaskBackOff/1000 + "s");
+                final var emptyTaskBackOff = taskWrapper.configuration().getLong("backOff", 100L);
+                taskWrapper.logger().info("Empty error, backing off for " + emptyTaskBackOff + "ms");
                 triggerTask(taskWrapper, vertx, emptyTaskBackOff);
               } else if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
                 final var lockBackOff = taskWrapper.configuration().getLong("lockBackOff", 1L) * 60000;
-                taskWrapper.logger().info("Unable to acquire lock !, task will back off for " + lockBackOff + "m");
+                taskWrapper.logger().info("Unable to acquire lock, will back off for " + lockBackOff / 60000 + "m");
                 triggerTask(taskWrapper, vertx, lockBackOff);
               } else {
                 final var errorBackOff = taskWrapper.configuration().getLong("errorBackOff", 1L) * 60000;
-                taskWrapper.logger().info("Error handling batch !, task will back off for " + errorBackOff + "m");
+                taskWrapper.logger().info("Error handling task, will back off for " + errorBackOff / 60000 + "m", throwable);
                 triggerTask(taskWrapper, vertx, errorBackOff);
               }
             }

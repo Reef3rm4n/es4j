@@ -1,5 +1,6 @@
 package io.vertx.skeleton.ccp;
 
+import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.skeleton.ccp.models.QueueConfiguration;
 import io.vertx.skeleton.models.Tenant;
 import io.smallrye.mutiny.Uni;

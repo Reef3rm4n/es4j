@@ -33,7 +33,7 @@ public class QueueDeployer {
           .setConfig(newConfiguration)
       ).replaceWithVoid();
     }
-    LOGGER.info("Concurrent queues not present !");
+    LOGGER.info("Queues not present !");
     return Uni.createFrom().voidItem();
 
   }
