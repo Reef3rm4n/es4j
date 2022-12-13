@@ -16,7 +16,7 @@ import java.util.List;
  * @param <R> The result, consumer can produce a result that will be passed to event consumers
  */
 public interface SingleProcessConsumer<T, R> {
-  Uni<R> process(T payload);
+  Uni<R> process(T payload, SqlConnection sqlConnection);
   default List<Class<Throwable>> fatal() {
     return List.of();
   }

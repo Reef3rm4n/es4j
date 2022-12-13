@@ -182,21 +182,21 @@ public final class SingleProcessHandler<T, R> implements MessageConsumer {
     if (configuration.idempotentProcessors()) {
       return transactionLog.transaction(
           sqlConnection -> messageProcessorTransaction(message, processor, sqlConnection)
-            .flatMap(Unchecked.function(avoid -> process(message, processor)))
+            .flatMap(Unchecked.function(avoid -> process(message, processor, sqlConnection)))
         )
         .onItemOrFailure().transformToUni(
           (result, throwable) -> handleProcessorResult(messageProcessResults, messageProcessEvents, message, processor, result, throwable)
         );
     }
-    return process(message, processor)
+    return process(message, processor, null)
       .onItemOrFailure().transformToUni(
         (result, throwable) -> handleProcessorResult(messageProcessResults, messageProcessEvents, message, processor, result, throwable)
       );
   }
 
-  private Uni<R> process(MessageRecord message, SingleWithCircuitBreaker<T, R> processor) {
+  private Uni<R> process(MessageRecord message, SingleWithCircuitBreaker<T, R> processor, SqlConnection sqlConnection) {
     try {
-      return processor.process(message.payload().mapTo(payloadClass))
+      return processor.process(message.payload().mapTo(payloadClass), sqlConnection)
         .onFailure().transform(MessageProcessorException::new);
     } catch (Exception exception) {
       throw new MessageProcessorException(exception);

@@ -1,5 +1,6 @@
 package io.vertx.skeleton.ccp.models;
 
+import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.skeleton.ccp.SingleProcessConsumer;
 import io.vertx.skeleton.models.Tenant;
 import io.smallrye.mutiny.Uni;
@@ -17,8 +18,8 @@ public final class SingleWithCircuitBreaker<T, R> implements SingleProcessConsum
   }
 
   @Override
-  public Uni<R> process(T payload) {
-    return circuitBreaker.execute(processor.process(payload));
+  public Uni<R> process(T payload, SqlConnection sqlConnection) {
+    return circuitBreaker.execute(processor.process(payload, sqlConnection));
   }
 
   @Override
