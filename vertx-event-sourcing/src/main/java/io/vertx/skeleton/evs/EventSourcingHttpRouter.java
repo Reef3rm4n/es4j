@@ -2,7 +2,8 @@ package io.vertx.skeleton.evs;
 
 import io.vertx.skeleton.evs.handlers.AggregateHandlerProxy;
 import io.vertx.skeleton.evs.objects.Command;
-import io.vertx.skeleton.evs.objects.CompositeCommand;
+import io.vertx.skeleton.evs.objects.CommandWrapper;
+import io.vertx.skeleton.evs.objects.CompositeCommandWrapper;
 import io.vertx.skeleton.evs.objects.PublicCommand;
 import io.vertx.skeleton.httprouter.Constants;
 import io.vertx.skeleton.httprouter.RouterException;
@@ -29,7 +30,9 @@ import io.vertx.mutiny.ext.web.handler.LoggerHandler;
 import io.vertx.skeleton.models.Error;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class EventSourcingHttpRouter extends AbstractVerticle {
@@ -40,6 +43,8 @@ public class EventSourcingHttpRouter extends AbstractVerticle {
   public static final int HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
 
   private final List<? extends EventSourcingHttpRoute> routes;
+
+  private final Map<String, String> commandClassMap = new HashMap<>();
 
 
   public EventSourcingHttpRouter(
@@ -56,13 +61,6 @@ public class EventSourcingHttpRouter extends AbstractVerticle {
     this.repositoryHandler = RepositoryHandler.leasePool(config(), vertx);
     this.httpServer = vertx.createHttpServer(new HttpServerOptions()
       .setTracingPolicy(TracingPolicy.PROPAGATE)
-      .setUseAlpn(true)
-      .setLogActivity(false)
-      .setReusePort(true)
-      .setTcpCork(true)
-      .setTcpFastOpen(true)
-      .setTcpNoDelay(true)
-      .setTcpQuickAck(true)
     );
     final var router = Router.router(vertx);
     this.healthChecks(router);
@@ -79,67 +77,35 @@ public class EventSourcingHttpRouter extends AbstractVerticle {
         if (routingContext.request().getHeader(RequestMetadata.PARTNER_ID_HEADER) != null) {
           ContextualData.put(RequestMetadata.PARTNER_ID_HEADER, routingContext.request().getHeader(RequestMetadata.PARTNER_ID_HEADER));
         }
-//        if (routingContext.request().getHeader(RequestMetadata.CLIENT_ID) != null) {
-//          ContextualData.put(RequestMetadata.CLIENT_ID, routingContext.request().getHeader(RequestMetadata.CLIENT_ID));
-//        }
-//        if (routingContext.request().getHeader(RequestMetadata.EXT_SYSTEM_ID) != null) {
-//          ContextualData.put(RequestMetadata.EXT_SYSTEM_ID, routingContext.request().getHeader(RequestMetadata.EXT_SYSTEM_ID));
-//        }
-//        if (routingContext.request().getHeader(RequestMetadata.TXT_DATE) != null) {
-//          ContextualData.put(RequestMetadata.TXT_DATE, routingContext.request().getHeader(RequestMetadata.TXT_DATE));
-//        }
-//        if (routingContext.request().getHeader(RequestMetadata.PLAYER_ID) != null ) {
-//          ContextualData.put(RequestMetadata.PLAYER_ID, routingContext.request().getHeader(RequestMetadata.PLAYER_ID));
-//        }
-//        if (routingContext.request().getHeader(RequestMetadata.LONG_TERM_TOKEN) != null) {
-//          ContextualData.put(RequestMetadata.LONG_TERM_TOKEN, routingContext.request().getHeader(RequestMetadata.LONG_TERM_TOKEN));
-//        }
         routingContext.next();
       }
     );
-    router.get("/openapi.json")
-      .handler(routingContext -> vertx.fileSystem().readFile("openapi.json")
-        .subscribe()
-        .with(routingContext::endAndForget,
-          throwable -> LOGGER.error("Unable to fetch openapi.json", throwable)
-        )
-      );
-    router.get("/openapi.yaml")
-      .handler(routingContext -> vertx.fileSystem().readFile("openapi.yaml")
-        .subscribe()
-        .with(routingContext::endAndForget,
-          throwable -> LOGGER.error("Unable to fetch openapi.json", throwable)
-        )
-      );
 
     final var entityAggregateProxy = new AggregateHandlerProxy(vertx, entityAggregateClass);
-    router.post("/command/composite").consumes(Constants.APPLICATION_JSON).produces(Constants.APPLICATION_JSON)
+    router.post("/command/composite/:entityId").consumes(Constants.APPLICATION_JSON).produces(Constants.APPLICATION_JSON)
       .handler(routingContext -> {
+          final var entityId = routingContext.pathParam("entityId");
           final var metadata = extractMetadata(routingContext);
-          final var publicCommands = routingContext.body().asJsonArray().stream().map(cmdObject -> JsonObject.mapFrom(cmdObject).mapTo(PublicCommand.class)).toList();
-          final var commands = publicCommands.stream().map(cmd -> {
-                try {
-                  return JsonObject.mapFrom(cmd.command()).mapTo(Class.forName(cmd.commandClass()));
-                } catch (ClassNotFoundException e) {
-                  throw RejectedCommandException.commandRejected(e.getMessage());
-                }
-              }
-            )
-            .map(cmd -> new Command(cmd.getClass().getName(), JsonObject.mapFrom(cmd)))
-            .toList();
-          final var entityId = publicCommands.stream().findFirst().map(PublicCommand::entityId).orElseThrow();
-          if(!publicCommands.stream().allMatch(cmd -> cmd.entityId().equals(entityId))) {
-            throw new RejectedCommandException(new Error("EntityId mismatch", "A composite command is meant for a single entityAggregate, make sure all commands carry the same entityId",400));
-          }
-          entityAggregateProxy.handleCompositeCommand(new CompositeCommand(entityId, commands, metadata), routingContext);
+          final var publicCommands = unpackCommands(routingContext);
+          final var commands = mapToCommand(publicCommands);
+          entityAggregateProxy.handleCompositeCommand(new CompositeCommandWrapper(entityId, commands, metadata), routingContext);
         }
       );
-    router.post("/command").consumes(Constants.APPLICATION_JSON).produces(Constants.APPLICATION_JSON)
+    router.post("/command/:entityId").consumes(Constants.APPLICATION_JSON).produces(Constants.APPLICATION_JSON)
       .handler(routingContext -> {
+          final var entityId = routingContext.pathParam("entityId");
           final var metadata = extractMetadata(routingContext);
           final var command = routingContext.body().asJsonObject().mapTo(PublicCommand.class);
-          final var compositeCommand = new CompositeCommand(command.entityId(), List.of(new Command(command.commandClass(), JsonObject.mapFrom(command.command()))), metadata);
-          entityAggregateProxy.handleCompositeCommand(compositeCommand, routingContext);
+          final var commandClass = commandClass(command);
+          final var compositeCommand = new CommandWrapper(entityId, new Command(commandClass, JsonObject.mapFrom(command.command())), metadata);
+          entityAggregateProxy.forwardCommand(compositeCommand, routingContext);
+        }
+      );
+    router.get("/:entityId").produces(Constants.APPLICATION_JSON)
+      .handler(routingContext -> {
+          final var entityId = routingContext.pathParam("entityId");
+          final var metadata = extractMetadata(routingContext);
+          entityAggregateProxy.load(entityId, metadata, routingContext);
         }
       );
     routes.forEach(route -> {
@@ -154,6 +120,20 @@ public class EventSourcingHttpRouter extends AbstractVerticle {
       .listen(HTTP_PORT)
       .invoke(httpServer1 -> LOGGER.info(this.getClass().getSimpleName() + " started in port -> " + httpServer1.actualPort()))
       .replaceWithVoid();
+  }
+
+  private static List<PublicCommand> unpackCommands(RoutingContext routingContext) {
+    return routingContext.body().asJsonArray().stream().map(cmdObject -> JsonObject.mapFrom(cmdObject).mapTo(PublicCommand.class)).toList();
+  }
+
+  private List<Command> mapToCommand(List<PublicCommand> publicCommands) {
+    return publicCommands.stream()
+      .map(cmd -> new Command(cmd.commandType(), JsonObject.mapFrom(cmd)))
+      .toList();
+  }
+
+  private String commandClass(PublicCommand command) {
+    return commandClassMap.get(command.commandType());
   }
 
   private void handleInvalidRequest(final HttpServerRequest httpServerRequest) {

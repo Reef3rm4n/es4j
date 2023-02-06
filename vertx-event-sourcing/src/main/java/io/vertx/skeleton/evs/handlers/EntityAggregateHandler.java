@@ -1,5 +1,7 @@
 package io.vertx.skeleton.evs.handlers;
 
+import io.smallrye.mutiny.tuples.Tuple3;
+import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.skeleton.evs.*;
 import io.vertx.skeleton.evs.cache.EntityAggregateCache;
 import io.vertx.skeleton.evs.exceptions.UnknownCommandException;
@@ -18,10 +20,10 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.skeleton.models.Error;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.stream.IntStream;
+
+import static io.activej.inject.binding.Multibinders.toMap;
 
 public class EntityAggregateHandler<T extends EntityAggregate> {
   private final List<CommandBehaviourWrapper> commandBehaviours;
@@ -39,19 +41,21 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   List<CommandValidatorWrapper> commandValidatorV2s;
 
+  private final Map<String, String> commandClassMap = new HashMap<>();
+
   public EntityAggregateHandler(
-    Class<T> entityAggregateClass,
-    List<CommandValidatorWrapper> commandValidatorV2s,
+    final Class<T> entityAggregateClass,
+    final List<CommandValidatorWrapper> commandValidatorV2s,
     final List<EventBehaviourWrapper> eventBehaviours,
-    List<CommandBehaviourWrapper> commandBehaviours,
+    final List<CommandBehaviourWrapper> commandBehaviours,
     final List<QueryBehaviourWrapper> queryBehaviours,
-    List<ProjectionWrapper> projections,
-    EntityAggregateConfiguration entityAggregateConfiguration,
-    Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal,
-    Repository<EntityAggregateKey, AggregateSnapshot, EmptyQuery> snapshotRepository,
-    Repository<EntityAggregateKey, RejectedCommand, ?> rejectedCommandRepository,
-    EntityAggregateCache<T, EntityAggregateState<T>> cache,
-    PersistenceMode persistenceMode
+    final List<ProjectionWrapper> projections,
+    final EntityAggregateConfiguration entityAggregateConfiguration,
+    final Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal,
+    final Repository<EntityAggregateKey, AggregateSnapshot, EmptyQuery> snapshotRepository,
+    final Repository<EntityAggregateKey, RejectedCommand, ?> rejectedCommandRepository,
+    final EntityAggregateCache<T, EntityAggregateState<T>> cache,
+    final PersistenceMode persistenceMode
   ) {
     this.eventJournal = eventJournal;
     this.entityAggregateClass = entityAggregateClass;
@@ -65,19 +69,35 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     this.entityAggregateConfiguration = entityAggregateConfiguration;
     this.cache = cache;
     this.persistenceMode = persistenceMode;
+    commandBehaviours.stream().map(
+      cmd -> Tuple4.of(
+        cmd.commandClass().getName(),
+        cmd.commandClass().getSimpleName(),
+        camelToSnake(cmd.commandClass().getSimpleName()
+        ),
+        cmd.commandClass().getSimpleName().toLowerCase()
+      )
+    ).forEach(tuple -> {
+        commandClassMap.put(tuple.getItem2(), tuple.getItem1());
+        commandClassMap.put(tuple.getItem3(), tuple.getItem1());
+        commandClassMap.put(tuple.getItem4(), tuple.getItem1());
+      }
+    );
   }
 
-  public Uni<Void> load(EntityAggregateKey entityAggregateKey) {
+  public Uni<JsonObject> load(EntityAggregateKey entityAggregateKey) {
     LOGGER.debug("Loading entity locally  -> " + entityAggregateKey);
     return load(entityAggregateKey.entityId(), entityAggregateKey.tenant(), ConsistencyStrategy.STRONGLY_CONSISTENT)
-      .replaceWithVoid();
+      .map(state -> JsonObject.mapFrom(state.aggregateState()));
   }
 
 
-  public Uni<JsonObject> process(CompositeCommand command) {
+  public Uni<JsonObject> process(CompositeCommandWrapper command) {
     LOGGER.debug("Processing CompositeCommand -> " + command);
-    final var commands = command.commands().stream().map(cmd -> getCommand(cmd.commandClass(), cmd.command())).toList();
-    if (! commands.stream().allMatch(cmd -> cmd.entityId().equals(command.entityId()))) {
+    final var commands = command.commands().stream()
+      .map(cmd -> getCommand(cmd.commandType(), cmd.command()))
+      .toList();
+    if (!commands.stream().allMatch(cmd -> cmd.entityId().equals(command.entityId()))) {
       throw new RejectedCommandException(new Error("ID mismatch in composite command", "All composite commands should have the same entityId", 400));
     }
     return load(command.entityId(), command.requestMetadata().tenant(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
@@ -93,9 +113,9 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       .map(state -> JsonObject.mapFrom(state.aggregateState()));
   }
 
-  public Uni<JsonObject> process(String className, JsonObject jsonCommand) {
-    LOGGER.debug("Processing " + className + " -> " + jsonCommand.encodePrettily());
-    final var command = getCommand(className, jsonCommand);
+  public Uni<JsonObject> process(String commandType, JsonObject jsonCommand) {
+    LOGGER.debug("Processing " + commandType + " -> " + jsonCommand.encodePrettily());
+    final var command = getCommand(commandType, jsonCommand);
     return load(command.entityId(), command.requestMetadata().tenant(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, command)
@@ -243,7 +263,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       LOGGER.warn("Ensuring consistency for entity -> " + entityId);
       return eventJournal.query(ensureConsistencyQuery(entityId, tenant, state))
         .flatMap(events -> {
-            if (events != null && ! events.isEmpty()) {
+            if (events != null && !events.isEmpty()) {
               consumeEvents(state, events, null);
             }
             return cache.put(new EntityAggregateKey(entityId, tenant), state);
@@ -272,7 +292,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       }
       return snapshotUni.flatMap(avoid -> eventJournal.query(eventJournalQuery(entityId, tenant, state)))
         .flatMap(events -> {
-            if (events != null && ! events.isEmpty()) {
+            if (events != null && !events.isEmpty()) {
               consumeEvents(state, events, null);
             }
             return cache.put(new EntityAggregateKey(entityId, tenant), state);
@@ -299,7 +319,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       .sorted(Comparator.comparingLong(EntityEvent::eventVersion))
       .forEachOrdered(event -> {
           LOGGER.info("Aggregating event -> " + event.eventClass());
-          final var newState = applyEventBehaviour(state.aggregateState(), getEvent(event.eventClass(),event.event()));
+          final var newState = applyEventBehaviour(state.aggregateState(), getEvent(event.eventClass(), event.event()));
           LOGGER.info("New aggregate state -> " + newState);
           if (command != null && state.commands() != null && state.commands().stream().noneMatch(txId -> txId.equals(command.requestMetadata().txId()))) {
             state.commands().add(command.requestMetadata().txId());
@@ -322,10 +342,10 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private Uni<Void> updateProjections(final T aggregateState, final List<EntityEvent> events, ConsistencyStrategy consistencyStrategy, final SqlConnection sqlConnection) {
     final var uniList = new ArrayList<Uni<Void>>();
-    if (projections != null && ! projections.isEmpty() && projections.stream().anyMatch(p -> p.delegate().strategy() == consistencyStrategy)) {
+    if (projections != null && !projections.isEmpty() && projections.stream().anyMatch(p -> p.delegate().strategy() == consistencyStrategy)) {
       uniList.add(performUpdate(aggregateState, projections.stream().map(p -> (Projection<T>) p.delegate()).toList(), events, sqlConnection));
     }
-    if (! uniList.isEmpty()) {
+    if (!uniList.isEmpty()) {
       return Uni.join().all(uniList).andFailFast().replaceWithVoid();
     }
     return Uni.createFrom().voidItem();
@@ -337,7 +357,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
           final var matchingEvents = events.stream()
             .filter(event -> projection.eventsClasses() == null || projection.eventsClasses().stream().anyMatch(eventClass -> eventClass.getName().equals(event.eventClass())))
             .toList();
-          if (! matchingEvents.isEmpty()) {
+          if (!matchingEvents.isEmpty()) {
             LOGGER.info(projection.getClass().getSimpleName() + " interested in one or more events emitted from -> " + matchingEvents);
             final var parsedEvents = matchingEvents.stream().map(ev -> getEvent(ev.eventClass(), ev.event())).toList();
             return projection.applyEvents(aggregateState, parsedEvents, sqlConnection);
@@ -390,7 +410,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   }
 
   private Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final List<EntityAggregateCommand> commands) {
-    if (state.commands() != null && ! state.commands().isEmpty()) {
+    if (state.commands() != null && !state.commands().isEmpty()) {
       state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.requestMetadata().txId().equals(txId)))
         .findAny()
         .ifPresent(duplicatedCommand -> {
@@ -465,7 +485,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
 
   private <C extends EntityAggregateCommand> Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final C command) {
-    if (state.commands() != null && ! state.commands().isEmpty()) {
+    if (state.commands() != null && !state.commands().isEmpty()) {
       state.commands().stream().filter(txId -> txId.equals(command.requestMetadata().txId()))
         .findAny()
         .ifPresent(duplicatedCommand -> {
@@ -514,8 +534,10 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
         snapshotRepository.insert(snapshot)
           .flatMap(avoid -> updateStateAfterSnapshot(state, snapshot))
           .subscribe()
-          .with(item -> LOGGER.info("Snapshot added -> " + item)
-            , throwable -> LOGGER.error("Unable to add snapshot", throwable));
+          .with(
+            item -> LOGGER.info("Snapshot added -> " + item),
+            throwable -> LOGGER.error("Unable to add snapshot", throwable)
+          );
       }
     }
   }
@@ -542,9 +564,9 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   }
 
 
-  private static EntityAggregateCommand getCommand(final String className, final JsonObject jsonCommand) {
+  private EntityAggregateCommand getCommand(final String commandType, final JsonObject jsonCommand) {
     try {
-      final var clazz = Class.forName(className);
+      final var clazz = Class.forName(commandClassMap.get(commandType));
       final var object = jsonCommand.mapTo(clazz);
       if (object instanceof EntityAggregateCommand entityAggregateCommand) {
         return entityAggregateCommand;
@@ -582,5 +604,23 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     }
   }
 
+  public static String camelToSnake(String str) {
+    // Regular Expression
+    String regex = "([a-z])([A-Z]+)";
+
+    // Replacement string
+    String replacement = "$1_$2";
+
+    // Replace the given regex
+    // with replacement string
+    // and convert it to lower case.
+    str = str
+      .replaceAll(
+        regex, replacement)
+      .toLowerCase();
+
+    // return string
+    return str;
+  }
 
 }

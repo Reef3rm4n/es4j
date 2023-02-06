@@ -5,7 +5,7 @@ import io.vertx.skeleton.models.RequestMetadata;
 
 import java.util.List;
 
-public record CompositeCommand(
+public record CompositeCommandWrapper(
   String entityId,
   List<Command> commands,
   RequestMetadata requestMetadata

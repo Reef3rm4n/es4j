@@ -36,7 +36,7 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
   private final EntityAggregateConfiguration entityAggregateConfiguration;
   private RepositoryHandler repositoryHandler;
   public EntityAggregateHandler<T> entityAggregateHandler;
-
+  private final Map<String, String> commandClassMap = new HashMap<>();
   public EntityAggregateHandlerVerticle(
     final Class<T> entityAggregateClass,
     final List<CommandValidatorWrapper> commandValidators,
@@ -89,9 +89,8 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
       .handler(objectMessage -> {
           final var responseUni = switch (AggregateHandlerAction.valueOf(objectMessage.headers().get(ACTION))) {
             case LOAD -> entityAggregateHandler.load(objectMessage.body().mapTo(EntityAggregateKey.class));
-            case QUERY -> entityAggregateHandler.query(objectMessage.headers().get(CLASS_NAME), objectMessage.body());
             case COMMAND -> entityAggregateHandler.process(objectMessage.headers().get(CLASS_NAME), objectMessage.body());
-            case COMPOSITE_COMMAND -> entityAggregateHandler.process(objectMessage.body().mapTo(CompositeCommand.class));
+            case COMPOSITE_COMMAND -> entityAggregateHandler.process(objectMessage.body().mapTo(CompositeCommandWrapper.class));
           };
           responseUni.subscribe()
             .with(
