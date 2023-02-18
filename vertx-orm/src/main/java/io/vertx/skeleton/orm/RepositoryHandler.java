@@ -3,7 +3,6 @@
 package io.vertx.skeleton.orm;
 
 
-import io.vertx.skeleton.models.*;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
@@ -21,6 +20,7 @@ import io.vertx.pgclient.PgException;
 import io.vertx.pgclient.SslMode;
 import io.vertx.skeleton.models.EnvVars;
 import io.vertx.skeleton.models.Error;
+import io.vertx.skeleton.models.exceptions.*;
 import io.vertx.sqlclient.PoolOptions;
 
 import java.net.ConnectException;
@@ -44,7 +44,7 @@ public record RepositoryHandler(
 
   /**
    * This uses two different types of pools :
-   * 1) PgPool is a pool which operations cannot be pipelined, connections from this pool can be borrowed, used mostly for transactional behaviours.
+   * 1) PgPool is a pool which operations cannot be pipelined, connections from this pool can be borrowed, used mostly for transactional purposes.
    * 2) SqlClient a pool which operations can be pipelined, connection from this pool cannot be borrowed thus transactions cannot be performed.
    *
    * @param configuration

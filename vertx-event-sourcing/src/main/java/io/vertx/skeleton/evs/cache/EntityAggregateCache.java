@@ -2,12 +2,10 @@ package io.vertx.skeleton.evs.cache;
 
 import io.vertx.skeleton.evs.objects.EntityAggregateState;
 import io.vertx.skeleton.evs.EntityAggregate;
-import io.vertx.skeleton.models.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityAggregateKey;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
-import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.Shareable;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.shareddata.LocalMap;
@@ -39,29 +37,6 @@ public class EntityAggregateCache<T extends EntityAggregate, V extends EntityAgg
     this.handlerAddress = handlerAddress;
   }
 
-  public void registerHandler() {
-    LOGGER.info("Publishing handler registration -> " + handlerAddress);
-    vertx.eventBus().publish(AddressResolver.localAvailableHandlers(aggregateClass), handlerAddress, new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.ADD.name()));
-    handlerRefreshTimer(aggregateTtlInMinutes);
-  }
-
-  private void handlerRefreshTimer(Long delay) {
-    this.refreshTaskTimerId = vertx.setTimer(
-      delay,
-      d -> {
-        vertx.eventBus().publish(AddressResolver.localAvailableHandlers(aggregateClass), handlerAddress, new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.ADD.name()));
-        LOGGER.info("Published handler keep-alive -> " + handlerAddress);
-        handlerRefreshTimer(delay * 60000);
-      }
-    );
-  }
-
-  public void unregisterHandler() {
-    LOGGER.info("Publishing handler removal -> " + handlerAddress);
-    vertx.eventBus().publish(AddressResolver.localAvailableHandlers(aggregateClass), handlerAddress, new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name()));
-    vertx.cancelTimer(refreshTaskTimerId);
-  }
-
   public V get(EntityAggregateKey k) {
     final var holder = localEntityMap().get(k);
     if (holder != null && holder.hasNotExpired()) {
@@ -78,8 +53,6 @@ public class EntityAggregateCache<T extends EntityAggregate, V extends EntityAgg
     LOGGER.info("EntityAggregate added to handler cache -> " + k + " handler address -> " + handlerAddress);
     if (previous != null) {
       vertx.cancelTimer(previous.timerId);
-    } else {
-      publishEntityHandlerAddress(k);
     }
     return Uni.createFrom().item(v);
   }
@@ -98,49 +71,24 @@ public class EntityAggregateCache<T extends EntityAggregate, V extends EntityAgg
     return vertx.sharedData().<EntityAggregateKey, Holder<V>>getLocalMap(aggregateClass.getName());
   }
 
-  private void publishEntityHandlerAddress(EntityAggregateKey k) {
-    LOGGER.info("Publishing " + k + " address -> " + handlerAddress);
-    vertx.eventBus().publish(
-      AddressResolver.localAggregateHandler(aggregateClass),
-      JsonObject.mapFrom(new EntityAggregateHandlerAddress(k, handlerAddress)),
-      new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.ADD.name())
-    );
-  }
-
   private void removeIfExpired(EntityAggregateKey k) {
     final var value = localEntityMap().get(k);
-    if (! value.hasNotExpired()) {
+    if (!value.hasNotExpired()) {
       LOGGER.info(k + " evicted form cache");
-      localEntityMap().remove(k);
-      publishEntityAggregateRemoval(k);
+      remove(k);
     }
   }
 
-  private void publishEntityAggregateRemoval(EntityAggregateKey k) {
-    vertx.eventBus().publish(
-      AddressResolver.localAggregateHandler(aggregateClass),
-      JsonObject.mapFrom(new EntityAggregateHandlerAddress(k, handlerAddress)),
-      new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name())
-    );
-    LOGGER.info("EntityAggregate removal published -> " + k);
-  }
-
-  public Uni<V> remove(EntityAggregateKey k) {
+  public V remove(EntityAggregateKey k) {
     final var previous = localEntityMap().remove(k);
     if (previous != null) {
       if (previous.expires()) {
         vertx.cancelTimer(previous.timerId);
       }
-      return Uni.createFrom().item(previous.value);
+      return previous.value;
     } else {
-      return Uni.createFrom().item(null);
+      return null;
     }
-  }
-
-  public Map<EntityAggregateKey, Holder<V>> entries() {
-    return vertx.getDelegate().sharedData().<EntityAggregateKey, Holder<V>>getLocalMap(aggregateClass.getName())
-      .entrySet().stream()
-      .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
   }
 
   private static class Holder<V> implements Shareable {
@@ -171,7 +119,7 @@ public class EntityAggregateCache<T extends EntityAggregate, V extends EntityAgg
     }
 
     boolean hasNotExpired() {
-      return ! expires() || MILLISECONDS.convert(System.nanoTime() - timestamp, NANOSECONDS) < ttl;
+      return !expires() || MILLISECONDS.convert(System.nanoTime() - timestamp, NANOSECONDS) < ttl;
     }
 
     public String toString() {

@@ -7,7 +7,7 @@
 
 
   <!-- QUEUE CHANGESET -->
-  <changeSet id="${queueName}-table" author="benato.j" context="vertx">
+  <changeSet id="${queueName}-table" author="reeferman" context="vertx">
     <createSequence sequenceName="${queueName}_seq" schemaName="${schema}"/>
     <createTable tableName="${queueName}" schemaName="${schema}">
       <column type="text" name="message_id"/>
@@ -27,7 +27,7 @@
       <column type="int" name="version" defaultValue="0"/>
     </createTable>
   </changeSet>
-  <changeSet id="${queueName}-index" author="benato.j" context="vertx">
+  <changeSet id="${queueName}-index" author="reeferman" context="vertx">
     <addPrimaryKey tableName="${queueName}" columnNames="id" schemaName="${schema}"/>
     <createIndex tableName="${queueName}" indexName="${queueName}-index" schemaName="${schema}">
       <column name="state"/>
@@ -46,7 +46,7 @@
   </changeSet>
   <!--  -->
   <!-- Queue Function -->
-  <changeSet id="${queueName}-pub-function" author="benato.j" context="vertx">
+  <changeSet id="${queueName}-pub-function" author="reeferman" context="vertx">
     <sql splitStatements="false">
       CREATE
       OR REPLACE FUNCTION ${schema}.${queueName}_pub() RETURNS
@@ -62,7 +62,7 @@
   </changeSet>
   <!--  -->
   <!-- Queue Function -->
-  <changeSet id="${queueName}-trigger" author="benato.j" context="vertx">
+  <changeSet id="${queueName}-trigger" author="reeferman" context="vertx">
     <sql splitStatements="false">
       CREATE TRIGGER ${queueName}_trg
         AFTER INSERT OR
@@ -74,7 +74,7 @@
   <!--  -->
 
   <!-- Transaction Log -->
-  <changeSet id="${queueName}_tx-table" author="benato.j" context="vertx">
+  <changeSet id="${queueName}_tx-table" author="reeferman" context="vertx">
     <createSequence sequenceName="${queueName}_tx_seq" schemaName="${schema}"/>
     <createTable tableName="${queueName}_tx" schemaName="${schema}">
       <column type="text" name="message_id"/>
@@ -88,7 +88,7 @@
       <column type="int" name="version" defaultValue="0"/>
     </createTable>
   </changeSet>
-  <changeSet id="${queueName}_tx-index" author="benato.j" context="vertx">
+  <changeSet id="${queueName}_tx-index" author="reeferman" context="vertx">
     <addPrimaryKey tableName="${queueName}_tx" columnNames="id" schemaName="${schema}"/>
     <createIndex tableName="${queueName}_tx" indexName="${queueName}_tx-index-1" schemaName="${schema}">
       <column name="message_id"/>

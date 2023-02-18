@@ -7,7 +7,7 @@ import io.vertx.mutiny.sqlclient.templates.RowMapper;
 import io.vertx.mutiny.sqlclient.templates.TupleMapper;
 import io.vertx.skeleton.models.ConcurrentTaskEvent;
 import io.vertx.skeleton.models.EmptyQuery;
-import io.vertx.skeleton.models.OrmGenericException;
+import io.vertx.skeleton.models.exceptions.OrmGenericException;
 import io.vertx.skeleton.models.TaskEventType;
 
 import java.util.HashMap;

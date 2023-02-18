@@ -8,7 +8,7 @@
 
 package io.vertx.skeleton.config;
 
-import io.vertx.skeleton.models.VertxServiceException;
+import io.vertx.skeleton.models.exceptions.VertxServiceException;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;

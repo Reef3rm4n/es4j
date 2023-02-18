@@ -1,55 +1,52 @@
 package io.vertx.skeleton.evs.handlers;
 
-import io.smallrye.mutiny.tuples.Tuple3;
 import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.skeleton.evs.*;
+import io.vertx.skeleton.evs.Command;
 import io.vertx.skeleton.evs.cache.EntityAggregateCache;
+import io.vertx.skeleton.evs.exceptions.RejectedCommandException;
 import io.vertx.skeleton.evs.exceptions.UnknownCommandException;
 import io.vertx.skeleton.evs.exceptions.UnknownEventException;
-import io.vertx.skeleton.evs.exceptions.UnknownQueryException;
 import io.vertx.skeleton.evs.objects.*;
 import io.vertx.skeleton.models.*;
+import io.vertx.skeleton.models.exceptions.OrmConflictException;
+import io.vertx.skeleton.models.exceptions.OrmNotFoundException;
 import io.vertx.skeleton.orm.Repository;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.smallrye.mutiny.vertx.UniHelper;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.skeleton.models.Error;
 
 import java.util.*;
 import java.util.stream.IntStream;
 
-import static io.activej.inject.binding.Multibinders.toMap;
-
 public class EntityAggregateHandler<T extends EntityAggregate> {
   private final List<CommandBehaviourWrapper> commandBehaviours;
+  // todo create an interface for the eventJournal
+  // todo move this repository as an implementation of the eventJournal
   private final Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal;
   private final Repository<EntityAggregateKey, RejectedCommand, ?> rejectedCommandRepository;
+  // todo create an interface for the snapshots
+  // todo move this repository as an implementation of the snapshot
   private final Repository<EntityAggregateKey, AggregateSnapshot, ?> snapshotRepository;
+  // todo create an interface for the entityCache
+  // todo move this cache as an implementation of the entity cache
   private final EntityAggregateCache<T, EntityAggregateState<T>> cache;
   private static final Logger LOGGER = LoggerFactory.getLogger(EntityAggregateHandler.class);
-  private final List<ProjectionWrapper> projections;
   private final EntityAggregateConfiguration entityAggregateConfiguration;
   private final PersistenceMode persistenceMode;
   private final List<EventBehaviourWrapper> eventBehaviours;
   private final Class<T> entityAggregateClass;
-  private final List<QueryBehaviourWrapper> queryBehaviours;
 
-  List<CommandValidatorWrapper> commandValidatorV2s;
 
   private final Map<String, String> commandClassMap = new HashMap<>();
 
   public EntityAggregateHandler(
     final Class<T> entityAggregateClass,
-    final List<CommandValidatorWrapper> commandValidatorV2s,
     final List<EventBehaviourWrapper> eventBehaviours,
     final List<CommandBehaviourWrapper> commandBehaviours,
-    final List<QueryBehaviourWrapper> queryBehaviours,
-    final List<ProjectionWrapper> projections,
     final EntityAggregateConfiguration entityAggregateConfiguration,
     final Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal,
     final Repository<EntityAggregateKey, AggregateSnapshot, EmptyQuery> snapshotRepository,
@@ -59,16 +56,17 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   ) {
     this.eventJournal = eventJournal;
     this.entityAggregateClass = entityAggregateClass;
-    this.commandValidatorV2s = commandValidatorV2s;
     this.eventBehaviours = eventBehaviours;
     this.commandBehaviours = commandBehaviours;
-    this.projections = projections;
-    this.queryBehaviours = queryBehaviours;
     this.snapshotRepository = snapshotRepository;
     this.rejectedCommandRepository = rejectedCommandRepository;
     this.entityAggregateConfiguration = entityAggregateConfiguration;
     this.cache = cache;
     this.persistenceMode = persistenceMode;
+    populateCommandClassMap(commandBehaviours);
+  }
+
+  private void populateCommandClassMap(List<CommandBehaviourWrapper> commandBehaviours) {
     commandBehaviours.stream().map(
       cmd -> Tuple4.of(
         cmd.commandClass().getName(),
@@ -129,25 +127,6 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       .map(state -> JsonObject.mapFrom(state.aggregateState()));
   }
 
-  public Uni<JsonObject> query(String className, JsonObject jsonQuery) {
-    LOGGER.debug("Processing " + className + " -> " + jsonQuery.encodePrettily());
-    final var query = getQuery(className, jsonQuery);
-    final var behaviour = getQueryBehaviour(query.requestMetadata().tenant(), query);
-    return load(query.entityId(), query.requestMetadata().tenant(), behaviour.strategy())
-      .map(aggregateState -> behaviour.query(aggregateState.aggregateState(), query))
-      .map(JsonObject::mapFrom);
-  }
-
-  private QueryBehaviour<T, EntityAggregateQuery> getQueryBehaviour(Tenant tenant, final EntityAggregateQuery query) {
-    final var queryBehaviour = queryBehaviours.stream()
-      .filter(behaviour -> behaviour.delegate().tenant().equals(tenant))
-      .filter(behaviour -> behaviour.queryClass().getName().equals(query.getClass().getName()))
-      .findFirst()
-      .orElseThrow(() -> UnknownQueryException.unknown(query.getClass()));
-    LOGGER.info("Applying custom query behaviour -> " + queryBehaviour.getClass().getSimpleName());
-    return queryBehaviour.delegate();
-  }
-
   private T applyEventBehaviour(T aggregateState, final Object event) {
     final var customBehaviour = eventBehaviours.stream()
       .filter(behaviour -> behaviour.delegate().tenant() != null && behaviour.delegate().tenant().equals(aggregateState.tenant()))
@@ -167,7 +146,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     return (T) customBehaviour.delegate().apply(aggregateState, event);
   }
 
-  private List<Object> applyCommandBehaviour(final T aggregateState, final EntityAggregateCommand command) {
+  private List<Object> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var customBehaviour = commandBehaviours.stream()
       .filter(behaviour -> behaviour.delegate().tenant() != null && behaviour.delegate().tenant().equals(command.requestMetadata().tenant()))
       .filter(behaviour -> behaviour.commandClass().isAssignableFrom(command.getClass()))
@@ -179,56 +158,12 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
         .filter(behaviour -> behaviour.commandClass().isAssignableFrom(command.getClass()))
         .findFirst()
         .orElseThrow(() -> UnknownCommandException.unknown(command.getClass()));
-      LOGGER.info("Applying behaviour -> " + defaultBehaviour.getClass().getSimpleName());
+      LOGGER.info("Applying command Behaviour -> " + defaultBehaviour.getClass().getSimpleName());
       return defaultBehaviour.delegate().process(aggregateState, command);
     }
-    LOGGER.info("Applying behaviour -> " + customBehaviour.getClass().getSimpleName());
+    LOGGER.info("Applying command behaviour -> " + customBehaviour.getClass().getSimpleName());
     return customBehaviour.delegate().process(aggregateState, command);
   }
-
-  private Uni<EntityAggregateCommand> applyCommandValidator(final EntityAggregateCommand command, T aggregateState) {
-    final var customBehaviour = commandValidatorV2s.stream()
-      .filter(behaviour -> behaviour.delegate().tenant() != null)
-      .filter(behaviour -> behaviour.delegate().tenant().equals(command.requestMetadata().tenant()))
-      .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
-      .findFirst()
-      .orElse(null);
-    if (customBehaviour == null) {
-      final var defaultValidator = commandValidatorV2s.stream()
-        .filter(behaviour -> behaviour.delegate().tenant() == null)
-        .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
-        .findFirst()
-        .orElse(null);
-      if (defaultValidator != null) {
-        LOGGER.info("Applying command validator -> " + defaultValidator.getClass().getSimpleName());
-        return defaultValidator.delegate().validate(command, aggregateState);
-      }
-    }
-    if (customBehaviour != null) {
-      LOGGER.info("Applying command validator -> " + customBehaviour.getClass().getSimpleName());
-      return customBehaviour.delegate().validate(command, aggregateState);
-    }
-    LOGGER.info("No command validators registered for command -> " + command.getClass().getSimpleName());
-    return Uni.createFrom().item(command);
-  }
-
-
-//  private Projection<T> getProjection(final EntityAggregateQuery query) {
-//    final var queryBehaviour = projections.stream()
-//      .filter(behaviour -> behaviour.delegate().tenant().equals(query.requestMetadata().tenant()))
-//      .filter(behaviour -> behaviour.delegate().projectionQueryClasses().stream().anyMatch(c -> c.getClass().isAssignableFrom(query.getClass())))
-//      .findFirst()
-//      .orElseThrow(() -> UnknownQueryException.unknown(query.getClass()));
-//    LOGGER.info("Applying custom query behaviour -> " + queryBehaviour.getClass().getSimpleName());
-//    return queryBehaviour.delegate();
-//  }
-//
-//  public Uni<JsonObject> queryProjection(final String className, final JsonObject jsonQuery) {
-//    LOGGER.debug("Processing " + className + " -> " + jsonQuery.encodePrettily());
-//    final var query = getQuery(className, jsonQuery);
-//    final var projection = getProjection(query);
-//    return projection.queryProjection(query).map(JsonObject::mapFrom);
-//  }
 
   private Uni<EntityAggregateState<T>> load(String entityId, Tenant tenant, ConsistencyStrategy consistencyStrategy) {
     LOGGER.debug("Loading entity aggregate " + entityId + " with consistency strategy -> " + consistencyStrategy);
@@ -264,7 +199,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       return eventJournal.query(ensureConsistencyQuery(entityId, tenant, state))
         .flatMap(events -> {
             if (events != null && !events.isEmpty()) {
-              consumeEvents(state, events, null);
+              applyEvents(state, events, null);
             }
             return cache.put(new EntityAggregateKey(entityId, tenant), state);
           }
@@ -293,7 +228,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       return snapshotUni.flatMap(avoid -> eventJournal.query(eventJournalQuery(entityId, tenant, state)))
         .flatMap(events -> {
             if (events != null && !events.isEmpty()) {
-              consumeEvents(state, events, null);
+              applyEvents(state, events, null);
             }
             return cache.put(new EntityAggregateKey(entityId, tenant), state);
           }
@@ -314,7 +249,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       .setSnapshotPresent(true);
   }
 
-  private void consumeEvents(final EntityAggregateState<T> state, final List<EntityEvent> events, EntityAggregateCommand command) {
+  private void applyEvents(final EntityAggregateState<T> state, final List<EntityEvent> events, Command command) {
     events.stream()
       .sorted(Comparator.comparingLong(EntityEvent::eventVersion))
       .forEachOrdered(event -> {
@@ -334,40 +269,6 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       );
   }
 
-  private void updateEventuallyConsistentProjections(final T aggregateState, final List<EntityEvent> events) {
-    eventJournal.transaction(sqlConnection -> updateProjections(aggregateState, events, ConsistencyStrategy.EVENTUALLY_CONSISTENT, sqlConnection))
-      .subscribe()
-      .with(UniHelper.NOOP, throwable -> LOGGER.error("Unable to update projections -> ", throwable));
-  }
-
-  private Uni<Void> updateProjections(final T aggregateState, final List<EntityEvent> events, ConsistencyStrategy consistencyStrategy, final SqlConnection sqlConnection) {
-    final var uniList = new ArrayList<Uni<Void>>();
-    if (projections != null && !projections.isEmpty() && projections.stream().anyMatch(p -> p.delegate().strategy() == consistencyStrategy)) {
-      uniList.add(performUpdate(aggregateState, projections.stream().map(p -> (Projection<T>) p.delegate()).toList(), events, sqlConnection));
-    }
-    if (!uniList.isEmpty()) {
-      return Uni.join().all(uniList).andFailFast().replaceWithVoid();
-    }
-    return Uni.createFrom().voidItem();
-  }
-
-  private Uni<Void> performUpdate(final T aggregateState, final List<Projection<T>> projectionsToUpdate, final List<EntityEvent> events, final SqlConnection sqlConnection) {
-    return Multi.createFrom().iterable(projectionsToUpdate)
-      .onItem().transformToUniAndMerge(projection -> {
-          final var matchingEvents = events.stream()
-            .filter(event -> projection.eventsClasses() == null || projection.eventsClasses().stream().anyMatch(eventClass -> eventClass.getName().equals(event.eventClass())))
-            .toList();
-          if (!matchingEvents.isEmpty()) {
-            LOGGER.info(projection.getClass().getSimpleName() + " interested in one or more events emitted from -> " + matchingEvents);
-            final var parsedEvents = matchingEvents.stream().map(ev -> getEvent(ev.eventClass(), ev.event())).toList();
-            return projection.applyEvents(aggregateState, parsedEvents, sqlConnection);
-          }
-          LOGGER.debug(projection.getClass().getSimpleName() + " is not interested in events");
-          return Uni.createFrom().voidItem();
-        }
-      ).collect().asList()
-      .replaceWithVoid();
-  }
 
   private EventJournalQuery eventJournalQuery(final String entityId, final Tenant tenant, EntityAggregateState<T> state) {
     return new EventJournalQuery(
@@ -409,7 +310,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     );
   }
 
-  private Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final List<EntityAggregateCommand> commands) {
+  private Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final List<Command> commands) {
     if (state.commands() != null && !state.commands().isEmpty()) {
       state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.requestMetadata().txId().equals(txId)))
         .findAny()
@@ -418,21 +319,14 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
           }
         );
     }
-
-    return Multi.createFrom().iterable(commands)
-      .onItem().transformToUniAndMerge(cmd -> applyCommandValidator(cmd, state.aggregateState()))
-      .collect().asList()
-      .flatMap(finalCommands -> {
-          state.setProvisoryEventVersion(state.currentEventVersion());
-          final var eventCommandTuple = finalCommands.stream()
-            .map(finalCommand -> processValidatedCommand(state, finalCommand))
-            .toList();
-          return handleEvents(state, eventCommandTuple);
-        }
-      );
+    state.setProvisoryEventVersion(state.currentEventVersion());
+    final var eventCommandTuple = commands.stream()
+      .map(finalCommand -> processSingleCommand(state, finalCommand))
+      .toList();
+    return handleEvents(state, eventCommandTuple);
   }
 
-  private Uni<EntityAggregateState<T>> handleEvents(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, EntityAggregateCommand>> eventCommandTuple) {
+  private Uni<EntityAggregateState<T>> handleEvents(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
     final var flattenedEvents = eventCommandTuple.stream().map(Tuple2::getItem1).flatMap(List::stream).toList();
     if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
       return persistEventsUpdateStateAndProjections(state, eventCommandTuple, flattenedEvents);
@@ -441,26 +335,24 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     }
   }
 
-  private Uni<EntityAggregateState<T>> updateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, EntityAggregateCommand>> eventCommandTuple) {
+  private Uni<EntityAggregateState<T>> updateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
     LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
-    eventCommandTuple.forEach(tuple -> consumeEvents(state, tuple.getItem1(), tuple.getItem2()));
+    eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
     return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state);
   }
 
-  private Uni<EntityAggregateState<T>> persistEventsUpdateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, EntityAggregateCommand>> eventCommandTuple, final List<EntityEvent> flattenedEvents) {
+  private Uni<EntityAggregateState<T>> persistEventsUpdateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple, final List<EntityEvent> flattenedEvents) {
     return eventJournal.transaction(
-        sqlConnection -> eventJournal.insertBatch(flattenedEvents, sqlConnection)
-          .flatMap(avoid2 -> {
-              eventCommandTuple.forEach(tuple -> consumeEvents(state, tuple.getItem1(), tuple.getItem2()));
-              return updateProjections(state.aggregateState(), flattenedEvents, ConsistencyStrategy.STRONGLY_CONSISTENT, sqlConnection)
-                .flatMap(avoid3 -> cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state));
-            }
-          )
-      )
-      .invoke(aggregateState -> updateEventuallyConsistentProjections(state.aggregateState(), flattenedEvents));
+      sqlConnection -> eventJournal.insertBatch(flattenedEvents, sqlConnection)
+        .flatMap(avoid2 -> {
+            eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
+            return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state);
+          }
+        )
+    );
   }
 
-  private <C extends EntityAggregateCommand> Tuple2<List<EntityEvent>, EntityAggregateCommand> processValidatedCommand(final EntityAggregateState<T> state, final EntityAggregateCommand finalCommand) {
+  private Tuple2<List<EntityEvent>, Command> processSingleCommand(final EntityAggregateState<T> state, final Command finalCommand) {
     final var currentVersion = state.provisoryEventVersion() == null ? 0 : state.provisoryEventVersion();
     final var events = applyCommandBehaviour(state.aggregateState(), finalCommand);
     final var array = events.toArray(new Object[0]);
@@ -484,7 +376,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   }
 
 
-  private <C extends EntityAggregateCommand> Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final C command) {
+  private <C extends Command> Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final C command) {
     if (state.commands() != null && !state.commands().isEmpty()) {
       state.commands().stream().filter(txId -> txId.equals(command.requestMetadata().txId()))
         .findAny()
@@ -493,28 +385,22 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
           }
         );
     }
-    return applyCommandValidator(command, state.aggregateState())
-      .flatMap(finalCommand -> {
-          state.setProvisoryEventVersion(state.currentEventVersion());
-          final var eventCommandTuple = processValidatedCommand(state, finalCommand);
-          if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
-            return eventJournal.transaction(
-                sqlConnection -> eventJournal.insertBatch(eventCommandTuple.getItem1(), sqlConnection)
-                  .flatMap(avoid2 -> {
-                      consumeEvents(state, eventCommandTuple.getItem1(), finalCommand);
-                      return updateProjections(state.aggregateState(), eventCommandTuple.getItem1(), ConsistencyStrategy.STRONGLY_CONSISTENT, sqlConnection)
-                        .flatMap(avoid3 -> cache.put(new EntityAggregateKey(finalCommand.entityId(), finalCommand.requestMetadata().tenant()), state));
-                    }
-                  )
-              )
-              .invoke(aggregateState -> updateEventuallyConsistentProjections(state.aggregateState(), eventCommandTuple.getItem1()));
-          } else {
-            LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
-            consumeEvents(state, eventCommandTuple.getItem1(), finalCommand);
-            return cache.put(new EntityAggregateKey(finalCommand.entityId(), finalCommand.requestMetadata().tenant()), state);
-          }
-        }
+    state.setProvisoryEventVersion(state.currentEventVersion());
+    final var eventCommandTuple = processSingleCommand(state, command);
+    if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
+      return eventJournal.transaction(
+        sqlConnection -> eventJournal.insertBatch(eventCommandTuple.getItem1(), sqlConnection)
+          .flatMap(avoid2 -> {
+              applyEvents(state, eventCommandTuple.getItem1(), command);
+              return cache.put(new EntityAggregateKey(command.entityId(), command.requestMetadata().tenant()), state);
+            }
+          )
       );
+    } else {
+      LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
+      applyEvents(state, eventCommandTuple.getItem1(), command);
+      return cache.put(new EntityAggregateKey(command.entityId(), command.requestMetadata().tenant()), state);
+    }
   }
 
   private void handleSnapshot(EntityAggregateState<T> state) {
@@ -548,7 +434,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state);
   }
 
-  private void handleRejectedCommand(final Throwable throwable, final EntityAggregateCommand command) {
+  private void handleRejectedCommand(final Throwable throwable, final Command command) {
     LOGGER.error("Command rejected -> ", throwable);
     if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE && rejectedCommandRepository != null) {
       if (throwable instanceof RejectedCommandException rejectedCommandException) {
@@ -564,33 +450,18 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   }
 
 
-  private EntityAggregateCommand getCommand(final String commandType, final JsonObject jsonCommand) {
+  private Command getCommand(final String commandType, final JsonObject jsonCommand) {
     try {
       final var clazz = Class.forName(commandClassMap.get(commandType));
       final var object = jsonCommand.mapTo(clazz);
-      if (object instanceof EntityAggregateCommand entityAggregateCommand) {
-        return entityAggregateCommand;
+      if (object instanceof Command command) {
+        return command;
       } else {
         throw new RejectedCommandException(new Error("Command is not an instance of EntityAggregateCommand", JsonObject.mapFrom(object).encode(), 500));
       }
     } catch (Exception e) {
       LOGGER.error("Unable to cast command", e);
       throw new RejectedCommandException(new Error("Unable to cast class", e.getMessage(), 500));
-    }
-  }
-
-  private static EntityAggregateQuery getQuery(final String type, final JsonObject jsonCommand) {
-    try {
-      final var clazz = Class.forName(type);
-      final var object = jsonCommand.mapTo(clazz);
-      if (object instanceof EntityAggregateQuery entityAggregateQuery) {
-        return entityAggregateQuery;
-      } else {
-        throw new RejectedCommandException(new Error("Query is not an instance of EntityAggregateQuery", JsonObject.mapFrom(object).encode(), 500));
-      }
-    } catch (Exception e) {
-      LOGGER.error("Unable to cast query", e);
-      throw new RejectedCommandException(new Error("Unable to cast query", e.getMessage(), 500));
     }
   }
 

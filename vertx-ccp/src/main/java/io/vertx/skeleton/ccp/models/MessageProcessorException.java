@@ -1,7 +1,7 @@
 package io.vertx.skeleton.ccp.models;
 
 import io.vertx.skeleton.models.Error;
-import io.vertx.skeleton.models.VertxServiceException;
+import io.vertx.skeleton.models.exceptions.VertxServiceException;
 
 public class MessageProcessorException extends VertxServiceException {
 

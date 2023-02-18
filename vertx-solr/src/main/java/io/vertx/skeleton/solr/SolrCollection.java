@@ -11,7 +11,7 @@ package io.vertx.skeleton.solr;
 import io.vertx.skeleton.models.Error;
 import io.vertx.skeleton.models.RepositoryRecord;
 import io.vertx.skeleton.models.Query;
-import io.vertx.skeleton.models.SolrException;
+import io.vertx.skeleton.models.exceptions.SolrException;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple3;

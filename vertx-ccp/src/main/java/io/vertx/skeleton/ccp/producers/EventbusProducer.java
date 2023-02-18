@@ -5,7 +5,7 @@ import io.vertx.skeleton.ccp.models.EvMessage;
 import io.vertx.skeleton.ccp.models.EvMessageBatch;
 import io.vertx.skeleton.ccp.models.Message;
 import io.vertx.skeleton.models.Error;
-import io.vertx.skeleton.models.VertxServiceException;
+import io.vertx.skeleton.models.exceptions.VertxServiceException;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.eventbus.DeliveryOptions;

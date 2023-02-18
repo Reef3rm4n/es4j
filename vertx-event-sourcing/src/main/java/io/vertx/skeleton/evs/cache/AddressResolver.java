@@ -20,7 +20,4 @@ public class AddressResolver {
     return tClass.getName() + ".synchronizer";
   }
 
-  public static <T> String eventConsumer(final Class<T> tClass) {
-    return tClass.getClass() + ".event.consumer";
-  }
 }

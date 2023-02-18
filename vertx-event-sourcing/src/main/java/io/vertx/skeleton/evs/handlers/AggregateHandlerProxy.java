@@ -1,12 +1,13 @@
 package io.vertx.skeleton.evs.handlers;
 
+import io.smallrye.mutiny.vertx.UniHelper;
+import io.vertx.mutiny.core.eventbus.Message;
 import io.vertx.skeleton.evs.EntityAggregate;
 import io.vertx.skeleton.evs.cache.Actions;
 import io.vertx.skeleton.evs.cache.AddressResolver;
-import io.vertx.skeleton.evs.objects.AggregateHandlerAction;
-import io.vertx.skeleton.evs.objects.CompositeCommandWrapper;
-import io.vertx.skeleton.evs.objects.CommandWrapper;
-import io.vertx.skeleton.evs.objects.HandlerNotFoundException;
+import io.vertx.skeleton.evs.exceptions.HandlerNotFoundException;
+import io.vertx.skeleton.evs.exceptions.RejectedCommandException;
+import io.vertx.skeleton.evs.objects.*;
 import io.vertx.skeleton.models.*;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.eventbus.DeliveryOptions;
@@ -17,6 +18,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.RoutingContext;
 import io.vertx.skeleton.models.Error;
+import io.vertx.skeleton.models.exceptions.CacheException;
 import org.ishugaliy.allgood.consistent.hash.ConsistentHash;
 import org.ishugaliy.allgood.consistent.hash.HashRing;
 import org.ishugaliy.allgood.consistent.hash.hasher.DefaultHasher;
@@ -34,11 +36,7 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
   private final Class<T> aggregateEntityClass;
   private static final Logger LOGGER = LoggerFactory.getLogger(AggregateHandlerProxy.class);
 
-  private final static ConsistentHash<SimpleNode> ring = HashRing.<SimpleNode>newBuilder()
-    .name("entity-aggregate-hash-ring")       // set hash ring name
-    .hasher(DefaultHasher.MURMUR_3)   // hash function to distribute partitions
-    .partitionRate(100000)                  // number of partitions per node
-    .build();
+  private final ConsistentHash<SimpleNode> hashRing;
 
   public AggregateHandlerProxy(
     final Vertx vertx,
@@ -46,6 +44,11 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
   ) {
     this.vertx = vertx;
     this.aggregateEntityClass = aggregateEntityClass;
+    this.hashRing = HashRing.<SimpleNode>newBuilder()
+      .name(aggregateEntityClass.getSimpleName() + "entity-aggregate-hash-ring")       // set hash ring name
+      .hasher(DefaultHasher.MURMUR_3)   // hash function to distribute partitions
+      .partitionRate(100000)                  // number of partitions per node
+      .build();
     hashRingSynchronizer();
   }
 
@@ -127,62 +130,70 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
   private void ok(RoutingContext routingContext, Object o) {
     routingContext.response().setStatusCode(200)
       .putHeader(CONTENT_TYPE, APPLICATION_JSON)
-      .sendAndForget(JsonObject.mapFrom(o).encode());
+      .send(JsonObject.mapFrom(o).encode())
+      .subscribe()
+      .with(
+        UniHelper.NOOP,
+        // todo add more info to error log, stuff like entityId and request
+        throwable -> LOGGER.error("Unable to reply to caller", throwable)
+      );
   }
-
 
 
   private void addHandler(final String handler) {
     final var simpleNode = SimpleNode.of(handler);
-    if (!ring.contains(simpleNode)) {
+    if (!hashRing.contains(simpleNode)) {
       LOGGER.info("Adding new handler to hash-ring -> " + handler);
-      ring.add(simpleNode);
+      hashRing.add(simpleNode);
     } else {
       LOGGER.info("Handler already present in hash-ring -> " + handler);
     }
   }
 
-  public static String locateHandler(EntityAggregateKey key) {
+  public String locateHandler(EntityAggregateKey key) {
     LOGGER.info("Looking for handler for entity -> " + key);
-    final var node = ring.locate(key.entityId())
-      .orElseThrow(() -> new HandlerNotFoundException(key.entityId()));
-    LOGGER.info("hash-ring resolved to -> " + node);
+    final var node = hashRing.locate(key.entityId()).orElseThrow(() -> new HandlerNotFoundException(key.entityId()));
+    LOGGER.info("Resolved to node -> " + node);
     return node.getKey();
   }
 
   private void hashRingSynchronizer() {
-    //todo move this to pg pub/sub for reliable channel
+    //todo
+    // - create an interface for this synchronization
+    // - create an implementation using vert.x event-bus
+    // - create an implementation using  pg pub/sub
     vertx.eventBus().<String>consumer(AddressResolver.localAvailableHandlers(aggregateEntityClass))
-      .handler(objectMessage -> {
-          LOGGER.debug("Synchronizing handler -> " + objectMessage.body());
-          switch (Actions.valueOf(objectMessage.headers().get(Actions.ACTION.name()))) {
-            case ADD -> addHandler(objectMessage.body());
-            case REMOVE -> removeHandler(objectMessage.body());
-            default -> throw CacheException.illegalState();
-          }
-        }
-      )
+      .handler(this::synchronizeHashRing)
       .exceptionHandler(this::handlerThrowable)
       .completionHandler()
       .subscribe()
       .with(
         avoid -> LOGGER.info("Hash ring synchronizer deployed"),
-        throwable -> LOGGER.error("Unable to deploy hash-ring synchronizer", throwable)
+        throwable -> LOGGER.error("Unable to deploy " + aggregateEntityClass + " proxy", throwable)
       );
+  }
+
+  private void synchronizeHashRing(Message<String> objectMessage) {
+    LOGGER.debug("Synchronizing handler -> " + objectMessage.body());
+    switch (Actions.valueOf(objectMessage.headers().get(Actions.ACTION.name()))) {
+      case ADD -> addHandler(objectMessage.body());
+      case REMOVE -> removeHandler(objectMessage.body());
+      default -> throw CacheException.illegalState();
+    }
   }
 
   private void removeHandler(final String handler) {
     final var simpleNode = SimpleNode.of(handler);
-    if (ring.contains(simpleNode)) {
+    if (hashRing.contains(simpleNode)) {
       LOGGER.info("Removing handler form hash ring -> " + handler);
-      ring.remove(simpleNode);
+      hashRing.remove(simpleNode);
     } else {
       LOGGER.info("Handler not present in hash ring -> " + handler);
     }
   }
 
   private void handlerThrowable(final Throwable throwable) {
-    LOGGER.error("[-- EntityAggregateSynchronizer had to drop the following exception --]", throwable);
+    LOGGER.error("[-- EntityAggregateSynchronizer for entity " + aggregateEntityClass.getSimpleName() + " had to drop the following exception --]", throwable);
   }
 
 }

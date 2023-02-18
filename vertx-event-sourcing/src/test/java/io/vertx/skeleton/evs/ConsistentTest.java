@@ -7,7 +7,7 @@ import io.vertx.skeleton.evs.consistenthashing.exceptions.MemberAlreadyAddedExce
 import io.vertx.skeleton.evs.consistenthashing.exceptions.MemberNotFoundException;
 import io.vertx.skeleton.evs.consistenthashing.member.Member;
 import io.vertx.skeleton.evs.consistenthashing.member.impl.MemberImpl;
-import io.vertx.skeleton.models.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityAggregateKey;
 import io.vertx.skeleton.models.Tenant;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;

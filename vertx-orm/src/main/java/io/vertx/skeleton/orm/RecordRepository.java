@@ -2,7 +2,7 @@
 
 package io.vertx.skeleton.orm;
 
-import io.vertx.skeleton.models.OrmGenericException;
+import io.vertx.skeleton.models.exceptions.OrmGenericException;
 import io.vertx.skeleton.models.Query;
 import io.vertx.skeleton.models.RepositoryRecord;
 import io.vertx.skeleton.models.Tenant;

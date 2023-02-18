@@ -3,7 +3,7 @@ package io.vertx.skeleton.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.vertx.skeleton.models.GenericVerticleException;
+import io.vertx.skeleton.models.exceptions.GenericVerticleException;
 import io.vertx.skeleton.models.Tenant;
 import io.smallrye.mutiny.vertx.UniHelper;
 import io.vertx.config.ConfigRetrieverOptions;

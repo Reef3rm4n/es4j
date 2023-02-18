@@ -4,7 +4,7 @@ import io.vertx.skeleton.models.Tenant;
 
 import java.util.List;
 
-public interface CommandBehaviour<T extends EntityAggregate, C extends EntityAggregateCommand> {
+public interface CommandBehaviour<T extends EntityAggregate, C extends Command> {
 
   List<Object> process(T state, C command);
 

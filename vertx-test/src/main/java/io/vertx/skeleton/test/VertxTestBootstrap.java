@@ -1,10 +1,12 @@
 package io.vertx.skeleton.test;
 
+import io.smallrye.mutiny.Multi;
 import io.vertx.skeleton.config.Configuration;
 import io.vertx.skeleton.config.ConfigurationEntry;
-import io.vertx.skeleton.models.OrmConflictException;
-import io.vertx.skeleton.orm.Constants;
-import io.vertx.skeleton.orm.RepositoryHandler;
+import io.vertx.skeleton.sql.exceptions.OrmConflictException;
+import io.vertx.skeleton.sql.misc.Constants;
+import io.vertx.skeleton.sql.LiquibaseHandler;
+import io.vertx.skeleton.sql.RepositoryHandler;
 import io.vertx.skeleton.framework.SpineVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.impl.logging.Logger;
@@ -23,7 +25,9 @@ import org.testcontainers.containers.output.Slf4jLogConsumer;
 import org.testcontainers.utility.DockerImageName;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 public class VertxTestBootstrap {
@@ -55,6 +59,13 @@ public class VertxTestBootstrap {
   public static final List<ConfigurationEntry> configurationEntries = new ArrayList<>();
 
   public static final List<String> collections = new ArrayList<>();
+
+  private static final Map<String, Map<String, String>> liquibase = new HashMap<>();
+
+  public VertxTestBootstrap addLiquibaseRun(String liquibaseChangelog, Map<String, String> params) {
+    liquibase.put(liquibaseChangelog, params);
+    return this;
+  }
 
   public VertxTestBootstrap addCollection(final String collection) {
     collections.add(collection);
@@ -134,8 +145,14 @@ public class VertxTestBootstrap {
     CONFIGURATION = configuration();
     if (Boolean.TRUE.equals(postgresContainer())) {
       deployPgContainer();
+      REPOSITORY_HANDLER = RepositoryHandler.leasePool(CONFIGURATION, VERTX);
+      if (!liquibase.isEmpty()) {
+        Multi.createFrom().iterable(liquibase.entrySet())
+          .onItem().transformToUniAndMerge(entry -> LiquibaseHandler.liquibaseString(REPOSITORY_HANDLER,entry.getKey(),entry.getValue()))
+          .collect().asList()
+          .await().indefinitely();
+      }
     }
-    REPOSITORY_HANDLER = RepositoryHandler.leasePool(CONFIGURATION, VERTX);
     if (Boolean.TRUE.equals(solrContainer())) {
       SOLR_CONTAINER = new SolrContainer(DockerImageName.parse(SOLR_VERSION));
       if (!collections.isEmpty()) {
@@ -154,6 +171,7 @@ public class VertxTestBootstrap {
       RABBIT_CONTAINER.start();
     }
 
+
     if (Boolean.TRUE.equals(kafkaContainer())) {
       KAFKA_CONTAINER = new KafkaContainer(DockerImageName.parse(KAFKA_VERSION));
       KAFKA_CONTAINER.start();
@@ -162,8 +180,8 @@ public class VertxTestBootstrap {
 
     if (Boolean.TRUE.equals(remoteTest())) {
       WEB_CLIENT = WebClient.create(VERTX, new WebClientOptions()
-        .setDefaultHost(HTTP_HOST)
-        .setDefaultPort(HTTP_PORT)
+          .setDefaultHost(HTTP_HOST)
+          .setDefaultPort(HTTP_PORT)
 //        .setUseAlpn(true)
 //        .setTcpCork(true)
 //        .setTcpFastOpen(true)
@@ -179,13 +197,13 @@ public class VertxTestBootstrap {
 //        .setTcpNoDelay(true)
 //        .setTcpQuickAck(true)
       );
-      final var CFG = new Configuration<>(ConfigurationEntry.class, REPOSITORY_HANDLER);
-      VERTX.deployVerticle(SpineVerticle::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
-      if (!configurationEntries.isEmpty()) {
-        CFG.addAll(configurationEntries).onFailure(OrmConflictException.class)
-          .recoverWithUni(throwable -> CFG.updateAll(configurationEntries))
-          .await().indefinitely();
-      }
+//      final var CFG = new Configuration<>(ConfigurationEntry.class, REPOSITORY_HANDLER);
+//      VERTX.deployVerticle(SpineVerticle::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
+//      if (!configurationEntries.isEmpty()) {
+//        CFG.addAll(configurationEntries).onFailure(OrmConflictException.class)
+//          .recoverWithUni(throwable -> CFG.updateAll(configurationEntries))
+//          .await().indefinitely();
+//      }
     }
   }
 

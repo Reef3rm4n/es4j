@@ -105,6 +105,26 @@ public class CustomClassLoader {
     }
   }
 
+  public static <I> Class<? extends I> getSecondGenericType(Class<?> tClass, Class<I> interfaceClass) {
+    Type[] genericInterfaces = tClass.getGenericInterfaces();
+    if (genericInterfaces.length > 1) {
+      throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + tClass.getName());
+    } else if (genericInterfaces.length == 0) {
+      throw new IllegalArgumentException("Validators should implement CommandValidator interface -> " + tClass.getName());
+    }
+    final var genericInterface = genericInterfaces[1];
+    if (genericInterface instanceof ParameterizedType parameterizedType) {
+      Type[] genericTypes = parameterizedType.getActualTypeArguments();
+      try {
+        return (Class<? extends I>) Class.forName(genericTypes[1].getTypeName());
+      } catch (ClassNotFoundException e) {
+        throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
+      }
+    } else {
+      throw new IllegalArgumentException("Invalid genericInterface -> " + genericInterface.getClass());
+    }
+  }
+
   private static <T> T instantiate(Class<T> tClass) {
     try {
       return tClass.getDeclaredConstructor().newInstance();
@@ -153,4 +173,5 @@ public class CustomClassLoader {
       b.getValue().stream().anyMatch(bb -> checkPresenceInBinding(tClass, Map.entry(b.getKey(), bb)))
     );
   }
+
 }

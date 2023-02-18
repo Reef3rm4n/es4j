@@ -28,7 +28,7 @@ class ReflectionUtilsTest {
     vertxTestContext.completeNow();
   }
 
-  public Tuple2<Class<? extends EntityAggregate>, Class<? extends EntityAggregateCommand>> entityAggregateClass(Class<? extends CommandBehaviour<? extends EntityAggregate, ? extends EntityAggregateCommand>> behaviour) {
+  public Tuple2<Class<? extends EntityAggregate>, Class<? extends Command>> entityAggregateClass(Class<? extends CommandBehaviour<? extends EntityAggregate, ? extends Command>> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -40,10 +40,10 @@ class ReflectionUtilsTest {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
       LOGGER.info("Types -> " + Arrays.stream(genericTypes).map(t -> t.getTypeName()).toList());
       final Class<? extends EntityAggregate> entityClass;
-      Class<? extends EntityAggregateCommand> commandClass;
+      Class<? extends Command> commandClass;
       try {
         entityClass = (Class<? extends EntityAggregate>) Class.forName(genericTypes[0].getTypeName());
-        commandClass = (Class<? extends EntityAggregateCommand>) Class.forName(genericTypes[1].getTypeName());
+        commandClass = (Class<? extends Command>) Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
         throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
       }

@@ -10,10 +10,10 @@ package io.vertx.skeleton.solr;
 
 
 import io.vertx.skeleton.models.Error;
-import io.vertx.skeleton.models.GenericVerticleException;
+import io.vertx.skeleton.models.exceptions.GenericVerticleException;
 import io.vertx.skeleton.orm.RecordRepository;
 import io.vertx.skeleton.models.RepositoryRecord;
-import io.vertx.skeleton.models.GenericVerticleCommand;
+import io.vertx.skeleton.models.exceptions.GenericVerticleCommand;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.impl.logging.Logger;

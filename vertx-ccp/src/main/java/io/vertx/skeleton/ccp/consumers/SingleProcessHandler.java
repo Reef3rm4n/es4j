@@ -4,6 +4,7 @@ import io.vertx.skeleton.ccp.SingleProcessConsumer;
 import io.vertx.skeleton.ccp.mappers.MessageQueueSql;
 import io.vertx.skeleton.ccp.models.SingleWithCircuitBreaker;
 import io.vertx.skeleton.ccp.models.*;
+import io.vertx.skeleton.models.exceptions.OrmIntegrityContraintViolationException;
 import io.vertx.skeleton.orm.Repository;
 import io.smallrye.mutiny.CompositeException;
 import io.smallrye.mutiny.Multi;

@@ -41,6 +41,8 @@ public class SpineVerticle extends AbstractVerticle {
   private final TaskDeployer taskDeployer = new TaskDeployer();
   private final ConfigurationDeployer configurationDeployer = new ConfigurationDeployer();
 
+  public static final Collection<Module> MODULES = new ArrayList<>();
+
   @Override
   public void start(final Promise<Void> startPromise) {
     LOGGER.info(" ---- Starting " + this.getClass().getSimpleName() + " " + this.deploymentID() + " ---- ");
@@ -76,9 +78,9 @@ public class SpineVerticle extends AbstractVerticle {
   }
 
   private void bootstrap(final Promise<Void> startPromise) {
-    final var modules = CustomClassLoader.loadComponents();
-    final var moduleBuilder = ModuleBuilder.create().install(CustomClassLoader.loadComponents());
-    LOGGER.info("Bindings -> " + modules.stream().map(m -> m.getBindings().prettyPrint()).toList());
+    MODULES.addAll(CustomClassLoader.loadComponents());
+    final var moduleBuilder = ModuleBuilder.create().install(MODULES);
+    LOGGER.info("Bindings -> " + MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
     this.deploymentConfiguration = ConfigurationHandler.configure(
       vertx,
       config().getString("configurationName", CONFIGURATION_NAME),
@@ -95,9 +97,9 @@ public class SpineVerticle extends AbstractVerticle {
             }
           )
           .flatMap(injector -> configurationDeployer.deploy(injector, repositoryHandler).replaceWith(injector))
-          .flatMap(injector -> RouterDeployer.deploy(repositoryHandler, deploymentIds, modules).replaceWith(injector))
-          .flatMap(injector -> QueueDeployer.deploy(vertx, newConfiguration, modules).replaceWith(injector))
-          .flatMap(injector -> deployVerticles(newConfiguration, modules, injector).replaceWith(injector))
+          .flatMap(injector -> RouterDeployer.deploy(repositoryHandler, deploymentIds, MODULES).replaceWith(injector))
+          .flatMap(injector -> QueueDeployer.deploy(vertx, newConfiguration, MODULES).replaceWith(injector))
+          .flatMap(injector -> deployVerticles(newConfiguration, MODULES, injector).replaceWith(injector))
 //          .flatMap(injector -> EventSourcingDeployer.deploy(vertx, repositoryHandler, deploymentIds, injector).replaceWith(injector))
           .invoke(injector -> taskDeployer.deploy(repositoryHandler, newConfiguration, injector))
           .subscribe()

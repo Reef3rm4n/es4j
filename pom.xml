@@ -26,6 +26,7 @@
     <module>vertx-test</module>
     <module>vertx-rabbitmq</module>
     <module>vertx-task</module>
+    <module>sql</module>
   </modules>
 
 

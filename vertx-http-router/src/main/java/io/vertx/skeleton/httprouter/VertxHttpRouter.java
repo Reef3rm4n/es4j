@@ -6,6 +6,7 @@ import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.vertx.skeleton.models.*;
+import io.vertx.skeleton.models.exceptions.VertxServiceException;
 import io.vertx.skeleton.orm.Repository;
 import io.vertx.skeleton.orm.RepositoryHandler;
 import io.reactiverse.contextual.logging.ContextualData;

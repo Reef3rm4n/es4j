@@ -4,8 +4,6 @@ package io.vertx.skeleton.evs.objects;
 import com.google.common.collect.EvictingQueue;
 import io.vertx.skeleton.evs.EntityAggregate;
 
-import io.vertx.skeleton.models.AggregateSnapshot;
-import io.vertx.skeleton.models.EntityEvent;
 import io.vertx.core.shareddata.Shareable;
 
 

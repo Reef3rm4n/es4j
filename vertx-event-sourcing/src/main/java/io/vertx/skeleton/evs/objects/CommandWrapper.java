@@ -1,12 +1,12 @@
 package io.vertx.skeleton.evs.objects;
 
-import io.vertx.skeleton.evs.EntityAggregateCommand;
+import io.vertx.skeleton.evs.Command;
 import io.vertx.skeleton.models.RequestMetadata;
 
 public record CommandWrapper(
   String entityId,
-  Command command,
+  io.vertx.skeleton.evs.objects.Command command,
   RequestMetadata requestMetadata
-) implements EntityAggregateCommand {
+) implements Command {
 
 }

@@ -6,7 +6,7 @@ public record FakeCommand(
   String entityId,
   RequestMetadata requestMetadata
 
-) implements EntityAggregateCommand {
+) implements Command {
 
 
 

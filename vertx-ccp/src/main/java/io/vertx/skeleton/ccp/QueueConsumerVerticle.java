@@ -12,7 +12,7 @@ import io.vertx.skeleton.ccp.subscribers.RabbitMQSubscriber;
 import io.vertx.skeleton.models.Error;
 import io.vertx.skeleton.models.PersistedRecord;
 import io.vertx.skeleton.models.MessageState;
-import io.vertx.skeleton.models.VertxServiceException;
+import io.vertx.skeleton.models.exceptions.VertxServiceException;
 import io.vertx.skeleton.orm.Repository;
 import io.vertx.skeleton.orm.RepositoryHandler;
 import io.vertx.skeleton.ccp.mappers.MessageQueueMapper;

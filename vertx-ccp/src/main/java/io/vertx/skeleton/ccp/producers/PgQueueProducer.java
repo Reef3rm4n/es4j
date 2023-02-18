@@ -7,7 +7,7 @@ import io.vertx.skeleton.ccp.mappers.MessageQueueMapper;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.skeleton.models.MessageState;
-import io.vertx.skeleton.models.OrmConnectionException;
+import io.vertx.skeleton.models.exceptions.OrmConnectionException;
 import io.vertx.skeleton.models.PersistedRecord;
 
 

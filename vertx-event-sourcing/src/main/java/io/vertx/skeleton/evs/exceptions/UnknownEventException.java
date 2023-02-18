@@ -1,7 +1,7 @@
 package io.vertx.skeleton.evs.exceptions;
 
 import io.vertx.skeleton.models.Error;
-import io.vertx.skeleton.models.VertxServiceException;
+import io.vertx.skeleton.models.exceptions.VertxServiceException;
 
 public class UnknownEventException extends VertxServiceException {
   public UnknownEventException(final Error error) {

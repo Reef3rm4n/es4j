@@ -11,7 +11,7 @@ package io.vertx.skeleton.solr;
 import io.vertx.skeleton.models.Query;
 import io.vertx.skeleton.models.QueryOptions;
 import io.vertx.skeleton.models.RepositoryRecord;
-import io.vertx.skeleton.models.SolrException;
+import io.vertx.skeleton.models.exceptions.SolrException;
 import org.apache.solr.client.solrj.SolrQuery;
 import org.apache.solr.common.SolrDocument;
 

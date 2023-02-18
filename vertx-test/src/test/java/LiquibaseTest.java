@@ -1,5 +1,5 @@
 import io.vertx.skeleton.test.VertxTestBootstrap;
-import io.vertx.skeleton.orm.LiquibaseHandler;
+import io.vertx.skeleton.sql.LiquibaseHandler;
 
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;

@@ -1,7 +1,7 @@
 package io.vertx.skeleton.task;
 
 import io.vertx.skeleton.utils.CustomClassLoader;
-import io.vertx.skeleton.models.OrmNotFoundException;
+import io.vertx.skeleton.models.exceptions.OrmNotFoundException;
 import io.vertx.skeleton.orm.RepositoryHandler;
 import io.activej.inject.Injector;
 import io.smallrye.mutiny.Uni;
@@ -31,7 +31,8 @@ public class TaskDeployer {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
   }
 
-
+  // todo add more options for tasks, maybe cronlike functionality
+  // todo could also add a stupid UI for the running tasks
   public void deploy(RepositoryHandler repositoryHandler, JsonObject configuration, final Injector injector) {
     this.vertx = repositoryHandler.vertx();
     if (CustomClassLoader.checkPresenceInBinding(injector, SynchronizedTask.class)) {

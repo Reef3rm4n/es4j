@@ -11,7 +11,7 @@ import io.vertx.core.impl.NoStackTraceThrowable;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.skeleton.models.MessageState;
-import io.vertx.skeleton.models.OrmNotFoundException;
+import io.vertx.skeleton.models.exceptions.OrmNotFoundException;
 
 import java.util.*;
 
