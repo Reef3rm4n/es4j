@@ -3,40 +3,40 @@ package io.vertx.skeleton.sql.generator.filters;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.smallrye.mutiny.tuples.Tuple3;
 import io.vertx.skeleton.sql.models.JsonQueryParam;
-import io.vertx.skeleton.sql.models.JsonQueryParams;
-import io.vertx.skeleton.sql.models.QueryParam;
-import io.vertx.skeleton.sql.models.QueryParams;
+import io.vertx.skeleton.sql.models.JsonQueryFilter;
+import io.vertx.skeleton.sql.models.QueryFilter;
+import io.vertx.skeleton.sql.models.QueryFilters;
 
 import java.util.*;
 
 public class QueryBuilder {
-  private final QueryFilters filters;
+  private final io.vertx.skeleton.sql.generator.filters.QueryFilters filters;
 
   public QueryBuilder() {
-    this.filters = new QueryFilters();
+    this.filters = new io.vertx.skeleton.sql.generator.filters.QueryFilters();
   }
 
   public QueryBuilder(boolean delete) {
-    this.filters = new QueryFilters(delete);
+    this.filters = new io.vertx.skeleton.sql.generator.filters.QueryFilters(delete);
   }
 
-  public <T> QueryBuilder eq(QueryParams<T> queryParams) {
-    filters.eqFilters.add(Tuple2.of(queryParams.column(), queryParams.params()));
+  public <T> QueryBuilder eq(QueryFilters<T> queryFilters) {
+    filters.eqFilters.add(Tuple2.of(queryFilters.column(), queryFilters.params()));
     return this;
   }
 
-  public <T> QueryBuilder like(QueryParams<T> queryParams) {
-    filters.likeFilters.add(Tuple2.of(queryParams.column(), queryParams.params()));
+  public <T> QueryBuilder like(QueryFilters<T> queryFilters) {
+    filters.likeFilters.add(Tuple2.of(queryFilters.column(), queryFilters.params()));
     return this;
   }
 
-  public <T> QueryBuilder iLike(QueryParams<T> queryParams) {
-    filters.iLikeFilters.add(Tuple2.of(queryParams.column(), unpackValues(queryParams.params().toArray())));
+  public <T> QueryBuilder iLike(QueryFilters<T> queryFilters) {
+    filters.iLikeFilters.add(Tuple2.of(queryFilters.column(), unpackValues(queryFilters.params().toArray())));
     return this;
   }
 
 
-  private <T> void validateQueryParam(QueryParam<T> queryParams) {
+  private <T> void validateQueryParam(QueryFilter<T> queryParams) {
     Objects.requireNonNull(queryParams.column(),"Column shouldn't be null !");
   }
 
@@ -57,28 +57,28 @@ public class QueryBuilder {
       .toList();
   }
 
-  public <T> QueryBuilder from(QueryParam<T> queryParam) {
-    filters.fromRangeFilters.add(Tuple2.of(queryParam.column(), queryParam.param()));
+  public <T> QueryBuilder from(QueryFilter<T> queryFilter) {
+    filters.fromRangeFilters.add(Tuple2.of(queryFilter.column(), queryFilter.param()));
     return this;
   }
 
-  public <T> QueryBuilder to(QueryParam<T> queryParam) {
-    filters.toRangeFilters.add(Tuple2.of(queryParam.column(), queryParam.param()));
+  public <T> QueryBuilder to(QueryFilter<T> queryFilter) {
+    filters.toRangeFilters.add(Tuple2.of(queryFilter.column(), queryFilter.param()));
     return this;
   }
 
-  public <T> QueryBuilder jsonEq(JsonQueryParams<T> jsonQueryParams) {
-    filters.jsonEqFilter.add(Tuple3.of(jsonQueryParams.column(), jsonQueryParams.jsonFields(), jsonQueryParams.params()));
+  public <T> QueryBuilder jsonEq(JsonQueryFilter<T> jsonQueryFilter) {
+    filters.jsonEqFilter.add(Tuple3.of(jsonQueryFilter.column(), jsonQueryFilter.jsonFields(), jsonQueryFilter.params()));
     return this;
   }
 
-  public <T> QueryBuilder jsonLike(JsonQueryParams<T> jsonQueryParams) {
-    filters.jsonLikeFilters.add(Tuple3.of(jsonQueryParams.column(), jsonQueryParams.jsonFields(), jsonQueryParams.params()));
+  public <T> QueryBuilder jsonLike(JsonQueryFilter<T> jsonQueryFilter) {
+    filters.jsonLikeFilters.add(Tuple3.of(jsonQueryFilter.column(), jsonQueryFilter.jsonFields(), jsonQueryFilter.params()));
     return this;
   }
 
-  public <T> QueryBuilder jsonILike(JsonQueryParams<T> jsonQueryParams) {
-    filters.jsonILikeFilters.add(Tuple3.of(jsonQueryParams.column(), jsonQueryParams.jsonFields(), jsonQueryParams.params()));
+  public <T> QueryBuilder jsonILike(JsonQueryFilter<T> jsonQueryFilter) {
+    filters.jsonILikeFilters.add(Tuple3.of(jsonQueryFilter.column(), jsonQueryFilter.jsonFields(), jsonQueryFilter.params()));
     return this;
   }
 
@@ -115,7 +115,7 @@ public class QueryBuilder {
     return Arrays.stream(lists).anyMatch(List::isEmpty);
   }
 
-  public QueryFilters filters() {
+  public io.vertx.skeleton.sql.generator.filters.QueryFilters filters() {
     return filters;
   }
 

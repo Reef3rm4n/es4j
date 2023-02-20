@@ -45,6 +45,21 @@ public record QueryOptions(
         );
     }
 
+  public static QueryOptions simple() {
+    return new QueryOptions(
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      0,
+      100,
+      null,
+      null
+    );
+  }
+
     public QueryOptions withPage(int pageNumber) {
         return new QueryOptions(
             orderBy,

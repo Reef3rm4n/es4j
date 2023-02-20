@@ -1,19 +1,21 @@
 package io.vertx.skeleton.sql.models;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 
-public class JsonQueryParams<T> {
+public class QueryFilters<T> {
 
   private final Class<T> paramType;
   private String column;
-  private Queue<String> jsonFields;
   private List<T> params;
 
   public String column() {
     return column;
   }
 
-  public JsonQueryParams<T> setColumn(String column) {
+  public QueryFilters<T> setColumn(String column) {
     this.column = column;
     return this;
   }
@@ -22,18 +24,18 @@ public class JsonQueryParams<T> {
     return params;
   }
 
-  public JsonQueryParams<T> setParams(List<T> params) {
+  public QueryFilters<T> setParams(List<T> params) {
     this.params = params;
     return this;
   }
-  public JsonQueryParams<T> setParams(T... params) {
+  public QueryFilters<T> setParams(T... params) {
     this.params = unpackValues(params);
     return this;
   }
 
 
 
-  public JsonQueryParams(Class<T> paramType) {
+  public QueryFilters(Class<T> paramType) {
     this.paramType = paramType;
   }
 
@@ -49,7 +51,7 @@ public class JsonQueryParams<T> {
       .toList();
   }
 
-  public JsonQueryParams validate() {
+  public QueryFilters validate() {
     Objects.requireNonNull(column,"Column shouldn't be null !");
     return this;
   }
@@ -60,20 +62,6 @@ public class JsonQueryParams<T> {
       "paramType=" + paramType +
       ", column='" + column + '\'' +
       ", params=" + params +
-      ", jsonParams=" + jsonFields +
       '}';
   }
-
-  public Queue<String> jsonFields() {
-    return jsonFields;
-  }
-
-  public JsonQueryParams<T> addJsonFields(String jsonField) {
-    if (jsonFields == null) {
-      this.jsonFields = new ArrayDeque<>();
-    }
-    jsonFields.add(jsonField);
-    return this;
-  }
-
 }

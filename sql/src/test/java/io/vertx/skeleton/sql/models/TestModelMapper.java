@@ -64,39 +64,39 @@ public class TestModelMapper implements RecordMapper<TestModelKey, TestModel, Te
   public void queryBuilder(TestModelQuery query, QueryBuilder builder) {
     builder
       .iLike(
-        new QueryParams<>(String.class)
+        new QueryFilters<>(String.class)
           .setColumn(TEXT_FIELD)
           .setParams(query.textFields())
       )
       .from(
-        new QueryParam<>(Instant.class)
+        new QueryFilter<>(Instant.class)
           .setColumn(TIMESTAMP_FIELD)
-          .setParam(query.timestampFieldFrom())
+          .filterParam(query.timestampFieldFrom())
       )
       .to(
-        new QueryParam<>(Instant.class)
+        new QueryFilter<>(Instant.class)
           .setColumn(TIMESTAMP_FIELD)
-          .setParam(query.timestampFieldTo())
+          .filterParam(query.timestampFieldTo())
       )
       .eq(
-        new QueryParams<>(Long.class)
+        new QueryFilters<>(Long.class)
           .setColumn(LONG_FIELD)
           .setParams(query.longEqField())
       )
       .from(
-        new QueryParam<>(Long.class)
+        new QueryFilter<>(Long.class)
           .setColumn(LONG_FIELD)
-          .setParam(query.longFieldFrom())
+          .filterParam(query.longFieldFrom())
       )
       .to(
-        new QueryParam<>(Long.class)
+        new QueryFilter<>(Long.class)
           .setColumn(LONG_FIELD)
-          .setParam(query.longEqField())
+          .filterParam(query.longEqField())
       )
-      .jsonILike(new JsonQueryParams<>(String.class)
-        .setColumn(JSON_FIELD)
-        .addJsonFields("person").addJsonFields("details").addJsonFields("name")
-        .setParams(query.names())
+      .jsonILike(new JsonQueryFilter<>(String.class)
+        .filterColumn(JSON_FIELD)
+        .navJson("person").navJson("details").navJson("name")
+        .filterParams(query.names())
       );
   }
 

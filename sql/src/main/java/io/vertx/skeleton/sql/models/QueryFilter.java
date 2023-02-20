@@ -1,6 +1,6 @@
 package io.vertx.skeleton.sql.models;
 
-public class QueryParam<T> {
+public class QueryFilter<T> {
 
   private final Class<T> paramType;
   private String column;
@@ -10,7 +10,7 @@ public class QueryParam<T> {
     return column;
   }
 
-  public QueryParam<T> setColumn(String column) {
+  public QueryFilter<T> setColumn(String column) {
     this.column = column;
     return this;
   }
@@ -19,7 +19,7 @@ public class QueryParam<T> {
     return param;
   }
 
-  public QueryParam<T> setParam(T param) {
+  public QueryFilter<T> filterParam(T param) {
     this.param = param;
     return this;
   }
@@ -27,7 +27,7 @@ public class QueryParam<T> {
 
 
 
-  public QueryParam(Class<T> paramType) {
+  public QueryFilter(Class<T> paramType) {
     this.paramType = paramType;
   }
 
