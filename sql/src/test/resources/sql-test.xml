@@ -7,15 +7,15 @@
 
   <!-- Configuration table -->
   <changeSet id="test_model_table-table" author="reeferman" context="vertx">
-    <createSequence sequenceName="test_model_table_seq" schemaName="test_schema"/>
+<!--    <createSequence sequenceName="test_model_table_seq" schemaName="test_schema"/>-->
     <createTable tableName="test_model_table" schemaName="test_schema">
       <column type="text" name="text_field"/>
-      <column type="timestamptz" name="timestamp_field"/>
+      <column type="timestamp" name="timestamp_field"/>
       <column type="int" name="integer_field" defaultValue="0"/>
       <column type="bigint" name="long_field" defaultValue="0"/>
       <column type="jsonb" name="json_field"/>
       <!--  Repository Entity    -->
-      <column type="bigint" name="id" defaultValueSequenceNext="test_model_table_seq"/>
+<!--      <column type="bigint" name="id" defaultValueSequenceNext="test_model_table_seq"/>-->
       <column type="text" name="tenant"/>
       <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
       <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>

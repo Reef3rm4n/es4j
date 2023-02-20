@@ -65,10 +65,10 @@ public class PostgresQueryGenerator implements QueryGenerator {
   private Tuple2<String, Map<String, Object>> selectQuery(GenerateQueryStatement generateQueryStatement) {
     final var queryJoiner = new StringJoiner(" and ");
     final var paramMap = OptionsFilter.optionsParams(generateQueryStatement.queryOptions());
-    OptionsFilter.addOptionsFilters(generateQueryStatement.queryOptions(), queryJoiner);
-    addFilters(queryJoiner, generateQueryStatement.queryBuilder(), paramMap);
+    OptionsFilter.addOptionsQueryFiltersAndParams(generateQueryStatement.queryOptions(), queryJoiner);
+    addQueryFiltersAndParam(queryJoiner, generateQueryStatement.queryBuilder(), paramMap);
     final var initialStatement = "select * from " + generateQueryStatement.table() + " where ";
-    String finalStatement = initialStatement
+    final var finalStatement = initialStatement
       + queryJoiner
       + OptionsFilter.getOrder(generateQueryStatement.queryOptions(), generateQueryStatement.queryBuilder().deleteQuery)
       + OptionsFilter.limitAndOffset(generateQueryStatement.queryOptions(), generateQueryStatement.queryBuilder().deleteQuery);
@@ -78,8 +78,8 @@ public class PostgresQueryGenerator implements QueryGenerator {
   public Tuple2<String, Map<String, Object>> deleteQuery(GenerateQueryStatement generateQueryStatement) {
         final var queryJoiner = new StringJoiner(" and ");
         final var paramMap = OptionsFilter.optionsParams(generateQueryStatement.queryOptions());
-        OptionsFilter.addOptionsFilters(generateQueryStatement.queryOptions(), queryJoiner);
-        addFilters(queryJoiner, generateQueryStatement.queryBuilder(), paramMap);
+        OptionsFilter.addOptionsQueryFiltersAndParams(generateQueryStatement.queryOptions(), queryJoiner);
+        addQueryFiltersAndParam(queryJoiner, generateQueryStatement.queryBuilder(), paramMap);
         final var initialStatement = "delete from " + generateQueryStatement.table() + " where ";
         String finalStatement = initialStatement
             + queryJoiner
@@ -93,13 +93,13 @@ public class PostgresQueryGenerator implements QueryGenerator {
     public Tuple2<String, Map<String, Object>> count(String table, QueryFilters queryBuilder, QueryOptions queryOptions) {
         final var queryJoiner = new StringJoiner(" and ");
         final var paramMap = OptionsFilter.optionsParams(queryOptions);
-        OptionsFilter.addOptionsFilters(queryOptions, queryJoiner);
-        addFilters(queryJoiner, queryBuilder, paramMap);
+        OptionsFilter.addOptionsQueryFiltersAndParams(queryOptions, queryJoiner);
+        addQueryFiltersAndParam(queryJoiner, queryBuilder, paramMap);
         String finalStatement = "select count(*) as count from " + table + " where " + queryJoiner + ";";
         return Tuple2.of(finalStatement, paramMap);
     }
 
-    private void addFilters(StringJoiner queryJoiner, QueryFilters filters, Map<String, Object> paramMap) {
+    private void addQueryFiltersAndParam(StringJoiner queryJoiner, QueryFilters filters, Map<String, Object> paramMap) {
         filters.iLikeFilters.forEach(filter -> SimpleFilter.addIlikeFilter(queryJoiner, paramMap, filter));
         filters.likeFilters.forEach(filter -> SimpleFilter.addLikeFilter(queryJoiner, paramMap, filter));
         filters.eqFilters.forEach(filter -> SimpleFilter.addEqFilter(queryJoiner, paramMap, filter));

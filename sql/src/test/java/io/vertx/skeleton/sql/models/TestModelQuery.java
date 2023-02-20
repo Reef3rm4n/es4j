@@ -14,6 +14,7 @@ public record TestModelQuery(
   Long longFieldTo,
 
   Long longEqField,
+  List<String> names,
   QueryOptions options
 ) implements Query {
 }

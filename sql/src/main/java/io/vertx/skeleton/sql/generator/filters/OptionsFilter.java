@@ -14,7 +14,7 @@ import static io.vertx.skeleton.sql.misc.Constants.TENANT;
 public class OptionsFilter {
     private OptionsFilter(){}
 
-    public static void addOptionsFilters(QueryOptions options, StringJoiner queryFilters) {
+    public static void addOptionsQueryFiltersAndParams(QueryOptions options, StringJoiner queryFilters) {
         if (options.tenantId() != null) {
             queryFilters.add(" tenant = #{tenant} ");
         } else {
@@ -60,9 +60,6 @@ public class OptionsFilter {
         if (options.pageSize() != null && options.pageNumber() != null) {
             fieldMap.put("offSet", options.pageSize() * options.pageNumber());
         }
-        if (options.idFrom() != null) {
-            fieldMap.put("idFrom", options.idFrom());
-        }
         return fieldMap;
     }
 
@@ -74,7 +71,7 @@ public class OptionsFilter {
             return " fetch first #{pageSize} rows only;";
         }
         if (delete) {
-            return " returning id;";
+            return " returning *;";
         }
         return ";";
     }
@@ -86,8 +83,6 @@ public class OptionsFilter {
                 orderStatement = orderStatement + " desc ";
             }
             return orderStatement;
-        } else if (!delete) {
-            return "order by id";
         } else {
             return "";
         }

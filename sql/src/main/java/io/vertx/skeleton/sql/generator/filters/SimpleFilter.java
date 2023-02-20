@@ -1,6 +1,8 @@
 package io.vertx.skeleton.sql.generator.filters;
 
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.skeleton.sql.exceptions.OrmDataException;
+import io.vertx.skeleton.sql.exceptions.UnmanagedQueryParamException;
 
 import java.util.List;
 import java.util.Map;
@@ -14,15 +16,14 @@ public class SimpleFilter {
         if (tuple.getItem2() != null && !tuple.getItem2().isEmpty()) {
             if (tuple.getItem2().stream().anyMatch(Integer.class::isInstance)) {
                 compareInt(tuple.getItem1(), tuple.getItem2().stream().map(Integer.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(String.class::isInstance)) {
+            }else if (tuple.getItem2().stream().anyMatch(String.class::isInstance)) {
                 eqString(tuple.getItem1(), tuple.getItem2().stream().map(String.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(Enum.class::isInstance)) {
+            }else if (tuple.getItem2().stream().anyMatch(Enum.class::isInstance)) {
                 compareEnum(tuple.getItem1(), tuple.getItem2().stream().map(Enum.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(Long.class::isInstance)) {
+            }else if (tuple.getItem2().stream().anyMatch(Long.class::isInstance)) {
                 compareLong(tuple.getItem1(), tuple.getItem2().stream().map(Long.class::cast).toList(), paramMap, queryFilters);
+            } else {
+              throw UnmanagedQueryParamException.unmanagedParams(tuple.getItem2());
             }
         }
     }
@@ -31,15 +32,14 @@ public class SimpleFilter {
         if (tuple.getItem2() != null && !tuple.getItem2().isEmpty()) {
             if (tuple.getItem2().stream().anyMatch(Integer.class::isInstance)) {
                 compareInt(tuple.getItem1(), tuple.getItem2().stream().map(Integer.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(String.class::isInstance)) {
+            }else if (tuple.getItem2().stream().anyMatch(String.class::isInstance)) {
                 likeString(tuple.getItem1(), tuple.getItem2().stream().map(String.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(Enum.class::isInstance)) {
+            }else if (tuple.getItem2().stream().anyMatch(Enum.class::isInstance)) {
                 compareEnum(tuple.getItem1(), tuple.getItem2().stream().map(Enum.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(Long.class::isInstance)) {
+            } else if (tuple.getItem2().stream().anyMatch(Long.class::isInstance)) {
                 compareLong(tuple.getItem1(), tuple.getItem2().stream().map(Long.class::cast).toList(), paramMap, queryFilters);
+            } else {
+              throw UnmanagedQueryParamException.unmanagedParams(tuple.getItem2());
             }
         }
     }
@@ -47,15 +47,14 @@ public class SimpleFilter {
         if (tuple.getItem2() != null && !tuple.getItem2().isEmpty()) {
             if (tuple.getItem2().stream().anyMatch(Integer.class::isInstance)) {
                 compareInt(tuple.getItem1(), tuple.getItem2().stream().map(Integer.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(String.class::isInstance)) {
+            } else if (tuple.getItem2().stream().anyMatch(String.class::isInstance)) {
                 ilikeString(tuple.getItem1(), tuple.getItem2().stream().map(String.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(Enum.class::isInstance)) {
+            }else if (tuple.getItem2().stream().anyMatch(Enum.class::isInstance)) {
                 compareEnum(tuple.getItem1(), tuple.getItem2().stream().map(Enum.class::cast).toList(), paramMap, queryFilters);
-            }
-            if (tuple.getItem2().stream().anyMatch(Long.class::isInstance)) {
+            } else if (tuple.getItem2().stream().anyMatch(Long.class::isInstance)) {
                 compareLong(tuple.getItem1(), tuple.getItem2().stream().map(Long.class::cast).toList(), paramMap, queryFilters);
+            } else {
+              throw UnmanagedQueryParamException.unmanagedParams(tuple.getItem2());
             }
         }
     }

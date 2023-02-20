@@ -4,6 +4,9 @@ import io.vertx.skeleton.sql.RecordMapper;
 import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
 import io.vertx.sqlclient.Row;
 
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,7 +38,7 @@ public class TestModelMapper implements RecordMapper<TestModelKey, TestModel, Te
   public TestModel rowMapper(Row row) {
     return new TestModel(
       row.getString(TEXT_FIELD),
-      row.getOffsetDateTime(TIMESTAMP_FIELD),
+      row.getLocalDateTime(TIMESTAMP_FIELD).toInstant(ZoneOffset.UTC),
       row.getJsonObject(JSON_FIELD),
       row.getLong(LONG_FIELD),
       row.getInteger(INTEGER_FIELD),
@@ -46,7 +49,7 @@ public class TestModelMapper implements RecordMapper<TestModelKey, TestModel, Te
   @Override
   public void params(Map<String, Object> params, TestModel record) {
     params.put(TEXT_FIELD, record.textField());
-    params.put(TIMESTAMP_FIELD, record.timeStampField());
+    params.put(TIMESTAMP_FIELD, LocalDateTime.ofInstant(record.timeStampField(), ZoneOffset.UTC));
     params.put(JSON_FIELD, record.jsonObjectField());
     params.put(LONG_FIELD, record.longField());
     params.put(INTEGER_FIELD, record.integerField());
@@ -59,10 +62,42 @@ public class TestModelMapper implements RecordMapper<TestModelKey, TestModel, Te
 
   @Override
   public void queryBuilder(TestModelQuery query, QueryBuilder builder) {
-    builder.iLike(TEXT_FIELD,query.textFields())
-      .from(TIMESTAMP_FIELD, query.timestampFieldFrom())
-      .to(TIMESTAMP_FIELD, query.timestampFieldTo())
-      .eq(LONG_FIELD, query.longEqField());
+    builder
+      .iLike(
+        new QueryParams<>(String.class)
+          .setColumn(TEXT_FIELD)
+          .setParams(query.textFields())
+      )
+      .from(
+        new QueryParam<>(Instant.class)
+          .setColumn(TIMESTAMP_FIELD)
+          .setParam(query.timestampFieldFrom())
+      )
+      .to(
+        new QueryParam<>(Instant.class)
+          .setColumn(TIMESTAMP_FIELD)
+          .setParam(query.timestampFieldTo())
+      )
+      .eq(
+        new QueryParams<>(Long.class)
+          .setColumn(LONG_FIELD)
+          .setParams(query.longEqField())
+      )
+      .from(
+        new QueryParam<>(Long.class)
+          .setColumn(LONG_FIELD)
+          .setParam(query.longFieldFrom())
+      )
+      .to(
+        new QueryParam<>(Long.class)
+          .setColumn(LONG_FIELD)
+          .setParam(query.longEqField())
+      )
+      .jsonILike(new JsonQueryParams<>(String.class)
+        .setColumn(JSON_FIELD)
+        .addJsonFields("person").addJsonFields("details").addJsonFields("name")
+        .setParams(query.names())
+      );
   }
 
 

@@ -132,22 +132,6 @@ public record RepositoryHandler(
     return pgPool.close().flatMap(aVoid -> sqlClient.close());
   }
 
-  public Function<Supplier<Uni<RowSet<Row>>>, Uni<Integer>> handleInsertOrUpdate(Class<?> tClass) {
-    logger.debug("Handling update query for " + tClass.getSimpleName());
-    final var start = Instant.now();
-    return upstreamSupplier -> upstreamSupplier.get()
-      .map(row -> {
-          final var end = Instant.now();
-          logger.info(tClass.getSimpleName() + " updated in " + Duration.between(start, end).toMillis() + "ms");
-          return row != null && row.iterator().hasNext() ? row.iterator().next().getInteger(ID) : null;
-        }
-      ).onItem().ifNull()
-      .failWith(new OrmConflictException(new Error(tClass.getSimpleName() + "Unable to upsert record", null, 409)))
-      .onFailure(throwable -> checkError(throwable, tClass))
-      .retry().withBackOff(Duration.ofMillis(configuration.getInteger("repositoryRetryBackOff", EnvVars.REPOSITORY_RETRY_BACKOFF))).atMost(configuration.getInteger("repositoryMaxRetry", EnvVars.REPOSITORY_MAX_RETRY))
-      .onFailure().transform(this::mapError);
-  }
-
   public Function<Supplier<Uni<RowSet<Row>>>, Uni<Integer>> handleUpdate(Class<?> tClass) {
     logger.debug("Handling update query for " + tClass.getSimpleName());
     final var start = Instant.now();
@@ -242,7 +226,8 @@ public record RepositoryHandler(
       .map(row -> {
           final var end = Instant.now();
           logger.info(" Inserted  " + row.rowCount() + " record in " + Duration.between(start, end).toMillis() + "ms");
-          return row != null && row.iterator().hasNext() ? row.iterator().next().getLong(ID) : null;
+//          return row != null && row.iterator().hasNext() ? row.iterator().next().getLong(ID) : null;
+          return row.rowCount() == 0 ? null : (long) row.rowCount();
         }
       ).onItem().ifNull()
       .failWith(OrmIntegrityContraintViolationException.violation(object.getClass(), object))
@@ -278,7 +263,7 @@ public record RepositoryHandler(
       .map(row -> {
         final var end = Instant.now();
         logger.info(tClass.getSimpleName() + " deleted in " + Duration.between(start, end).toMillis() + "ms");
-        return row != null && row.iterator().hasNext() ? row.iterator().next().getLong(ID) : null;
+        return row.rowCount() == 0 ? null : (long) row.rowCount();
       }).onItem().ifNull()
       .failWith(OrmNotFoundException.notFound(tClass))
       .onFailure(throwable -> checkError(throwable, tClass))
@@ -286,7 +271,7 @@ public record RepositoryHandler(
       .onFailure().transform(this::mapError);
   }
 
-  public <T> Function<Supplier<Uni<RowSet<T>>>, Uni<T>> handleSelectUnique(Class<T> tClass) {
+  public <T> Function<Supplier<Uni<RowSet<T>>>, Uni<T>> handleSelectUnique(Class<T> tClass, Logger logger) {
     logger.debug("Handling select query for " + tClass.getSimpleName());
     final var start = Instant.now();
     return upstreamSupplier -> upstreamSupplier.get()

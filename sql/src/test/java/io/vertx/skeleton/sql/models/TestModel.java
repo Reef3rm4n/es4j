@@ -3,11 +3,11 @@ package io.vertx.skeleton.sql.models;
 import io.vertx.core.json.JsonObject;
 
 import java.time.Instant;
-import java.time.OffsetDateTime;
+
 
 public record TestModel(
   String textField,
-  OffsetDateTime timeStampField,
+  Instant timeStampField,
   JsonObject jsonObjectField,
   Long longField,
   Integer integerField,
