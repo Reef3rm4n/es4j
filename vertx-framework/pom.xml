@@ -81,7 +81,7 @@
     </dependency>
     <dependency>
       <groupId>io.vertx.skeleton</groupId>
-      <artifactId>vertx-ccp</artifactId>
+      <artifactId>job-queue</artifactId>
     </dependency>
     <dependency>
       <groupId>io.vertx.skeleton</groupId>

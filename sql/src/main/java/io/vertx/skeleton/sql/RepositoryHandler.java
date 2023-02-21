@@ -133,7 +133,6 @@ public record RepositoryHandler(
   }
 
   public Function<Supplier<Uni<RowSet<Row>>>, Uni<Integer>> handleUpdate(Class<?> tClass) {
-    logger.debug("Handling update query for " + tClass.getSimpleName());
     final var start = Instant.now();
     return upstreamSupplier -> upstreamSupplier.get()
       .map(row -> {
@@ -149,7 +148,6 @@ public record RepositoryHandler(
   }
 
   public <T> Function<Supplier<Uni<RowSet<T>>>, Uni<T>> handleUpdateByKey(Class<T> tClass) {
-    logger.debug("Handling update query for " + tClass.getSimpleName());
     final var start = Instant.now();
     return upstreamSupplier -> upstreamSupplier.get()
       .map(Unchecked.function(row -> {
@@ -173,17 +171,15 @@ public record RepositoryHandler(
   }
 
   public <T> Function<Supplier<Uni<RowSet<T>>>, Uni<List<T>>> handleUpdateByKeyBatch(Class<T> tClass, int size) {
-    logger.debug("Handling update query for " + tClass.getSimpleName());
     final var start = Instant.now();
     return upstreamSupplier -> upstreamSupplier.get()
       .onItem().transformToMulti(RowSet::toMulti).collect().asList()
       .map(Unchecked.function(list -> {
-            logger.debug("Fetched results -> " + list);
             final var end = Instant.now();
+            logger.info("Fetched results in " + Duration.between(start, end).toMillis() + "ms");
             if (size != list.size()) {
               throw new OrmConflictException(new Error("Size mismatch, should be " + size + " but is " + list.size(), "", 500));
             }
-            logger.info(tClass.getSimpleName() + " query fetched " + list.size() + " in " + Duration.between(start, end).toMillis() + "ms");
             return list;
           }
         )

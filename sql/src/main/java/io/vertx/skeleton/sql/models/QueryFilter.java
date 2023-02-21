@@ -10,7 +10,7 @@ public class QueryFilter<T> {
     return column;
   }
 
-  public QueryFilter<T> setColumn(String column) {
+  public QueryFilter<T> filterColumn(String column) {
     this.column = column;
     return this;
   }

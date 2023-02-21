@@ -20,7 +20,7 @@
     <module>vertx-http-client</module>
     <module>vertx-http-router</module>
     <module>vertx-event-sourcing</module>
-    <module>vertx-ccp</module>
+    <module>job-queue</module>
     <module>vertx-utils</module>
     <module>vertx-step-reactor</module>
     <module>vertx-test</module>

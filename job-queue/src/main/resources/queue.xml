@@ -1,0 +1,115 @@
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+  http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
+>
+
+
+  <!-- QUEUE CHANGESET -->
+  <changeSet id="${queueName}-table" author="reeferman" context="vertx">
+    <createSequence sequenceName="${queueName}_seq" schemaName="${schema}"/>
+    <createTable tableName="${queueName}" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="processor_class"/>
+      <column type="text" name="payload_class"/>
+      <column type="timestamp" name="scheduled"/>
+      <column type="timestamp" name="expiration"/>
+      <column type="integer" name="priority" defaultValue="0"/>
+      <column type="integer" name="retry_counter" defaultValue="0"/>
+      <column type="text" name="state"/>
+      <column type="jsonb" name="payload"/>
+      <column type="jsonb" name="failures"/>
+      <column type="text" name="verticle_id"/>
+      <!--  Repository Entity    -->
+      <column type="bigint" name="id" defaultValueSequenceNext="${queueName}_seq"/>
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="creation_date" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="last_update" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="${queueName}-index" author="reeferman" context="vertx">
+    <addPrimaryKey tableName="${queueName}" columnNames="id" schemaName="${schema}"/>
+    <createIndex tableName="${queueName}" indexName="${queueName}-index" schemaName="${schema}">
+      <column name="state"/>
+      <column name="retry_counter"/>
+      <column name="last_update"/>
+      <column name="priority"/>
+      <column name="scheduled"/>
+    </createIndex>
+    <createIndex tableName="${queueName}" indexName="${queueName}-index1" schemaName="${schema}">
+      <column name="message_id"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="${queueName}" indexName="${queueName}-index2" schemaName="${schema}">
+      <column name="message_id"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+  <!-- Queue Function -->
+  <changeSet id="${queueName}-pub-function" author="reeferman" context="vertx">
+    <sql splitStatements="false">
+      CREATE
+      OR REPLACE FUNCTION ${schema}.${queueName}_pub() RETURNS
+      trigger
+      AS
+      $$
+      BEGIN
+        PERFORM pg_notify('${queueName}_ch', NEW.message_id::text);
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    </sql>
+  </changeSet>
+  <!--  -->
+  <!-- Queue Function -->
+  <changeSet id="${queueName}-trigger" author="reeferman" context="vertx">
+    <sql splitStatements="false">
+      CREATE TRIGGER ${queueName}_trg
+        AFTER INSERT OR
+      UPDATE OF version
+      ON ${schema}.${queueName}
+        EXECUTE PROCEDURE ${queueName}_pub();
+    </sql>
+  </changeSet>
+  <!--  -->
+
+  <!-- Transaction Log -->
+  <changeSet id="${queueName}_tx-table" author="reeferman" context="vertx">
+    <createSequence sequenceName="${queueName}_tx_seq" schemaName="${schema}"/>
+    <createTable tableName="${queueName}_tx" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="processor"/>
+      <column type="text" name="type"/>
+      <!--  Repository Entity    -->
+      <column type="bigint" name="id" defaultValueSequenceNext="${queueName}_tx_seq"/>
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="creation_date" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="last_update" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="${queueName}_tx-index" author="reeferman" context="vertx">
+    <addPrimaryKey tableName="${queueName}_tx" columnNames="id" schemaName="${schema}"/>
+    <createIndex tableName="${queueName}_tx" indexName="${queueName}_tx-index-1" schemaName="${schema}">
+      <column name="message_id"/>
+      <column name="processor"/>
+      <column name="type"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="${queueName}_tx" indexName="${queueName}_tx-index-2" schemaName="${schema}">
+      <column name="message_id"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="${queueName}_tx" indexName="${queueName}_tx-index-3" schemaName="${schema}">
+      <column name="message_id"/>
+    </createIndex>
+    <createIndex tableName="${queueName}_tx" indexName="${queueName}_tx-index-4" schemaName="${schema}">
+      <column name="message_id"/>
+      <column name="processor"/>
+      <column name="type"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+</databaseChangeLog>

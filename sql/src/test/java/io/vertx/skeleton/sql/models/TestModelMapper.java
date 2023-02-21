@@ -65,32 +65,32 @@ public class TestModelMapper implements RecordMapper<TestModelKey, TestModel, Te
     builder
       .iLike(
         new QueryFilters<>(String.class)
-          .setColumn(TEXT_FIELD)
-          .setParams(query.textFields())
+          .filterColumn(TEXT_FIELD)
+          .filterParams(query.textFields())
       )
       .from(
         new QueryFilter<>(Instant.class)
-          .setColumn(TIMESTAMP_FIELD)
+          .filterColumn(TIMESTAMP_FIELD)
           .filterParam(query.timestampFieldFrom())
       )
       .to(
         new QueryFilter<>(Instant.class)
-          .setColumn(TIMESTAMP_FIELD)
+          .filterColumn(TIMESTAMP_FIELD)
           .filterParam(query.timestampFieldTo())
       )
       .eq(
         new QueryFilters<>(Long.class)
-          .setColumn(LONG_FIELD)
-          .setParams(query.longEqField())
+          .filterColumn(LONG_FIELD)
+          .filterParams(query.longEqField())
       )
       .from(
         new QueryFilter<>(Long.class)
-          .setColumn(LONG_FIELD)
+          .filterColumn(LONG_FIELD)
           .filterParam(query.longFieldFrom())
       )
       .to(
         new QueryFilter<>(Long.class)
-          .setColumn(LONG_FIELD)
+          .filterColumn(LONG_FIELD)
           .filterParam(query.longEqField())
       )
       .jsonILike(new JsonQueryFilter<>(String.class)

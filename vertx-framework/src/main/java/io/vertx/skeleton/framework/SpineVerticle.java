@@ -5,6 +5,7 @@ import io.smallrye.mutiny.Multi;
 import io.vertx.skeleton.ccp.QueueDeployer;
 import io.vertx.skeleton.config.ConfigurationHandler;
 import io.vertx.skeleton.config.ConfigurationDeployer;
+import io.vertx.skeleton.httprouter.VertxHttpRouter;
 import io.vertx.skeleton.models.RequestMetadata;
 import io.vertx.skeleton.orm.LiquibaseHandler;
 import io.vertx.skeleton.orm.RepositoryHandler;
@@ -97,7 +98,7 @@ public class SpineVerticle extends AbstractVerticle {
             }
           )
           .flatMap(injector -> configurationDeployer.deploy(injector, repositoryHandler).replaceWith(injector))
-          .flatMap(injector -> RouterDeployer.deploy(repositoryHandler, deploymentIds, MODULES).replaceWith(injector))
+          .flatMap(injector -> VertxHttpRouter.deploy(repositoryHandler, deploymentIds, MODULES).replaceWith(injector))
           .flatMap(injector -> QueueDeployer.deploy(vertx, newConfiguration, MODULES).replaceWith(injector))
           .flatMap(injector -> deployVerticles(newConfiguration, MODULES, injector).replaceWith(injector))
 //          .flatMap(injector -> EventSourcingDeployer.deploy(vertx, repositoryHandler, deploymentIds, injector).replaceWith(injector))

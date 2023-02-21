@@ -32,11 +32,12 @@ import java.util.Properties;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-import static io.vertx.skeleton.sql.misc.Constants.CHANGELOG;
 import static io.vertx.skeleton.sql.misc.Constants.SCHEMA;
 
 
 public class LiquibaseHandler {
+
+  private LiquibaseHandler(){}
 
   private static final Logger logger = LoggerFactory.getLogger(LiquibaseHandler.class);
   private static final String REVISION = System.getenv().getOrDefault("REVISION", null);

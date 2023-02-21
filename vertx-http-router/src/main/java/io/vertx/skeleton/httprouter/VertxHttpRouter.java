@@ -5,6 +5,8 @@ import io.activej.inject.Injector;
 
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
+import io.vertx.core.DeploymentOptions;
+import io.vertx.core.impl.cpu.CpuCoreSensor;
 import io.vertx.skeleton.models.*;
 import io.vertx.skeleton.models.exceptions.VertxServiceException;
 import io.vertx.skeleton.orm.Repository;
@@ -39,6 +41,7 @@ import io.vertx.skeleton.utils.CustomClassLoader;
 
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +55,22 @@ public class VertxHttpRouter extends AbstractVerticle {
   Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> configuration;
   private final Handler<io.vertx.ext.web.RoutingContext> prometheusScrapingHandler = PrometheusScrapingHandler.create();
   private Injector injector;
+
+  public static Uni<Void> deploy(RepositoryHandler repositoryHandler, final Deque<String> deploymentIds, final Collection<Module> modules) {
+    if (CustomClassLoader.checkPresenceInModules(VertxHttpRoute.class, modules)) {
+      LOGGER.info("Deploying http routes");
+      return repositoryHandler.vertx().deployVerticle(
+          () -> new VertxHttpRouter(modules),
+          new DeploymentOptions()
+            .setConfig(repositoryHandler.configuration())
+            .setInstances(CpuCoreSensor.availableProcessors() * 2)
+        )
+        .map(deploymentIds::add)
+        .replaceWithVoid();
+    }
+    LOGGER.info("No http routes to register");
+    return Uni.createFrom().voidItem();
+  }
 
   public VertxHttpRouter(final Collection<Module> modules) {
     this.modules = modules;

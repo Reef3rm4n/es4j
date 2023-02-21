@@ -15,7 +15,7 @@ public class QueryFilters<T> {
     return column;
   }
 
-  public QueryFilters<T> setColumn(String column) {
+  public QueryFilters<T> filterColumn(String column) {
     this.column = column;
     return this;
   }
@@ -24,11 +24,11 @@ public class QueryFilters<T> {
     return params;
   }
 
-  public QueryFilters<T> setParams(List<T> params) {
+  public QueryFilters<T> filterParams(List<T> params) {
     this.params = params;
     return this;
   }
-  public QueryFilters<T> setParams(T... params) {
+  public QueryFilters<T> filterParams(T... params) {
     this.params = unpackValues(params);
     return this;
   }
