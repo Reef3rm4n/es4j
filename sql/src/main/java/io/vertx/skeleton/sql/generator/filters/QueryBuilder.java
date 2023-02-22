@@ -31,7 +31,7 @@ public class QueryBuilder {
   }
 
   public <T> QueryBuilder iLike(QueryFilters<T> queryFilters) {
-    filters.iLikeFilters.add(Tuple2.of(queryFilters.column(), unpackValues(queryFilters.params().toArray())));
+    filters.iLikeFilters.add(Tuple2.of(queryFilters.column(), queryFilters.params()));
     return this;
   }
 

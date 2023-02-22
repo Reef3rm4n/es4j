@@ -2,13 +2,12 @@ package io.vertx.skeleton.framework;
 
 import io.activej.inject.module.Module;
 import io.smallrye.mutiny.Multi;
-import io.vertx.skeleton.ccp.QueueDeployer;
 import io.vertx.skeleton.config.ConfigurationHandler;
 import io.vertx.skeleton.config.ConfigurationDeployer;
 import io.vertx.skeleton.httprouter.VertxHttpRouter;
 import io.vertx.skeleton.models.RequestMetadata;
-import io.vertx.skeleton.orm.LiquibaseHandler;
-import io.vertx.skeleton.orm.RepositoryHandler;
+import io.vertx.skeleton.sql.LiquibaseHandler;
+import io.vertx.skeleton.sql.RepositoryHandler;
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
 import io.reactiverse.contextual.logging.ContextualData;
@@ -22,8 +21,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.skeleton.task.TaskDeployer;
+import io.vertx.skeleton.taskqueue.TaskProcessorVerticle;
 import io.vertx.skeleton.utils.CustomClassLoader;
-import org.reflections.Reflections;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -35,8 +34,6 @@ public class SpineVerticle extends AbstractVerticle {
   protected static final ConcurrentLinkedDeque<String> deploymentIds = new ConcurrentLinkedDeque<>();
   private RepositoryHandler repositoryHandler;
   private ConfigRetriever deploymentConfiguration;
-  public static final String PACKAGE_NAME = System.getenv().getOrDefault("PACKAGE_NAME", "io.vertx");
-  public static final Reflections REFLECTIONS = new Reflections(PACKAGE_NAME);
   public static final String CONFIGURATION_NAME = System.getenv().getOrDefault("CONFIGURATION_NAME", "config");
 
   private final TaskDeployer taskDeployer = new TaskDeployer();
@@ -97,12 +94,12 @@ public class SpineVerticle extends AbstractVerticle {
               return LiquibaseHandler.handle(vertx, newConfiguration).replaceWith(injector);
             }
           )
-          .flatMap(injector -> configurationDeployer.deploy(injector, repositoryHandler).replaceWith(injector))
-          .flatMap(injector -> VertxHttpRouter.deploy(repositoryHandler, deploymentIds, MODULES).replaceWith(injector))
-          .flatMap(injector -> QueueDeployer.deploy(vertx, newConfiguration, MODULES).replaceWith(injector))
+//          .flatMap(injector -> configurationDeployer.deploy(injector, repositoryHandler).replaceWith(injector))
+//          .flatMap(injector -> VertxHttpRouter.deploy(repositoryHandler, deploymentIds, MODULES).replaceWith(injector))
+          .flatMap(injector -> TaskProcessorVerticle.deploy(vertx, newConfiguration, MODULES).replaceWith(injector))
           .flatMap(injector -> deployVerticles(newConfiguration, MODULES, injector).replaceWith(injector))
 //          .flatMap(injector -> EventSourcingDeployer.deploy(vertx, repositoryHandler, deploymentIds, injector).replaceWith(injector))
-          .invoke(injector -> taskDeployer.deploy(repositoryHandler, newConfiguration, injector))
+//          .invoke(injector -> taskDeployer.deploy(repositoryHandler, newConfiguration, injector))
           .subscribe()
           .with(
             aVoid -> {

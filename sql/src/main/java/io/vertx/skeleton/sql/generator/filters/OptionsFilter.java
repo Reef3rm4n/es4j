@@ -27,7 +27,7 @@ public class OptionsFilter {
             queryFilters.add(" creation_date <= #{creationDateTo} ");
         }
         if (options.idFrom() != null) {
-            queryFilters.add(" id > #{idFrom} ");
+            queryFilters.add(" messageId > #{idFrom} ");
         }
         if (options.lastUpdateFrom() != null) {
             queryFilters.add(" last_update >= #{lastUpdateDateFrom} ");

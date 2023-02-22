@@ -15,7 +15,7 @@
       <column type="bigint" name="long_field" defaultValue="0"/>
       <column type="jsonb" name="json_field"/>
       <!--  Repository Entity    -->
-<!--      <column type="bigint" name="id" defaultValueSequenceNext="test_model_table_seq"/>-->
+<!--      <column type="bigint" name="messageId" defaultValueSequenceNext="test_model_table_seq"/>-->
       <column type="text" name="tenant"/>
       <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
       <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>

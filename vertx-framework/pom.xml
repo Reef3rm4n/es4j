@@ -81,7 +81,8 @@
     </dependency>
     <dependency>
       <groupId>io.vertx.skeleton</groupId>
-      <artifactId>job-queue</artifactId>
+      <artifactId>task-queue</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.vertx.skeleton</groupId>

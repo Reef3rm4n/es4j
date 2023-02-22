@@ -252,7 +252,7 @@ public final class Repository<K extends RepositoryRecordKey, V extends Repositor
 
   @Override
   public Uni<Void> updateByKeyBatch(List<V> value) {
-    logOperation("Updating", value);
+    logOperations("Updating", value);
     return repositoryHandler.handleUpdate(queryGeneratorMapper.actualRecordType).apply(
         () -> SqlTemplate.forQuery(repositoryHandler.sqlClient(), queryGeneratorMapper.updateByKeyStatement)
           .mapFrom(queryGeneratorMapper.recordTupleMapper)
@@ -338,7 +338,7 @@ public final class Repository<K extends RepositoryRecordKey, V extends Repositor
 
   @Override
   public Uni<Void> deleteQuery(Q query, SqlConnection sqlConnection) {
-    logOperation("Querying", query);
+    logOperation("Deleting", query);
     final var tuple = queryGeneratorMapper.generateQuery(new GenerateQueryCommand<Q>(QueryStatementType.DELETE, query));
     return repositoryHandler.handleDelete(queryGeneratorMapper.actualRecordType).apply(
       () -> SqlTemplate.forQuery(sqlConnection, tuple.getItem1())
@@ -348,7 +348,7 @@ public final class Repository<K extends RepositoryRecordKey, V extends Repositor
 
   @Override
   public Uni<Void> deleteQuery(Q query) {
-    logOperation("Querying", query);
+    logOperation("Deleting", query);
     final var tuple = queryGeneratorMapper.generateQuery(new GenerateQueryCommand<Q>(QueryStatementType.DELETE, query));
     return repositoryHandler.handleDelete(queryGeneratorMapper.actualRecordType).apply(
       () -> SqlTemplate.forQuery(repositoryHandler.sqlClient(), tuple.getItem1())

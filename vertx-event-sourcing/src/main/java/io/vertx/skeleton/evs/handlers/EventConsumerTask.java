@@ -23,9 +23,32 @@ import java.util.List;
 
 public class EventConsumerTask implements SynchronizedTask {
 
-  // todo
-  //this is now a fairly simple solution that does not partition data at all and just uses id as a offset to consume events
-  //next step is to partition the event journal by entityID so that events get consumed in per entity basis thus achieving high parallelization levels and faster materialization of views
+  //todo
+
+  // System must contain a projection specific command that is part of the framework it-self.
+  // UpdateProjection
+  //
+  //   1.Command
+  //  The command porpuse is to ask for a projection update, and must implement the following rules :
+  //    - Command will only affect the framework specific fields that wrap the aggregateState.
+  //    - ProjectionUpdated event must be appended to event log
+  //    - ProjectionUpdated event must be filtered out of the events that are passed to EventBehaviour implementors.
+  //
+  //
+  //  2.Issuer
+  //  The issuer purpose is to generate UpdateProjection command's, and must be implemented as follows :
+  //  - A schduled task with cluster-wide lock that consumes events via id off-set.
+  //  - query for the event-polling must ignore system events like UpdateProjection
+  //  - events are than groupped per entity and reduced into projection update commands
+  //  - commands are sent to entities and result in Projection implementors to be triggered inside the EntityAggregateHandler it self.
+  //  -
+  //
+  //  * Notes
+  //  By doing this projections will have the following attributes :
+  //      - decouple event log appends from projections
+  //      - projections updates are partitioned per entity thus giving ability to concurrently update many entities and projections
+  //      - projections updates will always contain the correct state and event offsets
+  //
   private final EventConsumer eventConsumer;
   private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset;
   private final Repository<String, ConsumerFailure, EmptyQuery> consumerFailure;

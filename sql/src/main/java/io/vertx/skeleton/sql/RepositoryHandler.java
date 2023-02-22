@@ -124,8 +124,8 @@ public record RepositoryHandler(
       .setUser(config.getString(Constants.PG_USER, EnvVars.PG_USER))
       .setPassword(config.getString(Constants.PG_PASSWORD, EnvVars.PG_PASSWORD))
       .setPort(config.getInteger("pgPort", EnvVars.PG_PORT))
-      .addProperty("search_path", config.getString("schema"))
-      .addProperty("application_name", config.getString("schema"));
+      .addProperty("search_path", config.getString("schema", EnvVars.SCHEMA))
+      .addProperty("application_name", config.getString("schema", EnvVars.SCHEMA));
   }
 
   public Uni<Void> shutDown() {

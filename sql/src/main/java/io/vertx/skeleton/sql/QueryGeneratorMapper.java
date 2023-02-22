@@ -75,7 +75,7 @@ public class QueryGeneratorMapper<K extends RepositoryRecordKey, V extends Repos
 
     private void logGeneratedQuery(Tuple2<String, Map<String, Object>> resultTuple) {
         logger.debug(
-            "Resulting type -> " +
+            "Resulting Query -> " +
                 new JsonObject()
                     .put("type", resultTuple.getItem1())
                     .put("parameters", resultTuple.getItem2())

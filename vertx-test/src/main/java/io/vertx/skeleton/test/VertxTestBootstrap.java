@@ -1,14 +1,15 @@
 package io.vertx.skeleton.test;
 
+import io.activej.inject.module.Module;
 import io.smallrye.mutiny.Multi;
+import io.vertx.core.DeploymentOptions;
 import io.vertx.skeleton.config.Configuration;
 import io.vertx.skeleton.config.ConfigurationEntry;
+import io.vertx.skeleton.framework.SpineVerticle;
 import io.vertx.skeleton.sql.exceptions.OrmConflictException;
 import io.vertx.skeleton.sql.misc.Constants;
 import io.vertx.skeleton.sql.LiquibaseHandler;
 import io.vertx.skeleton.sql.RepositoryHandler;
-import io.vertx.skeleton.framework.SpineVerticle;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
@@ -47,6 +48,7 @@ public class VertxTestBootstrap {
   public Http2SolrClient SOLR_CLIENT;
   public WebClient WEB_CLIENT;
   public String configurationPath = System.getenv().getOrDefault("CONFIGURATION_FILE", "config.json");
+
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
   public Boolean solr = Boolean.parseBoolean(System.getenv().getOrDefault("SOLR", "false"));
   public Boolean rabbitmq = Boolean.parseBoolean(System.getenv().getOrDefault("RABBITMQ", "false"));
@@ -64,6 +66,11 @@ public class VertxTestBootstrap {
 
   public VertxTestBootstrap addLiquibaseRun(String liquibaseChangelog, Map<String, String> params) {
     liquibase.put(liquibaseChangelog, params);
+    return this;
+  }
+
+  public VertxTestBootstrap addModule(Module module) {
+    SpineVerticle.MODULES.add(module);
     return this;
   }
 
@@ -198,12 +205,13 @@ public class VertxTestBootstrap {
 //        .setTcpQuickAck(true)
       );
 //      final var CFG = new Configuration<>(ConfigurationEntry.class, REPOSITORY_HANDLER);
-//      VERTX.deployVerticle(SpineVerticle::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
 //      if (!configurationEntries.isEmpty()) {
 //        CFG.addAll(configurationEntries).onFailure(OrmConflictException.class)
 //          .recoverWithUni(throwable -> CFG.updateAll(configurationEntries))
 //          .await().indefinitely();
 //      }
+      VERTX.deployVerticle(SpineVerticle::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
+
     }
   }
 

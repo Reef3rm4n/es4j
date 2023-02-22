@@ -22,7 +22,7 @@ public class PostgresQueryGenerator implements QueryGenerator {
         generateUpdateByKeyStatement.keyColumns().forEach(c -> keyJoiner.add(c + " = #{" + c + "}"));
         final var paramsJoiner = new StringJoiner(", ");
         generateUpdateByKeyStatement.updateAbleColumns().forEach(c -> paramsJoiner.add(c + " = #{" + c + "}"));
-        return "update " + generateUpdateByKeyStatement.table() + " set last_update = current_timestamp, version = version + 1, " + paramsJoiner + " where " + keyJoiner + " returning *;";
+        return "update " + generateUpdateByKeyStatement.table() + " set updated = current_timestamp, rec_version = rec_version + 1, " + paramsJoiner + " where " + keyJoiner + " returning *;";
     }
 
     @Override
@@ -50,7 +50,7 @@ public class PostgresQueryGenerator implements QueryGenerator {
     public String deleteByKey(GenerateDeleteByKeyStatement generateDeleteByKeyStatement) {
         final var deleteJoiner = new StringJoiner(" and ");
         generateDeleteByKeyStatement.keyColumns().forEach(c -> deleteJoiner.add(c + " = #{" + c + "}"));
-        return "delete from " + generateDeleteByKeyStatement.table() + " where " + deleteJoiner + " returning id;";
+        return "delete from " + generateDeleteByKeyStatement.table() + " where " + deleteJoiner + " returning *;";
     }
 
     @Override
@@ -83,8 +83,8 @@ public class PostgresQueryGenerator implements QueryGenerator {
         final var initialStatement = "delete from " + generateQueryStatement.table() + " where ";
         String finalStatement = initialStatement
             + queryJoiner
-            + OptionsFilter.getOrder(generateQueryStatement.queryOptions(), generateQueryStatement.queryBuilder().deleteQuery)
-            + OptionsFilter.limitAndOffset(generateQueryStatement.queryOptions(), generateQueryStatement.queryBuilder().deleteQuery);
+            + OptionsFilter.getOrder(generateQueryStatement.queryOptions(), true)
+            + OptionsFilter.limitAndOffset(generateQueryStatement.queryOptions(), true);
         return Tuple2.of(finalStatement, paramMap);
     }
 

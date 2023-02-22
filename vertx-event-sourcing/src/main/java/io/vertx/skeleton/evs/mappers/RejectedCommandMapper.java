@@ -1,6 +1,6 @@
 package io.vertx.skeleton.evs.mappers;
 
-import io.vertx.skeleton.ccp.mappers.MessageQueueSql;
+import io.vertx.skeleton.taskqueue.mappers.MessageQueueSql;
 import io.vertx.skeleton.evs.EntityAggregate;
 import io.vertx.skeleton.evs.objects.EntityAggregateKey;
 import io.vertx.skeleton.evs.objects.RejectedCommand;
