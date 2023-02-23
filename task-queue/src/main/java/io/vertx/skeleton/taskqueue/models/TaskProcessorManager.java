@@ -96,7 +96,7 @@ public record TaskProcessorManager(
     if (processor.fatalExceptions().stream().anyMatch(f -> f.isAssignableFrom(throwable.getClass()))) {
       LOGGER.error("Fatal failure in processor" + processor.getClass().getName() + ", ccp will drop message -> " + messageRecord.id(), throwable.getCause());
       failureState = FATAL_FAILURE;
-    } else if (messageRecord.retryCounter() + 1 >= configuration.maxRetry()) {
+    } else if (messageRecord.retryCounter() + 1 > configuration.maxRetry()) {
       LOGGER.error("Retries exhausted for message -> " + messageRecord.id(), throwable.getCause());
       failureState = RETRIES_EXHAUSTED;
     } else {

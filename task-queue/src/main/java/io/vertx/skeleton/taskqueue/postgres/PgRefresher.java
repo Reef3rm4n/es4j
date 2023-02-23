@@ -32,11 +32,11 @@ public class PgRefresher {
           .with(
             avoid -> {
               logger.info("Retry refresh will re-run in " + configuration.retryIntervalInSeconds() + " minutes");
-              startRetryTimer(configuration.retryIntervalInSeconds() * 60000);
+              startRetryTimer(configuration.retryIntervalInSeconds() * 10000);
             },
             throwable -> {
               logger.info("Retry refresh will re-run in " + configuration.retryIntervalInSeconds() + " minutes");
-              startRetryTimer(configuration.retryIntervalInSeconds() * 60000);
+              startRetryTimer(configuration.retryIntervalInSeconds() * 10000);
             }
           );
       }
@@ -94,6 +94,7 @@ public class PgRefresher {
   private static String purgeIdempotency(TaskQueueConfiguration configuration) {
     return "delete from  task_queue_tx where inserted <= current_timestamp - interval '" + configuration.idempotencyNumberOfDays() + " days'";
   }
+  // todo instead of purging should move to another database.
 
   private static String recoveryUpdates(TaskQueueConfiguration configuration) {
     return "update task_queue set rec_version = version + 1, state = 'RECOVERY'  where " +
@@ -102,7 +103,7 @@ public class PgRefresher {
 
   private static String retryUpdates(TaskQueueConfiguration configuration) {
     return "update task_queue set rec_version = rec_version + 1  where " +
-      " state = 'RETRY' and updated + interval '" + configuration.retryIntervalInSeconds() + "minutes' <= current_timestamp;";
+      " state = 'RETRY' and updated + interval '" + configuration.retryIntervalInSeconds() + "seconds' <= current_timestamp;";
   }
 
 

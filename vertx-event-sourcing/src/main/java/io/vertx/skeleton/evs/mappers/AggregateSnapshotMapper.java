@@ -1,92 +1,64 @@
 package io.vertx.skeleton.evs.mappers;
 
-import io.vertx.skeleton.taskqueue.mappers.MessageQueueSql;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.sql.RecordMapper;
+import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
 import io.vertx.skeleton.evs.objects.AggregateSnapshot;
 import io.vertx.skeleton.evs.objects.EntityAggregateKey;
-import io.vertx.skeleton.models.EmptyQuery;
 import io.vertx.skeleton.orm.Constants;
-import io.vertx.skeleton.orm.RepositoryMapper;
-import io.vertx.mutiny.sqlclient.templates.RowMapper;
-import io.vertx.mutiny.sqlclient.templates.TupleMapper;
+import io.vertx.skeleton.sql.models.EmptyQuery;
+import io.vertx.sqlclient.Row;
 
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class AggregateSnapshotMapper implements RepositoryMapper<EntityAggregateKey, AggregateSnapshot, EmptyQuery> {
-  private final String tableName;
+public class AggregateSnapshotMapper implements RecordMapper<EntityAggregateKey, AggregateSnapshot, EmptyQuery> {
 
-  public <T extends EntityAggregate> AggregateSnapshotMapper(Class<T> entityAggregateClass) {
-    this.tableName = MessageQueueSql.camelToSnake(entityAggregateClass.getSimpleName()) + "_snapshots";
-  }
+  public static final AggregateSnapshotMapper INSTANCE = new AggregateSnapshotMapper();
+  private static final String ENTITY_ID = "entity_id";
+  private static final String EVENT_VERSION = "event_version";
+  private static final String STATE = "state";
+  public static final String SNAPSHOTS = "snapshots";
 
   @Override
   public String table() {
-    return tableName;
+    return SNAPSHOTS;
   }
 
   @Override
-  public Set<String> insertColumns() {
-    return Set.of(Constants.ENTITY_ID, Constants.EVENT_VERSION, Constants.STATE);
-  }
-
-  @Override
-  public Set<String> updateColumns() {
-    return Set.of(Constants.STATE, Constants.EVENT_VERSION);
+  public Set<String> columns() {
+    return Set.of(ENTITY_ID, EVENT_VERSION, STATE);
   }
 
   @Override
   public Set<String> keyColumns() {
-    return Set.of(Constants.ENTITY_ID, Constants.TENANT);
+    return Set.of(Constants.ENTITY_ID);
   }
 
-
   @Override
-  public RowMapper<AggregateSnapshot> rowMapper() {
-    return RowMapper.newInstance(
-      row -> new AggregateSnapshot(
-        row.getString(Constants.ENTITY_ID),
-        row.getLong(Constants.EVENT_VERSION),
-        row.getJsonObject(Constants.STATE),
-        from(row)
-      )
+  public AggregateSnapshot rowMapper(Row row) {
+    return new AggregateSnapshot(
+      row.getString(Constants.ENTITY_ID),
+      row.getLong(Constants.EVENT_VERSION),
+      row.getJsonObject(Constants.STATE),
+      baseRecord(row)
     );
   }
 
   @Override
-  public TupleMapper<AggregateSnapshot> tupleMapper() {
-    return TupleMapper.mapper(
-      entityEvent -> {
-        Map<String, Object> parameters = entityEvent.persistedRecord().params();
-        parameters.put(Constants.ENTITY_ID, entityEvent.entityId());
-        parameters.put(Constants.EVENT_VERSION, entityEvent.eventVersion());
-        parameters.put(Constants.STATE, entityEvent.state());
-        return parameters;
-      }
-    );
+  public void params(Map<String, Object> params, AggregateSnapshot actualRecord) {
+    params.put(Constants.ENTITY_ID, actualRecord.entityId());
+    params.put(Constants.EVENT_VERSION, actualRecord.eventVersion());
+    params.put(Constants.STATE, actualRecord.state());
   }
 
   @Override
-  public TupleMapper<EntityAggregateKey> keyMapper() {
-    return TupleMapper.mapper(
-      key -> {
-        Map<String, Object> parameters = new HashMap<>();
-        parameters.put(Constants.ENTITY_ID, key.entityId());
-        parameters.put(Constants.TENANT, key.tenant().generateString());
-        return parameters;
-      }
-    );
+  public void keyParams(Map<String, Object> params, EntityAggregateKey key) {
+    params.put(ENTITY_ID, key.entityId());
   }
 
   @Override
-  public Class<AggregateSnapshot> valueClass() {
-    return AggregateSnapshot.class;
-  }
+  public void queryBuilder(EmptyQuery query, QueryBuilder builder) {
 
-  @Override
-  public Class<EntityAggregateKey> keyClass() {
-    return EntityAggregateKey.class;
   }
 
 }

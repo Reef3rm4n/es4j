@@ -14,7 +14,7 @@ import io.vertx.skeleton.models.MessageState;
 import io.vertx.skeleton.models.exceptions.OrmConnectionException;
 import io.vertx.skeleton.sql.Repository;
 import io.vertx.skeleton.sql.RepositoryHandler;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 
 
 import java.util.List;
@@ -40,7 +40,7 @@ public class PgTaskProducer implements TaskProducer {
       JsonObject.mapFrom(message.payload()),
       null,
       null,
-      RecordWithoutID.newRecord(message.tenant())
+      BaseRecord.newRecord(message.tenant())
     );
     return queue.insert(queueEntry, (SqlConnection) taskTransaction.connection()).replaceWithVoid()
       .onFailure(OrmConnectionException.class).recoverWithUni(() -> fallback.load(queueEntry));
@@ -59,7 +59,7 @@ public class PgTaskProducer implements TaskProducer {
         JsonObject.mapFrom(message.payload()),
         null,
         null,
-        RecordWithoutID.newRecord(message.tenant())
+        BaseRecord.newRecord(message.tenant())
       )
     ).toList();
     return queue.insertBatch(queueEntries, (SqlConnection) taskTransaction.connection()).replaceWithVoid()

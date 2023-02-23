@@ -12,8 +12,8 @@ import io.vertx.skeleton.evs.EventBehaviour;
 import io.vertx.skeleton.evs.cache.EntityAggregateCache;
 import io.vertx.skeleton.evs.objects.*;
 import io.vertx.skeleton.models.exceptions.VertxServiceException;
-import io.vertx.skeleton.orm.Repository;
-import io.vertx.skeleton.orm.RepositoryHandler;
+import io.vertx.skeleton.sql.Repository;
+import io.vertx.skeleton.sql.RepositoryHandler;
 import io.vertx.skeleton.evs.mappers.AggregateSnapshotMapper;
 import io.vertx.skeleton.evs.mappers.EventJournalMapper;
 import io.vertx.skeleton.evs.mappers.RejectedCommandMapper;
@@ -32,7 +32,9 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends AbstractVerticle {
+
   protected static final Logger LOGGER = LoggerFactory.getLogger(EntityAggregateHandlerVerticle.class);
+
   public static final String ACTION = "action";
   public static final String CLASS_NAME = "className";
   private List<CommandBehaviourWrapper> commandBehaviours;
@@ -73,9 +75,9 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
       eventBehaviours,
       commandBehaviours,
       entityAggregateConfiguration,
-      new Repository<>(new EventJournalMapper(entityAggregateClass), repositoryHandler),
-      Boolean.TRUE.equals(entityAggregateConfiguration.snapshots()) ? new Repository<>(new AggregateSnapshotMapper(entityAggregateClass), repositoryHandler) : null,
-      new Repository<>(new RejectedCommandMapper(entityAggregateClass), repositoryHandler),
+      new Repository<>(EventJournalMapper.INSTANCE, repositoryHandler),
+      Boolean.TRUE.equals(entityAggregateConfiguration.snapshots()) ? new Repository<>(AggregateSnapshotMapper.INSTANCE, repositoryHandler) : null,
+      new Repository<>(RejectedCommandMapper.INSTANCE, repositoryHandler),
       entityAggregateCache,
       entityAggregateConfiguration.persistenceMode()
     );
@@ -126,7 +128,7 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
       })
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
       .toList();
-    entityAggregateCommandBehaviours.forEach(wrapper -> LOGGER.info(wrapper.delegate().getClass().getSimpleName() + " command behaviour registered for tenant -> " + wrapper.delegate().tenant()));
+    entityAggregateCommandBehaviours.forEach(wrapper -> LOGGER.info(wrapper.delegate().getClass().getSimpleName() + " command behaviour registered for tenant -> " + wrapper.delegate().tenantID()));
     return entityAggregateCommandBehaviours;
   }
 
@@ -139,7 +141,7 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
       )
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
       .toList();
-    entityAggregateCommandBehaviours.forEach(eventBehaviour -> LOGGER.info(eventBehaviour.delegate().getClass().getSimpleName() + " event behaviour registered for event " + eventBehaviour.eventClass() + "  tenant -> " + eventBehaviour.delegate().tenant()));
+    entityAggregateCommandBehaviours.forEach(eventBehaviour -> LOGGER.info(eventBehaviour.delegate().getClass().getSimpleName() + " event behaviour registered for event " + eventBehaviour.eventClass() + "  tenant -> " + eventBehaviour.delegate().tenantID()));
     return entityAggregateCommandBehaviours;
   }
 

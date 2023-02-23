@@ -1,5 +1,6 @@
 package io.vertx.skeleton.evs.handlers;
 
+import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.UniHelper;
 import io.vertx.mutiny.core.eventbus.Message;
 import io.vertx.skeleton.evs.EntityAggregate;
@@ -33,7 +34,7 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
   public static final String ACTION = "action";
   public static final String CLASS_NAME = "className";
   private final Vertx vertx;
-  private final Class<T> aggregateEntityClass;
+  public final Class<T> aggregateEntityClass;
   private static final Logger LOGGER = LoggerFactory.getLogger(AggregateHandlerProxy.class);
 
   private final ConsistentHash<SimpleNode> hashRing;
@@ -53,27 +54,22 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
   }
 
 
-  public void load(String entityId, RequestMetadata requestMetadata, RoutingContext routingContext) {
-    final var entityKey = new EntityAggregateKey(entityId, requestMetadata.tenant());
+  public Uni<T> load(String entityId, RequestHeaders requestMetadata) {
+    final var entityKey = new EntityAggregateKey(entityId, requestMetadata.tenantId());
     final var handlerAddress = locateHandler(entityKey);
-    vertx.eventBus().<JsonObject>request(
+    return vertx.eventBus().<JsonObject>request(
         handlerAddress,
         JsonObject.mapFrom(entityKey),
         new DeliveryOptions()
           .addHeader(ACTION, AggregateHandlerAction.LOAD.name())
       )
       .map(response -> response.body().mapTo(aggregateEntityClass))
-      .onFailure().transform(Unchecked.function(AggregateHandlerProxy::transformError))
-      .subscribe()
-      .with(
-        response -> ok(routingContext, response),
-        routingContext::fail
-      );
+      .onFailure().transform(Unchecked.function(AggregateHandlerProxy::transformError));
   }
 
-  public void forwardCommand(final CommandWrapper command, RoutingContext routingContext) {
-    final var handlerAddress = locateHandler(new EntityAggregateKey(command.entityId(), command.requestMetadata().tenant()));
-    vertx.eventBus().<JsonObject>request(
+  public Uni<T> forwardCommand(final CommandWrapper command) {
+    final var handlerAddress = locateHandler(new EntityAggregateKey(command.entityId(), command.requestHeaders().tenantId()));
+    return vertx.eventBus().<JsonObject>request(
         handlerAddress,
         JsonObject.mapFrom(command),
         new DeliveryOptions()
@@ -81,17 +77,12 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
           .addHeader(CLASS_NAME, command.command().commandType())
       )
       .map(response -> response.body().mapTo(aggregateEntityClass))
-      .onFailure().transform(Unchecked.function(AggregateHandlerProxy::transformError))
-      .subscribe()
-      .with(
-        response -> ok(routingContext, response),
-        routingContext::fail
-      );
+      .onFailure().transform(Unchecked.function(AggregateHandlerProxy::transformError));
   }
 
-  public void handleCompositeCommand(final CompositeCommandWrapper compositeCmd, RoutingContext routingContext) {
-    final var handlerAddress = locateHandler(new EntityAggregateKey(compositeCmd.entityId(), compositeCmd.requestMetadata().tenant()));
-    vertx.eventBus().<JsonObject>request(
+  public Uni<T> handleCompositeCommand(final CompositeCommandWrapper compositeCmd) {
+    final var handlerAddress = locateHandler(new EntityAggregateKey(compositeCmd.entityId(), compositeCmd.requestHeaders().tenantId()));
+    return vertx.eventBus().<JsonObject>request(
         handlerAddress,
         JsonObject.mapFrom(compositeCmd),
         new DeliveryOptions()
@@ -99,12 +90,7 @@ public class AggregateHandlerProxy<T extends EntityAggregate> {
           .addHeader(CLASS_NAME, compositeCmd.getClass().getName())
       )
       .map(response -> response.body().mapTo(aggregateEntityClass))
-      .onFailure().transform(Unchecked.function(AggregateHandlerProxy::transformError))
-      .subscribe()
-      .with(
-        response -> ok(routingContext, response),
-        routingContext::fail
-      );
+      .onFailure().transform(Unchecked.function(AggregateHandlerProxy::transformError));
   }
 
   private static Throwable transformError(final Throwable throwable) {

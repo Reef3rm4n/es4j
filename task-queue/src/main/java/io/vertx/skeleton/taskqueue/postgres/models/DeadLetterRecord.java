@@ -2,7 +2,7 @@ package io.vertx.skeleton.taskqueue.postgres.models;
 
 import io.vertx.core.json.JsonObject;
 import io.vertx.skeleton.models.MessageState;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 import io.vertx.skeleton.sql.models.RepositoryRecord;
 
 import java.time.Instant;
@@ -19,7 +19,7 @@ public record DeadLetterRecord(
   JsonObject payload,
   JsonObject failedProcessors,
   String verticleId,
-  RecordWithoutID baseRecord
+  BaseRecord baseRecord
 ) implements RepositoryRecord<DeadLetterRecord> {
 
 
@@ -35,7 +35,7 @@ public record DeadLetterRecord(
       JsonObject.mapFrom(payload),
       null,
       null,
-      RecordWithoutID.newRecord(tenant)
+      BaseRecord.newRecord(tenant)
     );
   }
 
@@ -51,7 +51,7 @@ public record DeadLetterRecord(
       JsonObject.mapFrom(payload),
       null,
       null,
-      RecordWithoutID.newRecord(tenant)
+      BaseRecord.newRecord(tenant)
     );
   }
 
@@ -67,7 +67,7 @@ public record DeadLetterRecord(
       JsonObject.mapFrom(payload),
       null,
       null,
-      RecordWithoutID.newRecord(tenant)
+      BaseRecord.newRecord(tenant)
     );
   }
 
@@ -87,7 +87,7 @@ public record DeadLetterRecord(
   }
 
   @Override
-  public DeadLetterRecord with(RecordWithoutID baseRecord) {
+  public DeadLetterRecord with(BaseRecord baseRecord) {
     return new DeadLetterRecord(id, scheduled, expiration, priority, retryCounter, messageState, payloadClass, payload, failedProcessors, verticleId, baseRecord);
   }
 }

@@ -11,7 +11,7 @@ import io.vertx.skeleton.taskqueue.postgres.models.MessageTransactionID;
 import io.vertx.skeleton.taskqueue.postgres.models.MessageTransactionQuery;
 import io.vertx.skeleton.sql.Repository;
 import io.vertx.skeleton.sql.RepositoryHandler;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 
 import java.util.function.BiFunction;
 
@@ -31,7 +31,7 @@ public class PgTransaction implements TransactionManager {
             message.messageId(),
             null,
             message.payload().getClass().getName(),
-            RecordWithoutID.newRecord(message.tenant())
+            BaseRecord.newRecord(message.tenant())
           ),
           sqlConnection
         )

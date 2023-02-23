@@ -2,20 +2,26 @@ package io.vertx.skeleton.evs.objects;
 
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.Shareable;
-import io.vertx.skeleton.models.PersistedRecord;
-import io.vertx.skeleton.models.RepositoryRecord;
+import io.vertx.skeleton.sql.models.BaseRecord;
+import io.vertx.skeleton.sql.models.RepositoryRecord;
 
 import java.util.Objects;
 
 public record EntityEvent(
+  Long id,
   String entityId,
   String eventClass,
   Long eventVersion,
   JsonObject event,
   JsonObject command,
   String commandClass,
-  PersistedRecord persistedRecord
+  BaseRecord baseRecord
 ) implements RepositoryRecord<EntityEvent>, Shareable {
+
+
+  public EntityEvent(String entityId, String eventClass, Long eventVersion, JsonObject event, JsonObject command, String commandClass, BaseRecord baseRecord) {
+    this(null, entityId, eventClass, eventVersion, event, command, commandClass, baseRecord);
+  }
 
   public EntityEvent {
     Objects.requireNonNull(entityId, "Entity must not be null");
@@ -28,8 +34,9 @@ public record EntityEvent(
     Objects.requireNonNull(event);
   }
 
+
   @Override
-  public EntityEvent with(final PersistedRecord persistedRecord) {
-    return new EntityEvent(entityId, eventClass, eventVersion, event, command, commandClass, persistedRecord);
+  public EntityEvent with(BaseRecord baseRecord) {
+    return new EntityEvent(entityId, eventClass, eventVersion, event, command, commandClass, baseRecord);
   }
 }

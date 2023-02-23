@@ -2,7 +2,7 @@ package io.vertx.skeleton.sql;
 
 import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
 import io.vertx.skeleton.sql.models.Query;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 import io.vertx.skeleton.sql.models.RepositoryRecord;
 import io.vertx.skeleton.sql.models.RepositoryRecordKey;
 import io.vertx.sqlclient.Row;
@@ -61,7 +61,7 @@ public interface RecordMapper<K extends RepositoryRecordKey, V extends Repositor
      *
      * @param params
      */
-    void params(Map<String, Object> params, V record);
+    void params(Map<String, Object> params, V actualRecord);
 
     /**
      * The map should be filled with tuple(column,valueParam) that compose the key of the record, used for selectByKey()
@@ -78,8 +78,8 @@ public interface RecordMapper<K extends RepositoryRecordKey, V extends Repositor
      */
     void queryBuilder(Q query, QueryBuilder builder);
 
-    default RecordWithoutID baseRecord(Row row) {
-        return new RecordWithoutID(
+    default BaseRecord baseRecord(Row row) {
+        return new BaseRecord(
             row.getString(TENANT),
             row.getInteger(VERSION),
             row.getLocalDateTime(CREATION_DATE).toInstant(ZoneOffset.UTC),

@@ -20,8 +20,8 @@ public class TaskQueueConfiguration {
   private Integer concurrency = null;
   private Long errorBackOffInMinutes = 5L;
   private Long retryInvervalInSeconds = 1L;
-  private Long maxProcessingTimeInMinutes = 5L;
-  private Long batchSize = 200L;
+  private Long maxProcessingTimeInMinutes = 30L;
+  private Long batchSize = 50L;
   private Integer maxRetry = 1;
   private Long maintenanceEvery = 30L;
   private Integer circuitBreakerMaxFailues = 10;

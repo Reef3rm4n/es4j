@@ -3,7 +3,7 @@ package io.vertx.skeleton.taskqueue.postgres.models;
 import io.vertx.skeleton.taskqueue.models.RawMessage;
 import io.vertx.skeleton.models.MessageState;
 import io.vertx.core.json.JsonObject;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 import io.vertx.skeleton.sql.models.RepositoryRecord;
 
 import java.time.Instant;
@@ -20,7 +20,7 @@ public record MessageRecord(
   JsonObject payload,
   JsonObject failedProcessors,
   String verticleId,
-  RecordWithoutID baseRecord
+  BaseRecord baseRecord
 ) implements RepositoryRecord<MessageRecord> {
 
 
@@ -36,7 +36,7 @@ public record MessageRecord(
       JsonObject.mapFrom(payload),
       null,
       null,
-      RecordWithoutID.newRecord(tenant)
+      BaseRecord.newRecord(tenant)
     );
   }
 
@@ -52,7 +52,7 @@ public record MessageRecord(
       JsonObject.mapFrom(payload),
       null,
       null,
-      RecordWithoutID.newRecord(tenant)
+      BaseRecord.newRecord(tenant)
     );
   }
 
@@ -68,7 +68,7 @@ public record MessageRecord(
       JsonObject.mapFrom(payload),
       null,
       null,
-      RecordWithoutID.newRecord(tenant)
+      BaseRecord.newRecord(tenant)
     );
   }
 
@@ -88,7 +88,7 @@ public record MessageRecord(
   }
 
   @Override
-  public MessageRecord with(RecordWithoutID baseRecord) {
+  public MessageRecord with(BaseRecord baseRecord) {
     return new MessageRecord(id, scheduled, expiration, priority, retryCounter, messageState, payloadClass, payload, failedProcessors, verticleId, baseRecord);
   }
 
@@ -104,7 +104,7 @@ public record MessageRecord(
       rawMessage.payload(),
       rawMessage.failures(),
       null,
-      RecordWithoutID.newRecord(rawMessage.tenant())
+      BaseRecord.newRecord(rawMessage.tenant())
     );
   }
 }

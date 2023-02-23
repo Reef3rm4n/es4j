@@ -50,12 +50,12 @@ public class TestModelMapper implements RecordMapper<TestModelKey, TestModel, Te
   }
 
   @Override
-  public void params(Map<String, Object> params, TestModel record) {
-    params.put(TEXT_FIELD, record.textField());
-    params.put(TIMESTAMP_FIELD, LocalDateTime.ofInstant(record.timeStampField(), ZoneOffset.UTC));
-    params.put(JSON_FIELD, record.jsonObjectField());
-    params.put(LONG_FIELD, record.longField());
-    params.put(INTEGER_FIELD, record.integerField());
+  public void params(Map<String, Object> params, TestModel actualRecord) {
+    params.put(TEXT_FIELD, actualRecord.textField());
+    params.put(TIMESTAMP_FIELD, LocalDateTime.ofInstant(actualRecord.timeStampField(), ZoneOffset.UTC));
+    params.put(JSON_FIELD, actualRecord.jsonObjectField());
+    params.put(LONG_FIELD, actualRecord.longField());
+    params.put(INTEGER_FIELD, actualRecord.integerField());
   }
 
   @Override

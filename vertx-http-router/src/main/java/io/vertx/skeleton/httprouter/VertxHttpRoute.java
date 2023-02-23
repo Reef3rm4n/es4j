@@ -2,6 +2,7 @@ package io.vertx.skeleton.httprouter;
 
 import io.vertx.skeleton.models.Error;
 import io.vertx.skeleton.models.PublicQueryOptions;
+import io.vertx.skeleton.models.RequestHeaders;
 import io.vertx.skeleton.models.RequestMetadata;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -96,6 +97,15 @@ public interface VertxHttpRoute {
       Integer.parseInt(routingContext.request().getHeader(RequestMetadata.PARTNER_ID_HEADER)),
       routingContext.request().getHeader(RequestMetadata.PLAYER_ID),
       routingContext.request().getHeader(RequestMetadata.LONG_TERM_TOKEN)
+    );
+  }
+
+  default RequestHeaders extractHeaders(RoutingContext routingContext) {
+    return new RequestHeaders(
+      routingContext.request().getHeader(RequestHeaders.REQUEST_ID),
+      routingContext.request().getHeader(RequestHeaders.TENANT_ID),
+      routingContext.request().getHeader(RequestHeaders.USER_ID),
+      routingContext.request().getHeader(RequestHeaders.TOKEN)
     );
   }
 

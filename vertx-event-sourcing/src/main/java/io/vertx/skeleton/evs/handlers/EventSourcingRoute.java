@@ -21,6 +21,7 @@ import java.util.Map;
 public class EventSourcingRoute implements VertxHttpRoute {
 
   private Class<? extends EntityAggregate> entityAggregateClass;
+
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventSourcingRoute.class);
 
   private AggregateHandlerProxy<? extends EntityAggregate> entityAggregateProxy;
@@ -35,27 +36,44 @@ public class EventSourcingRoute implements VertxHttpRoute {
     router.post("/" + entityAggregateClass.getSimpleName().toLowerCase() + "/command/composite/:entityId").consumes(Constants.APPLICATION_JSON).produces(Constants.APPLICATION_JSON)
       .handler(routingContext -> {
           final var entityId = routingContext.pathParam("entityId");
-          final var metadata = extractMetadata(routingContext);
+          final var metadata = extractHeaders(routingContext);
           final var publicCommands = unpackCommands(routingContext);
           final var commands = mapToCommand(publicCommands);
-          entityAggregateProxy.handleCompositeCommand(new CompositeCommandWrapper(entityId, commands, metadata), routingContext);
+          entityAggregateProxy.handleCompositeCommand(new CompositeCommandWrapper(entityId, commands, metadata))
+            .subscribe()
+            .with(
+              response -> ok(routingContext, response),
+              routingContext::fail
+            );
         }
       );
+
     router.post("/" + entityAggregateClass.getSimpleName().toLowerCase() + "/command/:entityId").consumes(Constants.APPLICATION_JSON).produces(Constants.APPLICATION_JSON)
       .handler(routingContext -> {
           final var entityId = routingContext.pathParam("entityId");
-          final var metadata = extractMetadata(routingContext);
+          final var metadata = extractHeaders(routingContext);
           final var command = routingContext.body().asJsonObject().mapTo(PublicCommand.class);
           final var commandClass = commandClass(command);
           final var compositeCommand = new CommandWrapper(entityId, new Command(commandClass, JsonObject.mapFrom(command.command())), metadata);
-          entityAggregateProxy.forwardCommand(compositeCommand, routingContext);
+          entityAggregateProxy.forwardCommand(compositeCommand)
+            .subscribe()
+            .with(
+              response -> ok(routingContext, response),
+              routingContext::fail
+            );
         }
       );
+
     router.get("/" + entityAggregateClass.getSimpleName().toLowerCase() + "/:entityId").produces(Constants.APPLICATION_JSON)
       .handler(routingContext -> {
           final var entityId = routingContext.pathParam("entityId");
-          final var metadata = extractMetadata(routingContext);
-          entityAggregateProxy.load(entityId, metadata, routingContext);
+          final var metadata = extractHeaders(routingContext);
+          entityAggregateProxy.load(entityId, metadata)
+            .subscribe()
+            .with(
+              response -> ok(routingContext, response),
+              routingContext::fail
+            );
         }
       );
   }

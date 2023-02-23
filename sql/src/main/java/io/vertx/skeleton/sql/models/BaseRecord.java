@@ -10,19 +10,19 @@ import java.util.Objects;
 import static io.vertx.skeleton.sql.misc.Constants.*;
 
 
-public record RecordWithoutID(
+public record BaseRecord(
     String tenantId,
     Integer version,
     Instant creationDate,
     Instant lastUpdate
 ) {
 
-    public static RecordWithoutID newRecord(String tenantId) {
-        return new RecordWithoutID(Objects.requireNonNullElse(tenantId, "default"), 0, Instant.now(), Instant.now());
+    public static BaseRecord newRecord(String tenantId) {
+        return new BaseRecord(Objects.requireNonNullElse(tenantId, "default"), 0, Instant.now(), Instant.now());
     }
 
-    public static RecordWithoutID newRecord() {
-        return new RecordWithoutID("default", 0, Instant.now(), Instant.now());
+    public static BaseRecord newRecord() {
+        return new BaseRecord("default", 0, Instant.now(), Instant.now());
     }
 
     public Map<String, Object> params() {
@@ -46,15 +46,15 @@ public record RecordWithoutID(
         return map;
     }
 
-    public RecordWithoutID withId(Long i) {
-        return new RecordWithoutID(tenantId, version, creationDate, lastUpdate);
+    public BaseRecord withId(Long i) {
+        return new BaseRecord(tenantId, version, creationDate, lastUpdate);
     }
 
-    public RecordWithoutID withVersion(Integer c) {
-        return new RecordWithoutID(tenantId, c, creationDate, lastUpdate);
+    public BaseRecord withVersion(Integer c) {
+        return new BaseRecord(tenantId, c, creationDate, lastUpdate);
     }
 
-    public RecordWithoutID withLastUpdate(Instant i) {
-        return new RecordWithoutID(tenantId, version, creationDate, i);
+    public BaseRecord withLastUpdate(Instant i) {
+        return new BaseRecord(tenantId, version, creationDate, i);
     }
 }

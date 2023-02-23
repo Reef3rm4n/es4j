@@ -1,10 +1,10 @@
 package io.vertx.skeleton.evs;
 
 
-import io.vertx.skeleton.models.RequestMetadata;
+import io.vertx.skeleton.models.RequestHeaders;
 
 public interface Command {
   String entityId();
-  RequestMetadata requestMetadata();
+  RequestHeaders requestHeaders();
 
 }

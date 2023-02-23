@@ -1,73 +1,37 @@
 package io.vertx.skeleton.evs.mappers;
 
-import io.vertx.skeleton.evs.EntityAggregate;
-import io.vertx.skeleton.models.EmptyQuery;
+import io.vertx.skeleton.sql.models.EmptyQuery;
 import io.vertx.skeleton.evs.objects.EventJournalOffSet;
 import io.vertx.skeleton.evs.objects.EventJournalOffSetKey;
-import io.vertx.skeleton.orm.RepositoryMapper;
-import io.vertx.mutiny.sqlclient.templates.RowMapper;
-import io.vertx.mutiny.sqlclient.templates.TupleMapper;
+import io.vertx.skeleton.sql.RecordMapper;
+import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
+import io.vertx.sqlclient.Row;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 import static io.vertx.skeleton.orm.mappers.Constants.*;
 
-public class EventJournalOffsetMapper implements RepositoryMapper<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> {
+public class EventJournalOffsetMapper implements RecordMapper<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> {
 
 
-  private String tableName;
+  public static final EventJournalOffsetMapper INSTANCE = new EventJournalOffsetMapper();
+  public static final String TABLE_NAME = "projection_offset";
 
-  public <T extends EntityAggregate> EventJournalOffsetMapper(Class<T> entityAggregateClass) {
-    this.tableName = entityAggregateClass.getSimpleName() + "_consumers_offset";
+  private EventJournalOffsetMapper() {
   }
-
-  public final RowMapper<EventJournalOffSet> ROW_MAPPER = RowMapper.newInstance(
-    row -> new EventJournalOffSet(
-      row.getString(CONSUMER),
-      row.getLong(ID_OFFSET),
-      row.getLocalDateTime(DATE_OFFSET) != null ? row.getLocalDateTime(DATE_OFFSET).toInstant(ZoneOffset.UTC) : null,
-      tenantLessFrom(row)
-    )
-  );
-
-  public static final TupleMapper<EventJournalOffSet> TUPLE_MAPPER = TupleMapper.mapper(
-    config -> {
-      Map<String, Object> parameters = config.persistedRecord().tenantLessParams();
-      parameters.put(CONSUMER, config.consumer());
-      parameters.put(ID_OFFSET, config.idOffSet());
-      if (config.dateOffSet() != null) {
-        parameters.put(DATE_OFFSET, LocalDateTime.ofInstant(config.dateOffSet(), ZoneOffset.UTC));
-      }
-      return parameters;
-    }
-  );
-
-  public static final TupleMapper<EventJournalOffSetKey> KEY_MAPPER = TupleMapper.mapper(
-    savedConfigurationKey -> {
-      Map<String, Object> parameters = new HashMap<>();
-      parameters.put(CONSUMER, savedConfigurationKey.consumer());
-      return parameters;
-    }
-  );
 
 
   @Override
   public String table() {
-    return tableName;
+    return TABLE_NAME;
   }
 
   @Override
-  public Set<String> insertColumns() {
-    return Set.of( ID_OFFSET, DATE_OFFSET, CONSUMER);
-  }
-
-  @Override
-  public Set<String> updateColumns() {
-    return Set.of(ID_OFFSET, DATE_OFFSET);
+  public Set<String> columns() {
+    return Set.of(ID_OFFSET, DATE_OFFSET, CONSUMER);
   }
 
   @Override
@@ -76,27 +40,32 @@ public class EventJournalOffsetMapper implements RepositoryMapper<EventJournalOf
   }
 
   @Override
-  public RowMapper<EventJournalOffSet> rowMapper() {
-    return ROW_MAPPER;
+  public EventJournalOffSet rowMapper(Row row) {
+    return new EventJournalOffSet(
+      row.getString(CONSUMER),
+      row.getLong(ID_OFFSET),
+      row.getLocalDateTime(DATE_OFFSET) != null ? row.getLocalDateTime(DATE_OFFSET).toInstant(ZoneOffset.UTC) : null,
+      baseRecord(row)
+    );
   }
 
   @Override
-  public TupleMapper<EventJournalOffSet> tupleMapper() {
-    return TUPLE_MAPPER;
+  public void params(Map<String, Object> params, EventJournalOffSet actualRecord) {
+    params.put(CONSUMER, actualRecord.consumer());
+    params.put(ID_OFFSET, actualRecord.idOffSet());
+    if (actualRecord.dateOffSet() != null) {
+      params.put(DATE_OFFSET, LocalDateTime.ofInstant(actualRecord.dateOffSet(), ZoneOffset.UTC));
+    }
   }
 
   @Override
-  public TupleMapper<EventJournalOffSetKey> keyMapper() {
-    return KEY_MAPPER;
+  public void keyParams(Map<String, Object> params, EventJournalOffSetKey key) {
+    params.put(CONSUMER, key.consumer());
   }
 
   @Override
-  public Class<EventJournalOffSet> valueClass() {
-    return EventJournalOffSet.class;
+  public void queryBuilder(EmptyQuery query, QueryBuilder builder) {
+
   }
 
-  @Override
-  public Class<EventJournalOffSetKey> keyClass() {
-    return EventJournalOffSetKey.class;
-  }
 }

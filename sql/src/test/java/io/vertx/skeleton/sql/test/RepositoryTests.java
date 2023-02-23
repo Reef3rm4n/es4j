@@ -8,7 +8,7 @@ import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.skeleton.sql.Repository;
 import io.vertx.skeleton.sql.models.QueryOptions;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 import io.vertx.skeleton.test.VertxTestBootstrap;
 
 import java.time.Instant;
@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
-import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -101,7 +100,7 @@ public class RepositoryTests {
       ,
       0L,
       1,
-      RecordWithoutID.newRecord()
+      BaseRecord.newRecord()
     );
   }
 }

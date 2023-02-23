@@ -1,96 +1,66 @@
 package io.vertx.skeleton.evs.mappers;
 
-import io.vertx.skeleton.taskqueue.mappers.MessageQueueSql;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.sql.RecordMapper;
 import io.vertx.skeleton.evs.objects.EntityAggregateKey;
 import io.vertx.skeleton.evs.objects.RejectedCommand;
-import io.vertx.skeleton.models.*;
-import io.vertx.skeleton.models.exceptions.OrmGenericException;
-import io.vertx.skeleton.orm.Constants;
-import io.vertx.skeleton.orm.RepositoryMapper;
-import io.vertx.mutiny.sqlclient.templates.RowMapper;
-import io.vertx.mutiny.sqlclient.templates.TupleMapper;
-import io.vertx.skeleton.models.Error;
-
-import java.util.HashMap;
+import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
+import io.vertx.skeleton.sql.models.EmptyQuery;
+import io.vertx.sqlclient.Row;
 import java.util.Map;
 import java.util.Set;
 
-public class RejectedCommandMapper implements RepositoryMapper<EntityAggregateKey, RejectedCommand, EmptyQuery> {
-  private final String tableName;
+public class RejectedCommandMapper implements RecordMapper<EntityAggregateKey, RejectedCommand, EmptyQuery> {
 
 
-  public <T extends EntityAggregate> RejectedCommandMapper(Class<T> entityAggregateClass) {
-    this.tableName = MessageQueueSql.camelToSnake(entityAggregateClass.getSimpleName()) + "_rejected_commands";
-  }
+  private static final String ENTITY_ID = "entity_id";
+  private static final String COMMAND = "command";
+  private static final String COMMAND_CLASS = "command_class";
+  private static final String ERROR = "error";
+
+  private RejectedCommandMapper(){}
+  public static RejectedCommandMapper INSTANCE = new RejectedCommandMapper();
 
   @Override
   public String table() {
-    return tableName;
+    return "rejected_commands";
   }
 
   @Override
-  public Set<String> insertColumns() {
-    return Set.of(Constants.ENTITY_ID, Constants.COMMAND, Constants.ERROR);
-  }
-
-  @Override
-  public Set<String> updateColumns() {
-    throw new OrmGenericException(new Error("Update not iplemented", "EventJournal is an append only log !", 500));
+  public Set<String> columns() {
+    return Set.of(ENTITY_ID, COMMAND, ERROR);
   }
 
   @Override
   public Set<String> keyColumns() {
-    return Set.of(Constants.ENTITY_ID, Constants.TENANT);
+    return Set.of(ENTITY_ID);
   }
 
-
-
-
   @Override
-  public RowMapper<RejectedCommand> rowMapper() {
-    return RowMapper.newInstance(
-      row -> new RejectedCommand(
-        row.getString(Constants.ENTITY_ID),
-        row.getJsonObject(Constants.COMMAND),
-        row.getString(Constants.COMMAND_CLASS),
-        row.getJsonObject(Constants.ERROR),
-        from(row)
-      )
-    );
-  }
-  @Override
-  public TupleMapper<RejectedCommand> tupleMapper() {
-    return TupleMapper.mapper(
-      rejectedCommand -> {
-        Map<String, Object> parameters = rejectedCommand.persistedRecord().params();
-        parameters.put(Constants.ENTITY_ID, rejectedCommand.entityId());
-        parameters.put(Constants.COMMAND, rejectedCommand.command());
-        parameters.put(Constants.ERROR, rejectedCommand.error());
-        return parameters;
-      }
+  public RejectedCommand rowMapper(Row row) {
+    return new RejectedCommand(
+      row.getString(ENTITY_ID),
+      row.getJsonObject(COMMAND),
+      row.getString(COMMAND_CLASS),
+      row.getJsonObject(ERROR),
+      baseRecord(row)
     );
   }
 
   @Override
-  public TupleMapper<EntityAggregateKey> keyMapper() {
-    return TupleMapper.mapper(
-      key -> {
-        Map<String, Object> parameters = new HashMap<>();
-        parameters.put(Constants.ENTITY_ID, key.entityId());
-        parameters.put(Constants.TENANT, key.tenant().generateString());
-        return parameters;
-      }
-    );
+  public void params(Map<String, Object> params, RejectedCommand actualRecord) {
+    params.put(ENTITY_ID, actualRecord.entityId());
+    params.put(COMMAND, actualRecord.command());
+    params.put(ERROR, actualRecord.error());
   }
 
   @Override
-  public Class<RejectedCommand> valueClass() {
-    return RejectedCommand.class;
+  public void keyParams(Map<String, Object> params, EntityAggregateKey key) {
+    params.put(ENTITY_ID, key.entityId());
   }
 
   @Override
-  public Class<EntityAggregateKey> keyClass() {
-    return EntityAggregateKey.class;
+  public void queryBuilder(EmptyQuery query, QueryBuilder builder) {
+
   }
+
 }

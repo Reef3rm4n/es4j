@@ -53,6 +53,7 @@
     <dependency>
       <groupId>io.vertx.skeleton</groupId>
       <artifactId>task-queue</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.vertx.skeleton</groupId>
@@ -79,10 +80,6 @@
     </dependency>
     <dependency>
       <groupId>io.vertx.skeleton</groupId>
-      <artifactId>vertx-models</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx.skeleton</groupId>
       <artifactId>vertx-task</artifactId>
       <scope>compile</scope>
     </dependency>
@@ -91,10 +88,6 @@
       <artifactId>guava</artifactId>
       <version>31.1-jre</version>
       <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.smallrye.reactive</groupId>
-      <artifactId>smallrye-mutiny-vertx-web</artifactId>
     </dependency>
     <dependency>
       <groupId>com.github.ishugaliy</groupId>

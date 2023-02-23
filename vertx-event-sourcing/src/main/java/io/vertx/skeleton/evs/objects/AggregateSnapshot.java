@@ -1,23 +1,23 @@
 package io.vertx.skeleton.evs.objects;
 
 import io.vertx.core.json.JsonObject;
-import io.vertx.skeleton.models.PersistedRecord;
-import io.vertx.skeleton.models.RepositoryRecord;
+import io.vertx.skeleton.sql.models.RepositoryRecord;
+import io.vertx.skeleton.sql.models.BaseRecord;
 
 public record AggregateSnapshot(
   String entityId,
   Long eventVersion,
   JsonObject state,
-  PersistedRecord persistedRecord
+  BaseRecord baseRecord
 ) implements RepositoryRecord<AggregateSnapshot> {
 
 
   @Override
-  public AggregateSnapshot with(final PersistedRecord persistedRecord) {
-    return new AggregateSnapshot(entityId, eventVersion, state, persistedRecord);
+  public AggregateSnapshot with(final BaseRecord baseRecord) {
+    return new AggregateSnapshot(entityId, eventVersion, state, baseRecord);
   }
 
-  public AggregateSnapshot withState(final JsonObject mapFrom) {
-    return new AggregateSnapshot(entityId, eventVersion, mapFrom, persistedRecord);
+  public AggregateSnapshot withState(final JsonObject newState) {
+    return new AggregateSnapshot(entityId, eventVersion, newState, baseRecord);
   }
 }

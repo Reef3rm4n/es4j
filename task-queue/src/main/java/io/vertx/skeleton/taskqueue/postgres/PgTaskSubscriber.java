@@ -20,7 +20,7 @@ import io.vertx.skeleton.sql.exceptions.OrmNotFoundException;
 import io.vertx.skeleton.sql.Repository;
 import io.vertx.skeleton.sql.RepositoryHandler;
 import io.vertx.skeleton.sql.models.QueryOptions;
-import io.vertx.skeleton.sql.models.RecordWithoutID;
+import io.vertx.skeleton.sql.models.BaseRecord;
 
 import java.time.Duration;
 import java.util.*;
@@ -140,7 +140,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
       " state in ('CREATED','SCHEDULED','RETRY')" +
       " and (scheduled is null or scheduled <= current_timestamp)" +
       " and (expiration is null or expiration >= current_timestamp)" +
-      " and (retry_counter = 0 or updated + interval '" + configuration.retryIntervalInSeconds() + " minutes' <= current_timestamp)" +
+      " and (retry_counter = 0 or updated + interval '" + configuration.retryIntervalInSeconds() + " seconds' <= current_timestamp)" +
       " order by priority for update skip locked limit " + configuration.batchSize() +
       " ) returning *;";
   }
@@ -203,7 +203,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
         messageRecord.payload(),
         messageRecord.failedProcessors(),
         messageRecord.verticleId(),
-        RecordWithoutID.newRecord(messageRecord.baseRecord().tenantId())
+        BaseRecord.newRecord(messageRecord.baseRecord().tenantId())
       ))
       .toList();
     if (!queries.isEmpty()) {

@@ -1,125 +1,112 @@
 package io.vertx.skeleton.evs.mappers;
 
-import io.vertx.skeleton.taskqueue.mappers.MessageQueueSql;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.sql.RecordMapper;
 import io.vertx.skeleton.evs.objects.EntityEvent;
 import io.vertx.skeleton.evs.objects.EntityEventKey;
 import io.vertx.skeleton.evs.objects.EventJournalQuery;
-import io.vertx.skeleton.models.exceptions.OrmGenericException;
-import io.vertx.skeleton.orm.Constants;
-import io.vertx.skeleton.orm.RepositoryMapper;
-import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.mutiny.sqlclient.templates.RowMapper;
-import io.vertx.mutiny.sqlclient.templates.TupleMapper;
-import io.vertx.skeleton.models.Error;
+import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
+import io.vertx.skeleton.sql.models.QueryFilter;
+import io.vertx.skeleton.sql.models.QueryFilters;
+import io.vertx.sqlclient.Row;
 
 import java.util.*;
 
-public class EventJournalMapper implements RepositoryMapper<EntityEventKey, EntityEvent, EventJournalQuery> {
-  private final String tableName;
+public class EventJournalMapper implements RecordMapper<EntityEventKey, EntityEvent, EventJournalQuery> {
+  public static final String EVENT_JOURNAL = "event_journal";
+  private static final String ENTITY_ID = "entity_id";
+  private static final String ID = "id";
+  private static final String EVENT = "event";
+  private static final String EVENT_VERSION = "event_version";
+  private static final String EVENT_CLASS = "event_class";
+  private static final String COMMAND = "command";
+  private static final String COMMAND_CLASS = "command_class";
 
-  public EventJournalMapper(String tableName) {
-    this.tableName = tableName;
-  }
-
-  public <T extends EntityAggregate> EventJournalMapper(Class<T> entityAggregateClass) {
-    this.tableName = MessageQueueSql.camelToSnake(entityAggregateClass.getSimpleName()) + "_event_journal";
-  }
+  public static final EventJournalMapper INSTANCE = new EventJournalMapper();
+  private EventJournalMapper(){}
 
   @Override
   public String table() {
-    return tableName;
+    return EVENT_JOURNAL;
   }
 
   @Override
-  public Set<String> insertColumns() {
-    return Set.of(
-      Constants.ENTITY_ID,
-      Constants.EVENT,
-      Constants.EVENT_VERSION,
-      Constants.EVENT_CLASS,
-      Constants.COMMAND,
-      Constants.COMMAND_CLASS
-    );
-  }
-
-  @Override
-  public Set<String> updateColumns() {
-    throw new OrmGenericException(new Error("Update not iplemented", "EventJournal is an append only log !", 500));
+  public Set<String> columns() {
+    return Set.of(ENTITY_ID, EVENT, EVENT_VERSION, EVENT_CLASS, COMMAND, COMMAND_CLASS);
   }
 
   @Override
   public Set<String> keyColumns() {
-    return Set.of(Constants.ENTITY_ID, Constants.EVENT_VERSION, Constants.TENANT);
+    return Set.of(ENTITY_ID, EVENT_VERSION);
   }
 
   @Override
-  public List<Tuple2<String, List<?>>> queryFieldsColumn(EventJournalQuery queryFilter) {
-    return List.of(
-      Tuple2.of(Constants.ENTITY_ID, queryFilter.entityId()),
-      Tuple2.of(Constants.EVENT_CLASS, queryFilter.eventType())
+  public EntityEvent rowMapper(Row row) {
+    return new EntityEvent(
+      row.getLong(ID),
+      row.getString(ENTITY_ID),
+      row.getString(EVENT_CLASS),
+      row.getLong(EVENT_VERSION),
+      row.getJsonObject(EVENT),
+      row.getJsonObject(COMMAND),
+      row.getString(COMMAND_CLASS),
+      baseRecord(row)
     );
   }
 
   @Override
-  public void queryExtraFilters(final EventJournalQuery queryFilter, final StringJoiner stringJoiner) {
-    if (queryFilter.eventVersionFrom() != null) {
-      stringJoiner.add(" event_version > " + queryFilter.eventVersionFrom() + " ");
-    }
+  public void params(Map<String, Object> params, EntityEvent actualRecord) {
+    params.put(ENTITY_ID, actualRecord.entityId());
+    params.put(EVENT_CLASS, actualRecord.eventClass());
+    params.put(EVENT_VERSION, actualRecord.eventVersion());
+    params.put(EVENT, actualRecord.event());
+    params.put(COMMAND, actualRecord.command());
+    params.put(COMMAND_CLASS, actualRecord.commandClass());
   }
 
   @Override
-  public RowMapper<EntityEvent> rowMapper() {
-    return RowMapper.newInstance(
-      row -> new EntityEvent(
-        row.getString(Constants.ENTITY_ID),
-        row.getString(Constants.EVENT_CLASS),
-        row.getLong(Constants.EVENT_VERSION),
-        row.getJsonObject(Constants.EVENT),
-        row.getJsonObject(Constants.COMMAND),
-        row.getString(Constants.COMMAND_CLASS),
-        from(row)
+  public void keyParams(Map<String, Object> params, EntityEventKey key) {
+    params.put(ENTITY_ID, key.entityId());
+    params.put(EVENT_VERSION, key.eventVersion());
+  }
+
+  @Override
+  public void queryBuilder(EventJournalQuery query, QueryBuilder builder) {
+    builder
+      .iLike(
+        new QueryFilters<>(String.class)
+          .filterColumn(EVENT_CLASS)
+          .filterParams(query.eventClasses())
       )
-    );
+      .iLike(
+        new QueryFilters<>(String.class)
+          .filterColumn(ENTITY_ID)
+          .filterParams(query.entityId())
+      )
+      .iLike(
+        new QueryFilters<>(String.class)
+          .filterColumn(COMMAND_CLASS)
+          .filterParams(query.commandClasses())
+      )
+      .from(
+        new QueryFilter<>(Long.class)
+          .filterColumn(EVENT_VERSION)
+          .filterParam(query.eventVersionFrom())
+      )
+      .to(
+        new QueryFilter<>(Long.class)
+          .filterColumn(EVENT_VERSION)
+          .filterParam(query.eventVersionTo())
+      )
+      .from(
+        new QueryFilter<>(Long.class)
+          .filterColumn(ID)
+          .filterParam(query.idFrom())
+      )
+      .to(
+        new QueryFilter<>(Long.class)
+          .filterColumn(ID)
+          .filterParam(query.idTo())
+      )
+    ;
   }
-
-  @Override
-  public TupleMapper<EntityEvent> tupleMapper() {
-    return TupleMapper.mapper(
-      entityEvent -> {
-        Map<String, Object> parameters = entityEvent.persistedRecord().params();
-        parameters.put(Constants.ENTITY_ID, entityEvent.entityId());
-        parameters.put(Constants.EVENT, entityEvent.event());
-        parameters.put(Constants.EVENT_CLASS, entityEvent.eventClass());
-        parameters.put(Constants.EVENT_VERSION, entityEvent.eventVersion());
-        parameters.put(Constants.COMMAND, entityEvent.command());
-        parameters.put(Constants.COMMAND_CLASS, entityEvent.commandClass());
-        return parameters;
-      }
-    );
-  }
-
-  @Override
-  public TupleMapper<EntityEventKey> keyMapper() {
-    return TupleMapper.mapper(
-      key -> {
-        Map<String, Object> parameters = new HashMap<>();
-        parameters.put(Constants.EVENT_VERSION, key.eventVersion());
-        parameters.put(Constants.ENTITY_ID, key.entityId());
-        parameters.put(Constants.TENANT, key.tenant().generateString());
-        return parameters;
-      }
-    );
-  }
-
-  @Override
-  public Class<EntityEvent> valueClass() {
-    return EntityEvent.class;
-  }
-
-  @Override
-  public Class<EntityEventKey> keyClass() {
-    return EntityEventKey.class;
-  }
-
 }

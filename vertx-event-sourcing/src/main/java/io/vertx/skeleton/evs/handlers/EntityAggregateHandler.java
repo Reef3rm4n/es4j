@@ -8,16 +8,18 @@ import io.vertx.skeleton.evs.exceptions.RejectedCommandException;
 import io.vertx.skeleton.evs.exceptions.UnknownCommandException;
 import io.vertx.skeleton.evs.exceptions.UnknownEventException;
 import io.vertx.skeleton.evs.objects.*;
-import io.vertx.skeleton.models.*;
-import io.vertx.skeleton.models.exceptions.OrmConflictException;
-import io.vertx.skeleton.models.exceptions.OrmNotFoundException;
-import io.vertx.skeleton.orm.Repository;
+import io.vertx.skeleton.sql.exceptions.OrmConflictException;
+import io.vertx.skeleton.sql.exceptions.OrmNotFoundException;
+import io.vertx.skeleton.sql.Repository;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.skeleton.models.Error;
+import io.vertx.skeleton.sql.models.BaseRecord;
+import io.vertx.skeleton.sql.models.EmptyQuery;
+import io.vertx.skeleton.sql.models.QueryOptions;
 
 import java.util.*;
 import java.util.stream.IntStream;
@@ -98,11 +100,11 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     if (!commands.stream().allMatch(cmd -> cmd.entityId().equals(command.entityId()))) {
       throw new RejectedCommandException(new Error("ID mismatch in composite command", "All composite commands should have the same entityId", 400));
     }
-    return load(command.entityId(), command.requestMetadata().tenant(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
+    return load(command.entityId(), command.requestHeaders().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, commands)
           .onFailure(OrmConflictException.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.entityId(), command.requestMetadata().tenant())
+            () -> ensureConsistency(aggregateState, command.entityId(), command.requestHeaders().tenantId())
               .flatMap(reconstructedState -> processCommand(reconstructedState, command))
           )
           .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
@@ -114,11 +116,11 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   public Uni<JsonObject> process(String commandType, JsonObject jsonCommand) {
     LOGGER.debug("Processing " + commandType + " -> " + jsonCommand.encodePrettily());
     final var command = getCommand(commandType, jsonCommand);
-    return load(command.entityId(), command.requestMetadata().tenant(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
+    return load(command.entityId(), command.requestHeaders().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, command)
           .onFailure(OrmConflictException.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.entityId(), command.requestMetadata().tenant())
+            () -> ensureConsistency(aggregateState, command.entityId(), command.requestHeaders().tenantId())
               .flatMap(reconstructedState -> processCommand(reconstructedState, command))
           )
           .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
@@ -129,13 +131,13 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private T applyEventBehaviour(T aggregateState, final Object event) {
     final var customBehaviour = eventBehaviours.stream()
-      .filter(behaviour -> behaviour.delegate().tenant() != null && behaviour.delegate().tenant().equals(aggregateState.tenant()))
+      .filter(behaviour -> behaviour.delegate().tenantID() != null && behaviour.delegate().tenantID().equals(aggregateState.tenantID()))
       .filter(behaviour -> behaviour.eventClass().isAssignableFrom(event.getClass()))
       .findFirst()
       .orElse(null);
     if (customBehaviour == null) {
       final var defaultBehaviour = eventBehaviours.stream()
-        .filter(behaviour -> behaviour.delegate().tenant() == null)
+        .filter(behaviour -> behaviour.delegate().tenantID() == null)
         .filter(behaviour -> behaviour.eventClass().isAssignableFrom(event.getClass()))
         .findFirst()
         .orElseThrow(() -> UnknownEventException.unknown(event.getClass()));
@@ -148,13 +150,13 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private List<Object> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var customBehaviour = commandBehaviours.stream()
-      .filter(behaviour -> behaviour.delegate().tenant() != null && behaviour.delegate().tenant().equals(command.requestMetadata().tenant()))
+      .filter(behaviour -> behaviour.delegate().tenantID() != null && behaviour.delegate().tenantID().equals(command.requestHeaders().tenantId()))
       .filter(behaviour -> behaviour.commandClass().isAssignableFrom(command.getClass()))
       .findFirst()
       .orElse(null);
     if (customBehaviour == null) {
       final var defaultBehaviour = commandBehaviours.stream()
-        .filter(behaviour -> behaviour.delegate().tenant() == null)
+        .filter(behaviour -> behaviour.delegate().tenantID() == null)
         .filter(behaviour -> behaviour.commandClass().isAssignableFrom(command.getClass()))
         .findFirst()
         .orElseThrow(() -> UnknownCommandException.unknown(command.getClass()));
@@ -165,7 +167,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     return customBehaviour.delegate().process(aggregateState, command);
   }
 
-  private Uni<EntityAggregateState<T>> load(String entityId, Tenant tenant, ConsistencyStrategy consistencyStrategy) {
+  private Uni<EntityAggregateState<T>> load(String entityId, String tenant, ConsistencyStrategy consistencyStrategy) {
     LOGGER.debug("Loading entity aggregate " + entityId + " with consistency strategy -> " + consistencyStrategy);
     return switch (consistencyStrategy) {
       case EVENTUALLY_CONSISTENT -> {
@@ -193,7 +195,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     };
   }
 
-  private Uni<EntityAggregateState<T>> ensureConsistency(EntityAggregateState<T> state, final String entityId, final Tenant tenant) {
+  private Uni<EntityAggregateState<T>> ensureConsistency(EntityAggregateState<T> state, final String entityId, final String tenant) {
     if (persistenceMode == PersistenceMode.DATABASE) {
       LOGGER.warn("Ensuring consistency for entity -> " + entityId);
       return eventJournal.query(ensureConsistencyQuery(entityId, tenant, state))
@@ -211,7 +213,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     }
   }
 
-  private Uni<EntityAggregateState<T>> loadFromDatabase(final String entityId, final Tenant tenant) {
+  private Uni<EntityAggregateState<T>> loadFromDatabase(final String entityId, final String tenant) {
     final var state = new EntityAggregateState<T>(
       entityAggregateConfiguration.snapshotEvery(),
       entityAggregateConfiguration.maxNumberOfCommandsForIdempotency()
@@ -256,8 +258,8 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
           LOGGER.info("Aggregating event -> " + event.eventClass());
           final var newState = applyEventBehaviour(state.aggregateState(), getEvent(event.eventClass(), event.event()));
           LOGGER.info("New aggregate state -> " + newState);
-          if (command != null && state.commands() != null && state.commands().stream().noneMatch(txId -> txId.equals(command.requestMetadata().txId()))) {
-            state.commands().add(command.requestMetadata().txId());
+          if (command != null && state.commands() != null && state.commands().stream().noneMatch(txId -> txId.equals(command.requestHeaders().requestID()))) {
+            state.commands().add(command.requestHeaders().requestID());
           }
           if (state.eventsAfterSnapshot() != null) {
             state.eventsAfterSnapshot().add(event);
@@ -270,11 +272,15 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   }
 
 
-  private EventJournalQuery eventJournalQuery(final String entityId, final Tenant tenant, EntityAggregateState<T> state) {
+  private EventJournalQuery eventJournalQuery(final String entityId, final String tenant, EntityAggregateState<T> state) {
     return new EventJournalQuery(
       List.of(entityId),
       null,
       state.snapshot() != null ? state.snapshot().eventVersion() : null,
+      null,
+      null,
+      null,
+      null,
       new QueryOptions(
         "event_version",
         false,
@@ -290,11 +296,16 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
     );
   }
 
-  private EventJournalQuery ensureConsistencyQuery(final String entityId, final Tenant tenant, EntityAggregateState<T> state) {
+  private EventJournalQuery ensureConsistencyQuery(final String entityId, final String tenant, EntityAggregateState<T> state) {
+    // todo add idFrom to improve performance
     return new EventJournalQuery(
       List.of(entityId),
       null,
       state.currentEventVersion() != null ? state.currentEventVersion() : 0,
+      null,
+      null,
+      null,
+      null,
       new QueryOptions(
         "event_version",
         false,
@@ -312,7 +323,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final List<Command> commands) {
     if (state.commands() != null && !state.commands().isEmpty()) {
-      state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.requestMetadata().txId().equals(txId)))
+      state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.requestHeaders().requestID().equals(txId)))
         .findAny()
         .ifPresent(duplicatedCommand -> {
             throw new RejectedCommandException(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
@@ -338,7 +349,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   private Uni<EntityAggregateState<T>> updateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
     LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
     eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-    return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state);
+    return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
   }
 
   private Uni<EntityAggregateState<T>> persistEventsUpdateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple, final List<EntityEvent> flattenedEvents) {
@@ -346,7 +357,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       sqlConnection -> eventJournal.insertBatch(flattenedEvents, sqlConnection)
         .flatMap(avoid2 -> {
             eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-            return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state);
+            return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
           }
         )
     );
@@ -368,7 +379,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
             JsonObject.mapFrom(ev),
             JsonObject.mapFrom(finalCommand),
             finalCommand.getClass().getName(),
-            PersistedRecord.newRecord(finalCommand.requestMetadata().tenant())
+            BaseRecord.newRecord(finalCommand.requestHeaders().tenantId())
           );
         }
       ).toList();
@@ -378,7 +389,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private <C extends Command> Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final C command) {
     if (state.commands() != null && !state.commands().isEmpty()) {
-      state.commands().stream().filter(txId -> txId.equals(command.requestMetadata().txId()))
+      state.commands().stream().filter(txId -> txId.equals(command.requestHeaders().requestID()))
         .findAny()
         .ifPresent(duplicatedCommand -> {
             throw new RejectedCommandException(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
@@ -392,14 +403,14 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
         sqlConnection -> eventJournal.insertBatch(eventCommandTuple.getItem1(), sqlConnection)
           .flatMap(avoid2 -> {
               applyEvents(state, eventCommandTuple.getItem1(), command);
-              return cache.put(new EntityAggregateKey(command.entityId(), command.requestMetadata().tenant()), state);
+              return cache.put(new EntityAggregateKey(command.entityId(), command.requestHeaders().tenantId()), state);
             }
           )
       );
     } else {
       LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
       applyEvents(state, eventCommandTuple.getItem1(), command);
-      return cache.put(new EntityAggregateKey(command.entityId(), command.requestMetadata().tenant()), state);
+      return cache.put(new EntityAggregateKey(command.entityId(), command.requestHeaders().tenantId()), state);
     }
   }
 
@@ -408,7 +419,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       if (Boolean.TRUE.equals(state.snapshotPresent())) {
         LOGGER.info("Updating snapshot -> " + state);
         final var snapshot = state.snapshot().withState(JsonObject.mapFrom(state));
-        snapshotRepository.updateById(snapshot)
+        snapshotRepository.updateByKey(snapshot)
           .flatMap(avoid -> updateStateAfterSnapshot(state, snapshot))
           .subscribe()
           .with(
@@ -416,7 +427,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
             , throwable -> LOGGER.error("Unable to add snapshot", throwable));
       } else {
         LOGGER.info("Adding snapshot -> " + state);
-        final var snapshot = new AggregateSnapshot(state.aggregateState().entityId(), state.currentEventVersion(), JsonObject.mapFrom(state.aggregateState()), PersistedRecord.newRecord(state.aggregateState().tenant()));
+        final var snapshot = new AggregateSnapshot(state.aggregateState().entityId(), state.currentEventVersion(), JsonObject.mapFrom(state.aggregateState()), BaseRecord.newRecord(state.aggregateState().tenantID()));
         snapshotRepository.insert(snapshot)
           .flatMap(avoid -> updateStateAfterSnapshot(state, snapshot))
           .subscribe()
@@ -431,19 +442,19 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   private Uni<EntityAggregateState<T>> updateStateAfterSnapshot(final EntityAggregateState<T> state, final AggregateSnapshot snapshot) {
     state.eventsAfterSnapshot().clear();
     state.setProcessedEventsAfterLastSnapshot(0).setSnapshot(snapshot);
-    return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenant()), state);
+    return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
   }
 
   private void handleRejectedCommand(final Throwable throwable, final Command command) {
     LOGGER.error("Command rejected -> ", throwable);
     if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE && rejectedCommandRepository != null) {
       if (throwable instanceof RejectedCommandException rejectedCommandException) {
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(rejectedCommandException.error()), PersistedRecord.newRecord(command.requestMetadata().tenant()));
+        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(rejectedCommandException.error()), BaseRecord.newRecord(command.requestHeaders().tenantId()));
         rejectedCommandRepository.insertAndForget(rejectedCommand);
       } else {
         LOGGER.warn("Unknown exception, consider using RejectedCommandException.class for better error handling");
         final var cause = throwable.getCause() != null ? throwable.getCause().getMessage() : throwable.getLocalizedMessage();
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(new Error(throwable.getMessage(), cause, 500)), PersistedRecord.newRecord(command.requestMetadata().tenant()));
+        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(new Error(throwable.getMessage(), cause, 500)), BaseRecord.newRecord(command.requestHeaders().tenantId()));
         rejectedCommandRepository.insertAndForget(rejectedCommand);
       }
     }

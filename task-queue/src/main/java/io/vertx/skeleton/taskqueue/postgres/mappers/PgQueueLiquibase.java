@@ -39,9 +39,9 @@ public class PgQueueLiquibase {
       repositoryHandler,
       taskQueueConfiguration
     )
-      .startRetryTimer(10000L)
-      .startRecoveryTimer(10000L)
-      .startPurgeRefreshTimer(10000L);
+      .startRetryTimer(1L)
+      .startRecoveryTimer(1L)
+      .startPurgeRefreshTimer(1L);
   }
 
   public static String camelToSnake(String str) {

@@ -49,10 +49,10 @@ public class MessageTransactionMapper implements RecordMapper<MessageTransaction
   }
 
   @Override
-  public void params(Map<String, Object> params, MessageTransaction record) {
-    params.put(MESSAGE_ID, record.id());
-    params.put(PROCESSOR, record.processorClass());
-    params.put(MESSAGE_CLASS, record.messageClass());
+  public void params(Map<String, Object> params, MessageTransaction actualRecord) {
+    params.put(MESSAGE_ID, actualRecord.id());
+    params.put(PROCESSOR, actualRecord.processorClass());
+    params.put(MESSAGE_CLASS, actualRecord.messageClass());
   }
 
   @Override

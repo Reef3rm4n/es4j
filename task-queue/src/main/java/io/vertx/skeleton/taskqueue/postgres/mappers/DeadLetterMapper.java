@@ -69,23 +69,23 @@ public class DeadLetterMapper implements RecordMapper<DeadLetterKey, DeadLetterR
   }
 
   @Override
-  public void params(Map<String, Object> params, DeadLetterRecord messageRecord) {
-    params.put(MESSAGE_ID, messageRecord.id());
-    if (messageRecord.scheduled() != null) {
-      params.put(SCHEDULED, LocalDateTime.ofInstant(messageRecord.scheduled(), ZoneOffset.UTC));
+  public void params(Map<String, Object> params, DeadLetterRecord actualRecord) {
+    params.put(MESSAGE_ID, actualRecord.id());
+    if (actualRecord.scheduled() != null) {
+      params.put(SCHEDULED, LocalDateTime.ofInstant(actualRecord.scheduled(), ZoneOffset.UTC));
     }
-    if (messageRecord.expiration() != null) {
-      params.put(EXPIRATION, LocalDateTime.ofInstant(messageRecord.expiration(), ZoneOffset.UTC));
+    if (actualRecord.expiration() != null) {
+      params.put(EXPIRATION, LocalDateTime.ofInstant(actualRecord.expiration(), ZoneOffset.UTC));
     }
-    params.put(PRIORITY, messageRecord.priority());
-    params.put(RETRY_COUNTER, messageRecord.retryCounter());
-    params.put(STATE, messageRecord.messageState().name());
-    params.put(PAYLOAD, messageRecord.payload());
-    params.put(PAYLOAD_CLASS, messageRecord.payloadClass());
-    if (messageRecord.failedProcessors() != null && !messageRecord.failedProcessors().isEmpty()) {
-      params.put(FAILURES, messageRecord.failedProcessors());
+    params.put(PRIORITY, actualRecord.priority());
+    params.put(RETRY_COUNTER, actualRecord.retryCounter());
+    params.put(STATE, actualRecord.messageState().name());
+    params.put(PAYLOAD, actualRecord.payload());
+    params.put(PAYLOAD_CLASS, actualRecord.payloadClass());
+    if (actualRecord.failedProcessors() != null && !actualRecord.failedProcessors().isEmpty()) {
+      params.put(FAILURES, actualRecord.failedProcessors());
     }
-    params.put(VERTICLE_ID, messageRecord.verticleId());
+    params.put(VERTICLE_ID, actualRecord.verticleId());
   }
 
   @Override

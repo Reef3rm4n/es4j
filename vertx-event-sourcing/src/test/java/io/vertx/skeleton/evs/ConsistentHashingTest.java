@@ -8,7 +8,6 @@ import io.vertx.skeleton.evs.consistenthashing.exceptions.MemberNotFoundExceptio
 import io.vertx.skeleton.evs.consistenthashing.member.Member;
 import io.vertx.skeleton.evs.consistenthashing.member.impl.MemberImpl;
 import io.vertx.skeleton.evs.objects.EntityAggregateKey;
-import io.vertx.skeleton.models.Tenant;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import org.ishugaliy.allgood.consistent.hash.HashRing;
@@ -24,11 +23,11 @@ import java.util.stream.IntStream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-class ConsistentTest {
+class ConsistentHashingTest {
   private static final Logger LOGGER = LoggerFactory.getLogger(ReflectionUtilsTest.class);
 
   List<EntityAggregateKey> KEYS = IntStream.range(0, 1000000)
-    .mapToObj(i -> new EntityAggregateKey(UUID.randomUUID().toString(), new Tenant(- 1, - 1)))
+    .mapToObj(i -> new EntityAggregateKey(UUID.randomUUID().toString(), "default"))
     .toList();
 
   private ArrayList<Member> createMembers(Consistent c, int numMembers) {
@@ -72,26 +71,26 @@ class ConsistentTest {
       addNode(atomicInt, DISTRIBUTION_KEYS, 4, hashRingMetrics, "FOURTH_");
       addNode(atomicInt, DISTRIBUTION_KEYS, 2, hashRingMetrics, "FIFTH_");
       removeNode(atomicInt, DISTRIBUTION_KEYS, 2, hashRingMetrics, nodes);
-      hashRingMetrics.locate(key.entityId() + "::" + key.tenant().generateString());
+      hashRingMetrics.locate(key.entityId() + "::" + key.tenant());
     });
     hashRingMetrics.printLoadDistribution();
     hashRingMetrics.printStandardDeviation();
     hashRingMetrics.printExtrema();
-    final var key = new EntityAggregateKey(UUID.randomUUID().toString(), new Tenant(- 1, - 1));
-    final var location = hashRingMetrics.locate(key.entityId() + "::" + key.tenant().generateString()).get();
+    final var key = new EntityAggregateKey(UUID.randomUUID().toString(), "default");
+    final var location = hashRingMetrics.locate(key.entityId() + "::" + key.tenant()).get();
     IntStream.range(0, CONSISTENCY_ITERATIONS).forEach(i -> {
-      final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant().generateString());
+      final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant());
       assertEquals(location.getKey(), loc.get().getKey(), "Hashing inconsistent at iteration number -> " + i);
     });
     final var nodeToRemove = nodes.stream().findFirst().get();
     hashRingMetrics.remove(nodeToRemove);
     IntStream.range(0, CONSISTENCY_ITERATIONS).forEach(i -> {
-      final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant().generateString());
+      final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant());
       assertEquals(location.getKey(), loc.get().getKey(), "Hashing inconsistent at iteration number -> " + i);
     });
     hashRingMetrics.add(nodeToRemove);
     IntStream.range(0, CONSISTENCY_ITERATIONS).forEach(i -> {
-      final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant().generateString());
+      final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant());
       assertEquals(location.getKey(), loc.get().getKey(), "Hashing inconsistent at iteration number -> " + i);
     });
   }
@@ -137,14 +136,14 @@ class ConsistentTest {
       addMember(atomicInt, 7, hashRing, "FIRST::");
       removeMember(atomicInt, 10, hashRing);
 //      final var start = Instant.now();
-      hashRing.locate(key.entityId() + "::" + key.tenant().generateString());
+      hashRing.locate(key.entityId() + "::" + key.tenant());
 //      LOGGER.info("Located in " + Duration.between(start, Instant.now()).toMillis() + "ms");
     });
     hashRing.printLoadDistribution();
     hashRing.printStandardDeviation();
     hashRing.printExtrema();
 //    final var key = keys.stream().findFirst().get();
-//    final var location = hashRing.locate(key.entityId() + "::" + key.tenant().generateString());
+//    final var location = hashRing.locate(key.entityId() + "::" + key.tenant());
 //    iterate(hashRing, key, location);
 //    final var nodeToRemove = hashRing.members().stream().findFirst().get();
 //    hashRing.removeMember(nodeToRemove);
@@ -168,7 +167,7 @@ class ConsistentTest {
 
   private static void iterate(final ConsistentMetrics hashRing, final EntityAggregateKey key, final Member location) {
     IntStream.range(0, 1000).forEach(i -> {
-      final var loc = hashRing.locate(key.entityId() + "::" + key.tenant().generateString());
+      final var loc = hashRing.locate(key.entityId() + "::" + key.tenant());
       assertEquals(location.name(), loc.name(), "Hashing inconsistent at iteration number -> " + i);
     });
   }
@@ -337,4 +336,5 @@ class ConsistentTest {
     Integer load = c.getLoad(m);
     assertEquals((Integer) 0, load);
   }
+  
 }
