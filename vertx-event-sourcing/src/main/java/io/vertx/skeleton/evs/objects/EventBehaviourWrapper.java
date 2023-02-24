@@ -1,10 +1,10 @@
 package io.vertx.skeleton.evs.objects;
 
-import io.vertx.skeleton.evs.EntityAggregate;
-import io.vertx.skeleton.evs.EventBehaviour;
+import io.vertx.skeleton.evs.Entity;
+import io.vertx.skeleton.evs.Aggregator;
 
-public record EventBehaviourWrapper<T extends EntityAggregate> (
-  EventBehaviour<T, Object> delegate,
+public record EventBehaviourWrapper<T extends Entity> (
+  Aggregator<T, Object> delegate,
   Class<T> entityAggregateClass,
   Class<?> eventClass
 ){

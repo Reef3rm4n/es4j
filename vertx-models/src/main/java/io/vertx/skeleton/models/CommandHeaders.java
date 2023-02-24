@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.UUID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record RequestHeaders(
+public record CommandHeaders(
   @HeaderParam(REQUEST_ID) String requestID,
   @HeaderParam(TENANT_ID) String tenantId,
   @HeaderParam(USER_ID) String userId,
@@ -18,8 +18,8 @@ public record RequestHeaders(
   public static final String TOKEN = "TOKEN-ID";
   public static final String TENANT_ID = "TENANT-ID";
 
-  public static RequestHeaders from(String tenantID, String transactionId) {
-    return new RequestHeaders(
+  public static CommandHeaders from(String tenantID, String transactionId) {
+    return new CommandHeaders(
       transactionId,
       tenantID,
       null,
@@ -27,8 +27,8 @@ public record RequestHeaders(
     );
   }
 
-  public static RequestHeaders from(String transactionId) {
-    return new RequestHeaders(
+  public static CommandHeaders from(String transactionId) {
+    return new CommandHeaders(
       transactionId,
       "default",
       null,
@@ -36,8 +36,8 @@ public record RequestHeaders(
     );
   }
 
-  public static RequestHeaders defaultHeaders() {
-    return new RequestHeaders(
+  public static CommandHeaders defaultHeaders() {
+    return new CommandHeaders(
       UUID.randomUUID().toString(),
       "default",
       null,

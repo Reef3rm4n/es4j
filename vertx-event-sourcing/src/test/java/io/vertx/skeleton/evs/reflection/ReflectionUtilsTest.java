@@ -1,4 +1,4 @@
-package io.vertx.skeleton.evs;
+package io.vertx.skeleton.evs.reflection;
 
 
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -7,6 +7,10 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;
+import io.vertx.skeleton.evs.Command;
+import io.vertx.skeleton.evs.Behaviour;
+import io.vertx.skeleton.evs.Entity;
+import io.vertx.skeleton.evs.domain.behaviours.ChangeData1BehaviourEntity;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
@@ -24,11 +28,11 @@ class ReflectionUtilsTest {
 
   @Test
   void testReflection(Vertx vertx, VertxTestContext vertxTestContext) {
-    final var classTuple = entityAggregateClass(FakeCommandBehaviour.class);
+    final var classTuple = entityAggregateClass(ChangeData1BehaviourEntity.class);
     vertxTestContext.completeNow();
   }
 
-  public Tuple2<Class<? extends EntityAggregate>, Class<? extends Command>> entityAggregateClass(Class<? extends CommandBehaviour<? extends EntityAggregate, ? extends Command>> behaviour) {
+  public Tuple2<Class<? extends Entity>, Class<? extends Command>> entityAggregateClass(Class<? extends Behaviour<? extends Entity, ? extends Command>> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -39,10 +43,10 @@ class ReflectionUtilsTest {
     if (genericInterface instanceof ParameterizedType parameterizedType) {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
       LOGGER.info("Types -> " + Arrays.stream(genericTypes).map(t -> t.getTypeName()).toList());
-      final Class<? extends EntityAggregate> entityClass;
+      final Class<? extends Entity> entityClass;
       Class<? extends Command> commandClass;
       try {
-        entityClass = (Class<? extends EntityAggregate>) Class.forName(genericTypes[0].getTypeName());
+        entityClass = (Class<? extends Entity>) Class.forName(genericTypes[0].getTypeName());
         commandClass = (Class<? extends Command>) Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
         throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);

@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 public class PgTaskQueueTest {
 
   public static final VertxTestBootstrap BOOTSTRAP = new VertxTestBootstrap()
-    .setPostgres(true)
+    .setPostgres(false)
     .addLiquibaseRun("task-queue.xml", Map.of("schema", "postgres"))
     .setConfigurationPath("config.json");
 

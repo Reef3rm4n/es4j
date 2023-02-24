@@ -4,7 +4,8 @@ import io.activej.inject.module.Module;
 import io.smallrye.mutiny.Multi;
 import io.vertx.skeleton.config.ConfigurationHandler;
 import io.vertx.skeleton.config.ConfigurationDeployer;
-import io.vertx.skeleton.httprouter.VertxHttpRouter;
+import io.vertx.skeleton.evs.Entity;
+import io.vertx.skeleton.evs.EventSourcingBuilder;
 import io.vertx.skeleton.models.RequestMetadata;
 import io.vertx.skeleton.sql.LiquibaseHandler;
 import io.vertx.skeleton.sql.RepositoryHandler;
@@ -98,8 +99,7 @@ public class SpineVerticle extends AbstractVerticle {
 //          .flatMap(injector -> VertxHttpRouter.deploy(repositoryHandler, deploymentIds, MODULES).replaceWith(injector))
           .flatMap(injector -> TaskProcessorVerticle.deploy(vertx, newConfiguration, MODULES).replaceWith(injector))
           .flatMap(injector -> deployVerticles(newConfiguration, MODULES, injector).replaceWith(injector))
-//          .flatMap(injector -> EventSourcingDeployer.deploy(vertx, repositoryHandler, deploymentIds, injector).replaceWith(injector))
-//          .invoke(injector -> taskDeployer.deploy(repositoryHandler, newConfiguration, injector))
+          .flatMap(injector -> deployEventSourcing(newConfiguration))
           .subscribe()
           .with(
             aVoid -> {
@@ -114,6 +114,18 @@ public class SpineVerticle extends AbstractVerticle {
           );
       }
     );
+  }
+
+  private Uni<Void> deployEventSourcing(JsonObject newConfiguration) {
+   return Multi.createFrom().iterable(CustomClassLoader.getSubTypes(Entity.class))
+      .onItem().transformToUniAndMerge(entityAggregate -> new EventSourcingBuilder<>(entityAggregate)
+        .setModules(MODULES)
+        .setVertx(vertx)
+        .setVertxConfiguration(newConfiguration)
+        .deploy()
+      )
+      .collect().asList()
+      .replaceWithVoid();
   }
 
   private Uni<Void> deployVerticles(JsonObject newConfiguration, Collection<Module> modules, Injector injector) {

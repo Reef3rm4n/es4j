@@ -2,7 +2,7 @@ package io.vertx.skeleton.evs.objects;
 
 
 import com.google.common.collect.EvictingQueue;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.evs.Entity;
 
 import io.vertx.core.shareddata.Shareable;
 
@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
-public class EntityAggregateState<T extends EntityAggregate> implements Shareable {
+public class EntityAggregateState<T extends Entity> implements Shareable {
 
   private T aggregateState = null;
   private final List<EntityEvent> eventsAfterSnapshot;

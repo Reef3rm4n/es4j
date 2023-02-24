@@ -152,13 +152,13 @@ public class VertxTestBootstrap {
     CONFIGURATION = configuration();
     if (Boolean.TRUE.equals(postgresContainer())) {
       deployPgContainer();
-      REPOSITORY_HANDLER = RepositoryHandler.leasePool(CONFIGURATION, VERTX);
-      if (!liquibase.isEmpty()) {
-        Multi.createFrom().iterable(liquibase.entrySet())
-          .onItem().transformToUniAndMerge(entry -> LiquibaseHandler.liquibaseString(REPOSITORY_HANDLER,entry.getKey(),entry.getValue()))
-          .collect().asList()
-          .await().indefinitely();
-      }
+    }
+    REPOSITORY_HANDLER = RepositoryHandler.leasePool(CONFIGURATION, VERTX);
+    if (!liquibase.isEmpty()) {
+      Multi.createFrom().iterable(liquibase.entrySet())
+        .onItem().transformToUniAndMerge(entry -> LiquibaseHandler.liquibaseString(REPOSITORY_HANDLER, entry.getKey(), entry.getValue()))
+        .collect().asList()
+        .await().indefinitely();
     }
     if (Boolean.TRUE.equals(solrContainer())) {
       SOLR_CONTAINER = new SolrContainer(DockerImageName.parse(SOLR_VERSION));

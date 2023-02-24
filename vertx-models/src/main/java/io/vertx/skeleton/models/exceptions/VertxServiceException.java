@@ -1,13 +1,14 @@
 package io.vertx.skeleton.models.exceptions;
 
 
+import io.vertx.core.json.JsonObject;
 import io.vertx.skeleton.models.Error;
 
 public class VertxServiceException extends RuntimeException {
   private final Error error;
 
   public VertxServiceException(Error error) {
-    super(error.cause());
+    super(JsonObject.mapFrom(error).encodePrettily());
     this.error = error;
   }
 

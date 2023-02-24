@@ -2,7 +2,7 @@ package io.vertx.skeleton.httprouter;
 
 import io.vertx.skeleton.models.Error;
 import io.vertx.skeleton.models.PublicQueryOptions;
-import io.vertx.skeleton.models.RequestHeaders;
+import io.vertx.skeleton.models.CommandHeaders;
 import io.vertx.skeleton.models.RequestMetadata;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -100,12 +100,12 @@ public interface VertxHttpRoute {
     );
   }
 
-  default RequestHeaders extractHeaders(RoutingContext routingContext) {
-    return new RequestHeaders(
-      routingContext.request().getHeader(RequestHeaders.REQUEST_ID),
-      routingContext.request().getHeader(RequestHeaders.TENANT_ID),
-      routingContext.request().getHeader(RequestHeaders.USER_ID),
-      routingContext.request().getHeader(RequestHeaders.TOKEN)
+  default CommandHeaders extractHeaders(RoutingContext routingContext) {
+    return new CommandHeaders(
+      routingContext.request().getHeader(CommandHeaders.REQUEST_ID),
+      routingContext.request().getHeader(CommandHeaders.TENANT_ID),
+      routingContext.request().getHeader(CommandHeaders.USER_ID),
+      routingContext.request().getHeader(CommandHeaders.TOKEN)
     );
   }
 

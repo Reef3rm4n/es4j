@@ -2,7 +2,7 @@ package io.vertx.skeleton.evs;
 
 import io.vertx.core.shareddata.Shareable;
 
-public interface EntityAggregate extends Shareable {
+public interface Entity extends Shareable {
 
   String entityId();
 

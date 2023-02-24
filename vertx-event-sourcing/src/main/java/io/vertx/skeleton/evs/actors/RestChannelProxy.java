@@ -1,4 +1,4 @@
-package io.vertx.skeleton.evs.handlers;
+package io.vertx.skeleton.evs.actors;
 
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
@@ -7,7 +7,7 @@ import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.Router;
 
 import io.vertx.mutiny.ext.web.RoutingContext;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.evs.Entity;
 import io.vertx.skeleton.evs.objects.Command;
 import io.vertx.skeleton.evs.objects.CommandWrapper;
 import io.vertx.skeleton.evs.objects.CompositeCommandWrapper;
@@ -18,17 +18,17 @@ import io.vertx.skeleton.httprouter.VertxHttpRoute;
 import java.util.List;
 import java.util.Map;
 
-public class EventSourcingRoute implements VertxHttpRoute {
+public class RestChannelProxy implements VertxHttpRoute {
 
-  private Class<? extends EntityAggregate> entityAggregateClass;
+  private Class<? extends Entity> entityAggregateClass;
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(EventSourcingRoute.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(RestChannelProxy.class);
 
-  private AggregateHandlerProxy<? extends EntityAggregate> entityAggregateProxy;
+  private ChannelProxy<? extends Entity> entityAggregateProxy;
   private Map<String, String> commandClassMap;
 
-  public EventSourcingRoute(Vertx vertx) {
-    this.entityAggregateProxy = new AggregateHandlerProxy<>(vertx, entityAggregateClass);
+  public RestChannelProxy(Vertx vertx) {
+    this.entityAggregateProxy = new ChannelProxy<>(vertx, entityAggregateClass);
   }
 
   @Override
@@ -88,7 +88,7 @@ public class EventSourcingRoute implements VertxHttpRoute {
       .toList();
   }
 
-  public EventSourcingRoute setEntityAggregateClass(Class<? extends EntityAggregate> tClass) {
+  public RestChannelProxy setEntityAggregateClass(Class<? extends Entity> tClass) {
     this.entityAggregateClass = tClass;
     return this;
   }
@@ -98,7 +98,7 @@ public class EventSourcingRoute implements VertxHttpRoute {
   }
 
 
-  public EventSourcingRoute setCommandClassMap(Map<String, String> commandClassMap) {
+  public RestChannelProxy setCommandClassMap(Map<String, String> commandClassMap) {
     this.commandClassMap = commandClassMap;
     return this;
   }

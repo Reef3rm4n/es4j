@@ -1,14 +1,10 @@
-package io.vertx.skeleton.evs.objects;
+package io.vertx.skeleton.evs.domain.commands;
 
 import io.vertx.skeleton.evs.Command;
 import io.vertx.skeleton.models.CommandHeaders;
 
-import java.util.List;
-
-public record CompositeCommandWrapper(
+public record Create(
   String entityId,
-  List<io.vertx.skeleton.evs.objects.Command> commands,
   CommandHeaders commandHeaders
 ) implements Command {
-
 }

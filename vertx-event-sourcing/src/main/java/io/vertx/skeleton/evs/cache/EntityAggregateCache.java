@@ -1,7 +1,7 @@
 package io.vertx.skeleton.evs.cache;
 
 import io.vertx.skeleton.evs.objects.EntityAggregateState;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.evs.Entity;
 import io.vertx.skeleton.evs.objects.EntityAggregateKey;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
@@ -14,16 +14,15 @@ import java.util.*;
 
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
-import static java.util.stream.Collectors.toMap;
 
-public class EntityAggregateCache<T extends EntityAggregate, V extends EntityAggregateState<T>> {
+// todo move this to caffeine, which is probably better suited for this kind of stuff.
+public class EntityAggregateCache<T extends Entity, V extends EntityAggregateState<T>> {
 
   private final Vertx vertx;
   private final Long aggregateTtlInMinutes;
   private static final Logger LOGGER = LoggerFactory.getLogger(EntityAggregateCache.class);
   private final Class<T> aggregateClass;
   private final String handlerAddress;
-  private long refreshTaskTimerId;
 
   public EntityAggregateCache(
     Vertx vertx,

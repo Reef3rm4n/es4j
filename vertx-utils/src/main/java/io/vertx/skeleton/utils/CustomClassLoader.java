@@ -36,6 +36,10 @@ public class CustomClassLoader {
       .toList();
   }
 
+  public static <T> List<Class<? extends T>> getSubTypes(Class<T> tClass) {
+    return REFLECTIONS.getSubTypesOf(tClass).stream().toList();
+  }
+
   public static <T> List<T> loadImplementations(Class<T> tClass) {
     return REFLECTIONS.getSubTypesOf(tClass).stream()
       .map(CustomClassLoader::instantiate)

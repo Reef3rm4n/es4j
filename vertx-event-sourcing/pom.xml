@@ -35,6 +35,11 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <version>3.0.6</version>
+    </dependency>
+    <dependency>
       <groupId>io.vertx.skeleton</groupId>
       <artifactId>vertx-models</artifactId>
     </dependency>
@@ -103,9 +108,8 @@
 
     <!--    Test Dependencies  -->
     <dependency>
-      <groupId>io.smallrye.reactive</groupId>
-      <artifactId>smallrye-mutiny-vertx-junit5</artifactId>
-      <scope>test</scope>
+      <groupId>io.vertx.skeleton</groupId>
+      <artifactId>vertx-test</artifactId>
     </dependency>
     <!---->
   </dependencies>

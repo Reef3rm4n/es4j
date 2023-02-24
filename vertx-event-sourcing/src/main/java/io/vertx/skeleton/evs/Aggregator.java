@@ -1,11 +1,11 @@
 package io.vertx.skeleton.evs;
 
-public interface EventBehaviour<T extends EntityAggregate, E> {
+public interface Aggregator<T extends Entity, E> {
 
   T apply(T aggregateState, E event);
 
 
-  default String tenantID() {
+  default String tenantId() {
     return "default";
   }
 

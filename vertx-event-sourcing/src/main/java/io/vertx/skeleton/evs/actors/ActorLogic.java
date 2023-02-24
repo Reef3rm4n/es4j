@@ -1,12 +1,12 @@
-package io.vertx.skeleton.evs.handlers;
+package io.vertx.skeleton.evs.actors;
 
 import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.skeleton.evs.*;
 import io.vertx.skeleton.evs.Command;
 import io.vertx.skeleton.evs.cache.EntityAggregateCache;
-import io.vertx.skeleton.evs.exceptions.RejectedCommandException;
-import io.vertx.skeleton.evs.exceptions.UnknownCommandException;
-import io.vertx.skeleton.evs.exceptions.UnknownEventException;
+import io.vertx.skeleton.evs.exceptions.CommandRejected;
+import io.vertx.skeleton.evs.exceptions.UnknownCommand;
+import io.vertx.skeleton.evs.exceptions.EventException;
 import io.vertx.skeleton.evs.objects.*;
 import io.vertx.skeleton.sql.exceptions.OrmConflictException;
 import io.vertx.skeleton.sql.exceptions.OrmNotFoundException;
@@ -24,7 +24,7 @@ import io.vertx.skeleton.sql.models.QueryOptions;
 import java.util.*;
 import java.util.stream.IntStream;
 
-public class EntityAggregateHandler<T extends EntityAggregate> {
+public class ActorLogic<T extends Entity> {
   private final List<CommandBehaviourWrapper> commandBehaviours;
   // todo create an interface for the eventJournal
   // todo move this repository as an implementation of the eventJournal
@@ -36,7 +36,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   // todo create an interface for the entityCache
   // todo move this cache as an implementation of the entity cache
   private final EntityAggregateCache<T, EntityAggregateState<T>> cache;
-  private static final Logger LOGGER = LoggerFactory.getLogger(EntityAggregateHandler.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(ActorLogic.class);
   private final EntityAggregateConfiguration entityAggregateConfiguration;
   private final PersistenceMode persistenceMode;
   private final List<EventBehaviourWrapper> eventBehaviours;
@@ -45,7 +45,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private final Map<String, String> commandClassMap = new HashMap<>();
 
-  public EntityAggregateHandler(
+  public ActorLogic(
     final Class<T> entityAggregateClass,
     final List<EventBehaviourWrapper> eventBehaviours,
     final List<CommandBehaviourWrapper> commandBehaviours,
@@ -98,13 +98,13 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       .map(cmd -> getCommand(cmd.commandType(), cmd.command()))
       .toList();
     if (!commands.stream().allMatch(cmd -> cmd.entityId().equals(command.entityId()))) {
-      throw new RejectedCommandException(new Error("ID mismatch in composite command", "All composite commands should have the same entityId", 400));
+      throw new CommandRejected(new Error("ID mismatch in composite command", "All composite commands should have the same entityId", 400));
     }
-    return load(command.entityId(), command.requestHeaders().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
+    return load(command.entityId(), command.commandHeaders().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, commands)
           .onFailure(OrmConflictException.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.entityId(), command.requestHeaders().tenantId())
+            () -> ensureConsistency(aggregateState, command.entityId(), command.commandHeaders().tenantId())
               .flatMap(reconstructedState -> processCommand(reconstructedState, command))
           )
           .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
@@ -131,16 +131,16 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
 
   private T applyEventBehaviour(T aggregateState, final Object event) {
     final var customBehaviour = eventBehaviours.stream()
-      .filter(behaviour -> behaviour.delegate().tenantID() != null && behaviour.delegate().tenantID().equals(aggregateState.tenantID()))
+      .filter(behaviour -> behaviour.delegate().tenantId() != null && behaviour.delegate().tenantId().equals(aggregateState.tenantID()))
       .filter(behaviour -> behaviour.eventClass().isAssignableFrom(event.getClass()))
       .findFirst()
       .orElse(null);
     if (customBehaviour == null) {
       final var defaultBehaviour = eventBehaviours.stream()
-        .filter(behaviour -> behaviour.delegate().tenantID() == null)
+        .filter(behaviour -> behaviour.delegate().tenantId() == null)
         .filter(behaviour -> behaviour.eventClass().isAssignableFrom(event.getClass()))
         .findFirst()
-        .orElseThrow(() -> UnknownEventException.unknown(event.getClass()));
+        .orElseThrow(() -> EventException.unknown(event.getClass()));
       LOGGER.info("Applying behaviour -> " + defaultBehaviour.getClass().getSimpleName());
       return (T) defaultBehaviour.delegate().apply(aggregateState, event);
     }
@@ -159,7 +159,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
         .filter(behaviour -> behaviour.delegate().tenantID() == null)
         .filter(behaviour -> behaviour.commandClass().isAssignableFrom(command.getClass()))
         .findFirst()
-        .orElseThrow(() -> UnknownCommandException.unknown(command.getClass()));
+        .orElseThrow(() -> UnknownCommand.unknown(command.getClass()));
       LOGGER.info("Applying command Behaviour -> " + defaultBehaviour.getClass().getSimpleName());
       return defaultBehaviour.delegate().process(aggregateState, command);
     }
@@ -326,7 +326,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.requestHeaders().requestID().equals(txId)))
         .findAny()
         .ifPresent(duplicatedCommand -> {
-            throw new RejectedCommandException(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
+            throw new CommandRejected(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
           }
         );
     }
@@ -392,7 +392,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       state.commands().stream().filter(txId -> txId.equals(command.requestHeaders().requestID()))
         .findAny()
         .ifPresent(duplicatedCommand -> {
-            throw new RejectedCommandException(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
+            throw new CommandRejected(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
           }
         );
     }
@@ -448,8 +448,8 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
   private void handleRejectedCommand(final Throwable throwable, final Command command) {
     LOGGER.error("Command rejected -> ", throwable);
     if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE && rejectedCommandRepository != null) {
-      if (throwable instanceof RejectedCommandException rejectedCommandException) {
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(rejectedCommandException.error()), BaseRecord.newRecord(command.requestHeaders().tenantId()));
+      if (throwable instanceof CommandRejected commandRejected) {
+        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(commandRejected.error()), BaseRecord.newRecord(command.requestHeaders().tenantId()));
         rejectedCommandRepository.insertAndForget(rejectedCommand);
       } else {
         LOGGER.warn("Unknown exception, consider using RejectedCommandException.class for better error handling");
@@ -468,11 +468,11 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       if (object instanceof Command command) {
         return command;
       } else {
-        throw new RejectedCommandException(new Error("Command is not an instance of EntityAggregateCommand", JsonObject.mapFrom(object).encode(), 500));
+        throw new CommandRejected(new Error("Command is not an instance of EntityAggregateCommand", JsonObject.mapFrom(object).encode(), 500));
       }
     } catch (Exception e) {
       LOGGER.error("Unable to cast command", e);
-      throw new RejectedCommandException(new Error("Unable to cast class", e.getMessage(), 500));
+      throw new CommandRejected(new Error("Unable to cast class", e.getMessage(), 500));
     }
   }
 
@@ -482,7 +482,7 @@ public class EntityAggregateHandler<T extends EntityAggregate> {
       return event.mapTo(eventClass);
     } catch (Exception e) {
       LOGGER.error("Unable to cast event", e);
-      throw new RejectedCommandException(new Error("Unable to cast event", e.getMessage(), 500));
+      throw new CommandRejected(new Error("Unable to cast event", e.getMessage(), 500));
     }
   }
 

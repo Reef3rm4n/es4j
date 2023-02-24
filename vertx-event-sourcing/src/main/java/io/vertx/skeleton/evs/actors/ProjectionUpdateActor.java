@@ -1,4 +1,4 @@
-package io.vertx.skeleton.evs.handlers;
+package io.vertx.skeleton.evs.actors;
 
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -6,9 +6,9 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.sqlclient.SqlConnection;
-import io.vertx.skeleton.evs.EntityAggregate;
+import io.vertx.skeleton.evs.Entity;
 import io.vertx.skeleton.evs.objects.*;
-import io.vertx.skeleton.models.RequestHeaders;
+import io.vertx.skeleton.models.CommandHeaders;
 import io.vertx.skeleton.sql.Repository;
 import io.vertx.skeleton.sql.exceptions.OrmNotFoundException;
 import io.vertx.skeleton.sql.models.BaseRecord;
@@ -23,16 +23,16 @@ import java.util.List;
 
 import static java.util.stream.Collectors.groupingBy;
 
-public class ProjectionsTask<T extends EntityAggregate> implements SynchronizedTask {
+public class ProjectionUpdateActor<T extends Entity> implements SynchronizedTask {
 
-  private static final Logger logger = LoggerFactory.getLogger(ProjectionsTask.class);
+  private static final Logger logger = LoggerFactory.getLogger(ProjectionUpdateActor.class);
   private final List<ProjectionWrapper<T>> projections;
-  private final AggregateHandlerProxy<T> proxy;
+  private final ChannelProxy<T> proxy;
   private final Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal;
   private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset;
   private final Repository<EntityProjectionHistoryKey, EntityProjectionHistory, EntityProjectionHistoryQuery> projectionHistory;
 
-  public ProjectionsTask(List<ProjectionWrapper<T>> projections, AggregateHandlerProxy<T> proxy, Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal, Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset, Repository<EntityProjectionHistoryKey, EntityProjectionHistory, EntityProjectionHistoryQuery> projectionHistory) {
+  public ProjectionUpdateActor(List<ProjectionWrapper<T>> projections, ChannelProxy<T> proxy, Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal, Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset, Repository<EntityProjectionHistoryKey, EntityProjectionHistory, EntityProjectionHistoryQuery> projectionHistory) {
     this.projections = projections;
     this.proxy = proxy;
     this.eventJournal = eventJournal;
@@ -136,7 +136,7 @@ public class ProjectionsTask<T extends EntityAggregate> implements SynchronizedT
               final var minEventId = entityEvents.getValue().stream().map(EntityEvent::id).min(Comparator.naturalOrder()).orElseThrow();
               if (history.lastEventVersion() < maxEventId) {
                 logger.info("Updating projection ->" + projection.projection().getClass().getName());
-                return proxy.load(entityEvents.getKey(), RequestHeaders.defaultHeaders())
+                return proxy.load(entityEvents.getKey(), CommandHeaders.defaultHeaders())
                   .flatMap(aggregateState -> projection.update(
                       aggregateState,
                       entityEvents.getValue().stream()

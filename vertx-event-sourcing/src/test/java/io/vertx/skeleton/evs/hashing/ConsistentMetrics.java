@@ -1,4 +1,4 @@
-package io.vertx.skeleton.evs;
+package io.vertx.skeleton.evs.hashing;
 
 import io.vertx.skeleton.evs.consistenthashing.Consistent;
 import io.vertx.skeleton.evs.consistenthashing.member.Member;

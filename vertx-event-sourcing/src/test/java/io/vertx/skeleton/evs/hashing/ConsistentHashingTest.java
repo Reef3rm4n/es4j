@@ -1,4 +1,4 @@
-package io.vertx.skeleton.evs;
+package io.vertx.skeleton.evs.hashing;
 
 import io.vertx.skeleton.evs.consistenthashing.Consistent;
 import io.vertx.skeleton.evs.consistenthashing.config.Config;
@@ -24,7 +24,7 @@ import java.util.stream.IntStream;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsistentHashingTest {
-  private static final Logger LOGGER = LoggerFactory.getLogger(ReflectionUtilsTest.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(ConsistentHashingTest.class);
 
   List<EntityAggregateKey> KEYS = IntStream.range(0, 1000000)
     .mapToObj(i -> new EntityAggregateKey(UUID.randomUUID().toString(), "default"))
@@ -336,5 +336,5 @@ class ConsistentHashingTest {
     Integer load = c.getLoad(m);
     assertEquals((Integer) 0, load);
   }
-  
+
 }

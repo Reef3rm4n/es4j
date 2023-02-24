@@ -1,14 +1,13 @@
-package io.vertx.skeleton.evs.handlers;
+package io.vertx.skeleton.evs.actors;
 
 import io.activej.inject.Injector;
-import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.skeleton.evs.Command;
-import io.vertx.skeleton.evs.CommandBehaviour;
-import io.vertx.skeleton.evs.EntityAggregate;
-import io.vertx.skeleton.evs.EventBehaviour;
+import io.vertx.skeleton.evs.Behaviour;
+import io.vertx.skeleton.evs.Entity;
+import io.vertx.skeleton.evs.Aggregator;
 import io.vertx.skeleton.evs.cache.EntityAggregateCache;
 import io.vertx.skeleton.evs.objects.*;
 import io.vertx.skeleton.models.exceptions.VertxServiceException;
@@ -31,38 +30,50 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
-public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends AbstractVerticle {
+// todo move cache to caffeine for better performance
+// ensure that it always gets executed in the current context
+//    Caffeine.newBuilder()
+//        .expireAfterWrite(Duration.ofMinutes(entityAggregateConfiguration.aggregateCacheTtlInMinutes()))
+//        .recordStats() // (3)
+//        .executor(cmd -> context.runOnContext(v -> cmd.run())) // (4)
+//        .buildAsync((key, exec) -> CompletableFuture.supplyAsync(() -> { // (5)
+//          Future<Buffer> future = fetchCatImage(key); // (6)
+//          return future.toCompletionStage(); // (7)
+//        }, exec).thenComposeAsync(Function.identity(), exec));
+public class EntityActor<T extends Entity> extends AbstractVerticle {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(EntityAggregateHandlerVerticle.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(EntityActor.class);
 
   public static final String ACTION = "action";
   public static final String CLASS_NAME = "className";
   private List<CommandBehaviourWrapper> commandBehaviours;
   private List<EventBehaviourWrapper> eventBehaviours;
-  private final Collection<Module> modules;
+  private final ModuleBuilder moduleBuilder;
   private EntityAggregateCache<T, EntityAggregateState<T>> entityAggregateCache = null;
-  private AggregateHandlerHeartBeat<T> aggregateHandlerHeartBeat;
+  private Channel<T> Channel;
   private final Class<T> entityAggregateClass;
   private EntityAggregateConfiguration entityAggregateConfiguration;
   private RepositoryHandler repositoryHandler;
-  public EntityAggregateHandler<T> entityAggregateHandler;
+  public ActorLogic<T> ActorLogic;
 
-  public EntityAggregateHandlerVerticle(
+  public EntityActor(
     final Class<T> entityAggregateClass,
-    final Collection<Module> modules
+    final ModuleBuilder moduleBuilder
   ) {
     this.entityAggregateClass = entityAggregateClass;
-    this.modules = modules;
+    this.moduleBuilder = moduleBuilder;
   }
 
   @Override
   public Uni<Void> asyncStart() {
+    this.entityAggregateConfiguration = config().getJsonObject("entityAggregateConfiguration", new JsonObject()).mapTo(EntityAggregateConfiguration.class);
     LOGGER.info("Starting " + this.getClass().getSimpleName() + " " + context.deploymentID() + " configuration -> " + JsonObject.mapFrom(entityAggregateConfiguration).encodePrettily());
-    final var injector = getInjector(modules);
+    final var injector = startInjector();
     this.eventBehaviours = loadEventBehaviours(injector, entityAggregateClass);
     this.commandBehaviours = loadCommandBehaviours(injector, entityAggregateClass);
-    this.aggregateHandlerHeartBeat = new AggregateHandlerHeartBeat<>(vertx, entityAggregateConfiguration.handlerHeartBeatInterval(), entityAggregateClass, handlerAddress());
+    this.Channel = new Channel<>(vertx, entityAggregateConfiguration.handlerHeartBeatInterval(), entityAggregateClass, handlerAddress());
     if (Boolean.TRUE.equals(entityAggregateConfiguration.useCache())) {
+
       this.entityAggregateCache = new EntityAggregateCache<>(
         vertx,
         entityAggregateClass,
@@ -70,7 +81,7 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
         entityAggregateConfiguration.aggregateCacheTtlInMinutes()
       );
     }
-    this.entityAggregateHandler = new EntityAggregateHandler<>(
+    this.ActorLogic = new ActorLogic<>(
       entityAggregateClass,
       eventBehaviours,
       commandBehaviours,
@@ -84,10 +95,10 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
     return vertx.eventBus().<JsonObject>consumer(handlerAddress())
       .handler(objectMessage -> {
           final var responseUni = switch (AggregateHandlerAction.valueOf(objectMessage.headers().get(ACTION))) {
-            case LOAD -> entityAggregateHandler.load(objectMessage.body().mapTo(EntityAggregateKey.class));
-            case COMMAND -> entityAggregateHandler.process(objectMessage.headers().get(CLASS_NAME), objectMessage.body());
+            case LOAD -> ActorLogic.load(objectMessage.body().mapTo(EntityAggregateKey.class));
+            case COMMAND -> ActorLogic.process(objectMessage.headers().get(CLASS_NAME), objectMessage.body());
             case COMPOSITE_COMMAND ->
-              entityAggregateHandler.process(objectMessage.body().mapTo(CompositeCommandWrapper.class));
+              ActorLogic.process(objectMessage.body().mapTo(CompositeCommandWrapper.class));
           };
           responseUni.subscribe()
             .with(
@@ -106,13 +117,11 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
       .exceptionHandler(this::droppedException)
       .completionHandler()
       .onItem().delayIt().by(Duration.of(1, ChronoUnit.SECONDS)) // enough time to
-      .invoke(avoid -> aggregateHandlerHeartBeat.registerHandler());
+      .invoke(avoid -> Channel.registerHandler());
   }
 
-  private Injector getInjector(Collection<Module> modules) {
-    final var moduleBuilder = ModuleBuilder.create().install(modules);
+  private Injector startInjector() {
     this.repositoryHandler = RepositoryHandler.leasePool(config(), vertx);
-    this.entityAggregateConfiguration = repositoryHandler.configuration().getJsonObject(entityAggregateClass.getSimpleName()).mapTo(EntityAggregateConfiguration.class);
     moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
@@ -120,8 +129,8 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
     return Injector.of(moduleBuilder.build());
   }
 
-  public static <T extends EntityAggregate> List<CommandBehaviourWrapper> loadCommandBehaviours(final Injector injector, Class<T> entityAggregateClass) {
-    final var entityAggregateCommandBehaviours = CustomClassLoader.loadFromInjector(injector, CommandBehaviour.class).stream()
+  public static <T extends Entity> List<CommandBehaviourWrapper> loadCommandBehaviours(final Injector injector, Class<T> entityAggregateClass) {
+    final var entityAggregateCommandBehaviours = CustomClassLoader.loadFromInjector(injector, Behaviour.class).stream()
       .map(commandBehaviour -> {
         final var genericTypes = parseCommandBehaviourGenericTypes(commandBehaviour.getClass());
         return new CommandBehaviourWrapper(commandBehaviour, genericTypes.getItem1(), genericTypes.getItem2());
@@ -132,20 +141,20 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
     return entityAggregateCommandBehaviours;
   }
 
-  public static<T extends EntityAggregate> List<EventBehaviourWrapper> loadEventBehaviours(final Injector injector,Class<T> entityAggregateClass) {
-    final var entityAggregateCommandBehaviours = CustomClassLoader.loadFromInjector(injector, EventBehaviour.class).stream()
-      .map(eventBehaviour -> {
-          final var genericTypes = parseEventBehaviourTypes(eventBehaviour.getClass());
-          return new EventBehaviourWrapper(eventBehaviour, genericTypes.getItem1(), genericTypes.getItem2());
+  public static<T extends Entity> List<EventBehaviourWrapper> loadEventBehaviours(final Injector injector, Class<T> entityAggregateClass) {
+    final var entityAggregateCommandBehaviours = CustomClassLoader.loadFromInjector(injector, Aggregator.class).stream()
+      .map(aggregator -> {
+          final var genericTypes = parseEventBehaviourTypes(aggregator.getClass());
+          return new EventBehaviourWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
         }
       )
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
       .toList();
-    entityAggregateCommandBehaviours.forEach(eventBehaviour -> LOGGER.info(eventBehaviour.delegate().getClass().getSimpleName() + " event behaviour registered for event " + eventBehaviour.eventClass() + "  tenant -> " + eventBehaviour.delegate().tenantID()));
+    entityAggregateCommandBehaviours.forEach(eventBehaviour -> LOGGER.info(eventBehaviour.delegate().getClass().getSimpleName() + " event behaviour registered for event " + eventBehaviour.eventClass() + "  tenant -> " + eventBehaviour.delegate().tenantId()));
     return entityAggregateCommandBehaviours;
   }
 
-  public static Tuple2<Class<? extends EntityAggregate>, Class<?>> parseEventBehaviourTypes(Class<? extends EventBehaviour> behaviour) {
+  public static Tuple2<Class<? extends Entity>, Class<?>> parseEventBehaviourTypes(Class<? extends Aggregator> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -157,10 +166,10 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
     if (genericInterface instanceof ParameterizedType parameterizedType) {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
       LOGGER.info(behaviour.getName() + " generic types -> " + Arrays.stream(genericTypes).map(Type::getTypeName).toList());
-      final Class<? extends EntityAggregate> entityClass;
+      final Class<? extends Entity> entityClass;
       Class<?> eventClass;
       try {
-        entityClass = (Class<? extends EntityAggregate>) Class.forName(genericTypes[0].getTypeName());
+        entityClass = (Class<? extends Entity>) Class.forName(genericTypes[0].getTypeName());
         eventClass = Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
         throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
@@ -171,7 +180,7 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
     }
   }
 
-  public static Tuple2<Class<? extends EntityAggregate>, Class<? extends io.vertx.skeleton.evs.Command>> parseCommandBehaviourGenericTypes(Class<? extends CommandBehaviour> behaviour) {
+  public static Tuple2<Class<? extends Entity>, Class<? extends Command>> parseCommandBehaviourGenericTypes(Class<? extends Behaviour> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -182,10 +191,10 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
     if (genericInterface instanceof ParameterizedType parameterizedType) {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
       LOGGER.info(behaviour.getName() + " generic types -> " + Arrays.stream(genericTypes).map(Type::getTypeName).toList());
-      final Class<? extends EntityAggregate> entityClass;
-      Class<? extends io.vertx.skeleton.evs.Command> commandClass;
+      final Class<? extends Entity> entityClass;
+      Class<? extends Command> commandClass;
       try {
-        entityClass = (Class<? extends EntityAggregate>) Class.forName(genericTypes[0].getTypeName());
+        entityClass = (Class<? extends Entity>) Class.forName(genericTypes[0].getTypeName());
         commandClass = (Class<? extends Command>) Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
         throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
@@ -215,7 +224,7 @@ public class EntityAggregateHandlerVerticle<T extends EntityAggregate> extends A
   @Override
   public Uni<Void> asyncStop() {
     LOGGER.info("Stopping " + this.getClass().getSimpleName() + " deploymentID -> " + this.deploymentID());
-    aggregateHandlerHeartBeat.unregisterHandler();
+    Channel.unregisterHandler();
     return repositoryHandler.shutDown();
   }
 

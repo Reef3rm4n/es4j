@@ -1,4 +1,4 @@
-package io.vertx.skeleton.evs;
+package io.vertx.skeleton.evs.hashing;
 
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
