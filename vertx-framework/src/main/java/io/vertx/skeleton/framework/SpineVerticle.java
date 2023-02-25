@@ -6,6 +6,8 @@ import io.vertx.skeleton.config.ConfigurationHandler;
 import io.vertx.skeleton.config.ConfigurationDeployer;
 import io.vertx.skeleton.evs.Entity;
 import io.vertx.skeleton.evs.EventSourcingBuilder;
+import io.vertx.skeleton.evs.actors.ActorHeartbeat;
+import io.vertx.skeleton.evs.actors.Channel;
 import io.vertx.skeleton.models.RequestMetadata;
 import io.vertx.skeleton.sql.LiquibaseHandler;
 import io.vertx.skeleton.sql.RepositoryHandler;
@@ -27,6 +29,7 @@ import io.vertx.skeleton.utils.CustomClassLoader;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class SpineVerticle extends AbstractVerticle {
@@ -41,6 +44,7 @@ public class SpineVerticle extends AbstractVerticle {
   private final ConfigurationDeployer configurationDeployer = new ConfigurationDeployer();
 
   public static final Collection<Module> MODULES = new ArrayList<>();
+  private List<ActorHeartbeat<? extends Entity>> heartbeat = new ArrayList<>();
 
   @Override
   public void start(final Promise<Void> startPromise) {
@@ -117,16 +121,25 @@ public class SpineVerticle extends AbstractVerticle {
   }
 
   private Uni<Void> deployEventSourcing(JsonObject newConfiguration) {
-   return Multi.createFrom().iterable(CustomClassLoader.getSubTypes(Entity.class))
-      .onItem().transformToUniAndMerge(entityAggregate -> new EventSourcingBuilder<>(entityAggregate)
-        .setModules(MODULES)
-        .setVertx(vertx)
-        .setVertxConfiguration(newConfiguration)
-        .deploy()
+    return Multi.createFrom().iterable(CustomClassLoader.getSubTypes(Entity.class))
+      .onItem().transformToUniAndMerge(entityClass -> {
+          heartbeat.add(new ActorHeartbeat<>(
+              vertx,
+              entityClass,
+              1000L
+            )
+          );
+          return new EventSourcingBuilder<>(entityClass)
+            .setModules(MODULES)
+            .setVertx(vertx)
+            .setVertxConfiguration(newConfiguration)
+            .deploy(deploymentID());
+        }
       )
       .collect().asList()
       .replaceWithVoid();
   }
+
 
   private Uni<Void> deployVerticles(JsonObject newConfiguration, Collection<Module> modules, Injector injector) {
     if (CustomClassLoader.checkPresenceInModules(Verticle.class, modules)) {

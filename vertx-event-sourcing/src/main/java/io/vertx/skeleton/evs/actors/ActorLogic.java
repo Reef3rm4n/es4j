@@ -3,7 +3,7 @@ package io.vertx.skeleton.evs.actors;
 import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.skeleton.evs.*;
 import io.vertx.skeleton.evs.Command;
-import io.vertx.skeleton.evs.cache.EntityAggregateCache;
+import io.vertx.skeleton.evs.cache.EntityCache;
 import io.vertx.skeleton.evs.exceptions.CommandRejected;
 import io.vertx.skeleton.evs.exceptions.UnknownCommand;
 import io.vertx.skeleton.evs.exceptions.EventException;
@@ -25,21 +25,20 @@ import java.util.*;
 import java.util.stream.IntStream;
 
 public class ActorLogic<T extends Entity> {
-  private final List<CommandBehaviourWrapper> commandBehaviours;
+  private final List<BehaviourWrapper> commandBehaviours;
   // todo create an interface for the eventJournal
   // todo move this repository as an implementation of the eventJournal
   private final Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal;
-  private final Repository<EntityAggregateKey, RejectedCommand, ?> rejectedCommandRepository;
+  private final Repository<EntityKey, RejectedCommand, ?> rejectedCommandRepository;
   // todo create an interface for the snapshots
   // todo move this repository as an implementation of the snapshot
-  private final Repository<EntityAggregateKey, AggregateSnapshot, ?> snapshotRepository;
+  private final Repository<EntityKey, AggregateSnapshot, ?> snapshotRepository;
   // todo create an interface for the entityCache
   // todo move this cache as an implementation of the entity cache
-  private final EntityAggregateCache<T, EntityAggregateState<T>> cache;
+  private final EntityCache<T, EntityState<T>> cache;
   private static final Logger LOGGER = LoggerFactory.getLogger(ActorLogic.class);
-  private final EntityAggregateConfiguration entityAggregateConfiguration;
-  private final PersistenceMode persistenceMode;
-  private final List<EventBehaviourWrapper> eventBehaviours;
+  private final EntityConfiguration entityConfiguration;
+  private final List<AggregatorWrapper> eventBehaviours;
   private final Class<T> entityAggregateClass;
 
 
@@ -47,14 +46,13 @@ public class ActorLogic<T extends Entity> {
 
   public ActorLogic(
     final Class<T> entityAggregateClass,
-    final List<EventBehaviourWrapper> eventBehaviours,
-    final List<CommandBehaviourWrapper> commandBehaviours,
-    final EntityAggregateConfiguration entityAggregateConfiguration,
+    final List<AggregatorWrapper> eventBehaviours,
+    final List<BehaviourWrapper> commandBehaviours,
+    final EntityConfiguration entityConfiguration,
     final Repository<EntityEventKey, EntityEvent, EventJournalQuery> eventJournal,
-    final Repository<EntityAggregateKey, AggregateSnapshot, EmptyQuery> snapshotRepository,
-    final Repository<EntityAggregateKey, RejectedCommand, ?> rejectedCommandRepository,
-    final EntityAggregateCache<T, EntityAggregateState<T>> cache,
-    final PersistenceMode persistenceMode
+    final Repository<EntityKey, AggregateSnapshot, EmptyQuery> snapshotRepository,
+    final Repository<EntityKey, RejectedCommand, ?> rejectedCommandRepository,
+    final EntityCache<T, EntityState<T>> cache
   ) {
     this.eventJournal = eventJournal;
     this.entityAggregateClass = entityAggregateClass;
@@ -62,13 +60,12 @@ public class ActorLogic<T extends Entity> {
     this.commandBehaviours = commandBehaviours;
     this.snapshotRepository = snapshotRepository;
     this.rejectedCommandRepository = rejectedCommandRepository;
-    this.entityAggregateConfiguration = entityAggregateConfiguration;
+    this.entityConfiguration = entityConfiguration;
     this.cache = cache;
-    this.persistenceMode = persistenceMode;
     populateCommandClassMap(commandBehaviours);
   }
 
-  private void populateCommandClassMap(List<CommandBehaviourWrapper> commandBehaviours) {
+  private void populateCommandClassMap(List<BehaviourWrapper> commandBehaviours) {
     commandBehaviours.stream().map(
       cmd -> Tuple4.of(
         cmd.commandClass().getName(),
@@ -85,7 +82,7 @@ public class ActorLogic<T extends Entity> {
     );
   }
 
-  public Uni<JsonObject> load(EntityAggregateKey entityAggregateKey) {
+  public Uni<JsonObject> load(EntityKey entityAggregateKey) {
     LOGGER.debug("Loading entity locally  -> " + entityAggregateKey);
     return load(entityAggregateKey.entityId(), entityAggregateKey.tenant(), ConsistencyStrategy.STRONGLY_CONSISTENT)
       .map(state -> JsonObject.mapFrom(state.aggregateState()));
@@ -116,11 +113,11 @@ public class ActorLogic<T extends Entity> {
   public Uni<JsonObject> process(String commandType, JsonObject jsonCommand) {
     LOGGER.debug("Processing " + commandType + " -> " + jsonCommand.encodePrettily());
     final var command = getCommand(commandType, jsonCommand);
-    return load(command.entityId(), command.requestHeaders().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
+    return load(command.entityId(), command.commandHeaders().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, command)
           .onFailure(OrmConflictException.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.entityId(), command.requestHeaders().tenantId())
+            () -> ensureConsistency(aggregateState, command.entityId(), command.commandHeaders().tenantId())
               .flatMap(reconstructedState -> processCommand(reconstructedState, command))
           )
           .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
@@ -150,7 +147,7 @@ public class ActorLogic<T extends Entity> {
 
   private List<Object> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var customBehaviour = commandBehaviours.stream()
-      .filter(behaviour -> behaviour.delegate().tenantID() != null && behaviour.delegate().tenantID().equals(command.requestHeaders().tenantId()))
+      .filter(behaviour -> behaviour.delegate().tenantID() != null && behaviour.delegate().tenantID().equals(command.commandHeaders().tenantId()))
       .filter(behaviour -> behaviour.commandClass().isAssignableFrom(command.getClass()))
       .findFirst()
       .orElse(null);
@@ -167,13 +164,13 @@ public class ActorLogic<T extends Entity> {
     return customBehaviour.delegate().process(aggregateState, command);
   }
 
-  private Uni<EntityAggregateState<T>> load(String entityId, String tenant, ConsistencyStrategy consistencyStrategy) {
+  private Uni<EntityState<T>> load(String entityId, String tenant, ConsistencyStrategy consistencyStrategy) {
     LOGGER.debug("Loading entity aggregate " + entityId + " with consistency strategy -> " + consistencyStrategy);
     return switch (consistencyStrategy) {
       case EVENTUALLY_CONSISTENT -> {
-        EntityAggregateState<T> state = null;
+        EntityState<T> state = null;
         if (cache != null) {
-          state = cache.get(new EntityAggregateKey(entityId, tenant));
+          state = cache.get(new EntityKey(entityId, tenant));
         }
         if (state == null) {
           yield loadFromDatabase(entityId, tenant);
@@ -182,9 +179,9 @@ public class ActorLogic<T extends Entity> {
         }
       }
       case STRONGLY_CONSISTENT -> {
-        EntityAggregateState<T> state = null;
+        EntityState<T> state = null;
         if (cache != null) {
-          state = cache.get(new EntityAggregateKey(entityId, tenant));
+          state = cache.get(new EntityKey(entityId, tenant));
         }
         if (state == null) {
           yield loadFromDatabase(entityId, tenant);
@@ -195,34 +192,34 @@ public class ActorLogic<T extends Entity> {
     };
   }
 
-  private Uni<EntityAggregateState<T>> ensureConsistency(EntityAggregateState<T> state, final String entityId, final String tenant) {
-    if (persistenceMode == PersistenceMode.DATABASE) {
+  private Uni<EntityState<T>> ensureConsistency(EntityState<T> state, final String entityId, final String tenant) {
+    if (entityConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
       LOGGER.warn("Ensuring consistency for entity -> " + entityId);
       return eventJournal.query(ensureConsistencyQuery(entityId, tenant, state))
         .flatMap(events -> {
             if (events != null && !events.isEmpty()) {
               applyEvents(state, events, null);
             }
-            return cache.put(new EntityAggregateKey(entityId, tenant), state);
+            return cache.put(new EntityKey(entityId, tenant), state);
           }
         )
         .onFailure(OrmNotFoundException.class).recoverWithItem(state);
     } else {
-      LOGGER.warn("Consistency not ensure since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
+      LOGGER.warn("Consistency not ensure since persistence mode is set to -> " + entityConfiguration.persistenceMode());
       return Uni.createFrom().item(state);
     }
   }
 
-  private Uni<EntityAggregateState<T>> loadFromDatabase(final String entityId, final String tenant) {
-    final var state = new EntityAggregateState<T>(
-      entityAggregateConfiguration.snapshotEvery(),
-      entityAggregateConfiguration.maxNumberOfCommandsForIdempotency()
+  private Uni<EntityState<T>> loadFromDatabase(final String entityId, final String tenant) {
+    final var state = new EntityState<T>(
+      entityConfiguration.snapshotEvery(),
+      entityConfiguration.maxNumberOfCommandsForIdempotency()
     );
-    if (persistenceMode == PersistenceMode.DATABASE) {
+    if (entityConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
       LOGGER.warn("Loading entity from database -> " + entityId);
       Uni<Void> snapshotUni = Uni.createFrom().voidItem();
       if (snapshotRepository != null) {
-        snapshotUni = snapshotRepository.selectByKey(new EntityAggregateKey(entityId, tenant))
+        snapshotUni = snapshotRepository.selectByKey(new EntityKey(entityId, tenant))
           .map(persistedSnapshot -> loadSnapshot(state, persistedSnapshot))
           .onFailure(OrmNotFoundException.class).recoverWithNull()
           .replaceWithVoid();
@@ -232,18 +229,18 @@ public class ActorLogic<T extends Entity> {
             if (events != null && !events.isEmpty()) {
               applyEvents(state, events, null);
             }
-            return cache.put(new EntityAggregateKey(entityId, tenant), state);
+            return cache.put(new EntityKey(entityId, tenant), state);
           }
         )
         .onFailure(OrmNotFoundException.class).recoverWithItem(state);
     } else {
-      LOGGER.warn("Wont look for entity in database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
+      LOGGER.warn("Wont look for entity in database since persistence mode is set to -> " + entityConfiguration.persistenceMode());
       return Uni.createFrom().item(state);
     }
 
   }
 
-  private EntityAggregateState<T> loadSnapshot(final EntityAggregateState<T> state, final AggregateSnapshot persistedSnapshot) {
+  private EntityState<T> loadSnapshot(final EntityState<T> state, final AggregateSnapshot persistedSnapshot) {
     LOGGER.info("Loading snapshot -> " + persistedSnapshot.state().encodePrettily());
     return state.setAggregateState(persistedSnapshot.state().mapTo(entityAggregateClass))
       .setCurrentEventVersion(persistedSnapshot.eventVersion())
@@ -251,15 +248,15 @@ public class ActorLogic<T extends Entity> {
       .setSnapshotPresent(true);
   }
 
-  private void applyEvents(final EntityAggregateState<T> state, final List<EntityEvent> events, Command command) {
+  private void applyEvents(final EntityState<T> state, final List<EntityEvent> events, Command command) {
     events.stream()
       .sorted(Comparator.comparingLong(EntityEvent::eventVersion))
       .forEachOrdered(event -> {
           LOGGER.info("Aggregating event -> " + event.eventClass());
           final var newState = applyEventBehaviour(state.aggregateState(), getEvent(event.eventClass(), event.event()));
           LOGGER.info("New aggregate state -> " + newState);
-          if (command != null && state.commands() != null && state.commands().stream().noneMatch(txId -> txId.equals(command.requestHeaders().requestID()))) {
-            state.commands().add(command.requestHeaders().requestID());
+          if (command != null && state.commands() != null && state.commands().stream().noneMatch(txId -> txId.equals(command.commandHeaders().requestID()))) {
+            state.commands().add(command.commandHeaders().requestID());
           }
           if (state.eventsAfterSnapshot() != null) {
             state.eventsAfterSnapshot().add(event);
@@ -272,7 +269,7 @@ public class ActorLogic<T extends Entity> {
   }
 
 
-  private EventJournalQuery eventJournalQuery(final String entityId, final String tenant, EntityAggregateState<T> state) {
+  private EventJournalQuery eventJournalQuery(final String entityId, final String tenant, EntityState<T> state) {
     return new EventJournalQuery(
       List.of(entityId),
       null,
@@ -296,7 +293,7 @@ public class ActorLogic<T extends Entity> {
     );
   }
 
-  private EventJournalQuery ensureConsistencyQuery(final String entityId, final String tenant, EntityAggregateState<T> state) {
+  private EventJournalQuery ensureConsistencyQuery(final String entityId, final String tenant, EntityState<T> state) {
     // todo add idFrom to improve performance
     return new EventJournalQuery(
       List.of(entityId),
@@ -321,9 +318,9 @@ public class ActorLogic<T extends Entity> {
     );
   }
 
-  private Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final List<Command> commands) {
+  private Uni<EntityState<T>> processCommand(final EntityState<T> state, final List<Command> commands) {
     if (state.commands() != null && !state.commands().isEmpty()) {
-      state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.requestHeaders().requestID().equals(txId)))
+      state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.commandHeaders().requestID().equals(txId)))
         .findAny()
         .ifPresent(duplicatedCommand -> {
             throw new CommandRejected(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
@@ -337,33 +334,33 @@ public class ActorLogic<T extends Entity> {
     return handleEvents(state, eventCommandTuple);
   }
 
-  private Uni<EntityAggregateState<T>> handleEvents(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
+  private Uni<EntityState<T>> handleEvents(final EntityState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
     final var flattenedEvents = eventCommandTuple.stream().map(Tuple2::getItem1).flatMap(List::stream).toList();
-    if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
+    if (entityConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
       return persistEventsUpdateStateAndProjections(state, eventCommandTuple, flattenedEvents);
     } else {
       return updateStateAndProjections(state, eventCommandTuple);
     }
   }
 
-  private Uni<EntityAggregateState<T>> updateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
-    LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
+  private Uni<EntityState<T>> updateStateAndProjections(final EntityState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple) {
+    LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityConfiguration.persistenceMode());
     eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-    return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
+    return cache.put(new EntityKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
   }
 
-  private Uni<EntityAggregateState<T>> persistEventsUpdateStateAndProjections(final EntityAggregateState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple, final List<EntityEvent> flattenedEvents) {
+  private Uni<EntityState<T>> persistEventsUpdateStateAndProjections(final EntityState<T> state, final List<Tuple2<List<EntityEvent>, Command>> eventCommandTuple, final List<EntityEvent> flattenedEvents) {
     return eventJournal.transaction(
       sqlConnection -> eventJournal.insertBatch(flattenedEvents, sqlConnection)
         .flatMap(avoid2 -> {
             eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-            return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
+            return cache.put(new EntityKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
           }
         )
     );
   }
 
-  private Tuple2<List<EntityEvent>, Command> processSingleCommand(final EntityAggregateState<T> state, final Command finalCommand) {
+  private Tuple2<List<EntityEvent>, Command> processSingleCommand(final EntityState<T> state, final Command finalCommand) {
     final var currentVersion = state.provisoryEventVersion() == null ? 0 : state.provisoryEventVersion();
     final var events = applyCommandBehaviour(state.aggregateState(), finalCommand);
     final var array = events.toArray(new Object[0]);
@@ -379,7 +376,7 @@ public class ActorLogic<T extends Entity> {
             JsonObject.mapFrom(ev),
             JsonObject.mapFrom(finalCommand),
             finalCommand.getClass().getName(),
-            BaseRecord.newRecord(finalCommand.requestHeaders().tenantId())
+            BaseRecord.newRecord(finalCommand.commandHeaders().tenantId())
           );
         }
       ).toList();
@@ -387,9 +384,9 @@ public class ActorLogic<T extends Entity> {
   }
 
 
-  private <C extends Command> Uni<EntityAggregateState<T>> processCommand(final EntityAggregateState<T> state, final C command) {
+  private <C extends Command> Uni<EntityState<T>> processCommand(final EntityState<T> state, final C command) {
     if (state.commands() != null && !state.commands().isEmpty()) {
-      state.commands().stream().filter(txId -> txId.equals(command.requestHeaders().requestID()))
+      state.commands().stream().filter(txId -> txId.equals(command.commandHeaders().requestID()))
         .findAny()
         .ifPresent(duplicatedCommand -> {
             throw new CommandRejected(new Error("Command was already processed", "Command was carrying the same txId form a command previously processed -> " + duplicatedCommand, 400));
@@ -398,23 +395,23 @@ public class ActorLogic<T extends Entity> {
     }
     state.setProvisoryEventVersion(state.currentEventVersion());
     final var eventCommandTuple = processSingleCommand(state, command);
-    if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
+    if (entityConfiguration.persistenceMode() == PersistenceMode.DATABASE) {
       return eventJournal.transaction(
         sqlConnection -> eventJournal.insertBatch(eventCommandTuple.getItem1(), sqlConnection)
           .flatMap(avoid2 -> {
               applyEvents(state, eventCommandTuple.getItem1(), command);
-              return cache.put(new EntityAggregateKey(command.entityId(), command.requestHeaders().tenantId()), state);
+              return cache.put(new EntityKey(command.entityId(), command.commandHeaders().tenantId()), state);
             }
           )
       );
     } else {
-      LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityAggregateConfiguration.persistenceMode());
+      LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + entityConfiguration.persistenceMode());
       applyEvents(state, eventCommandTuple.getItem1(), command);
-      return cache.put(new EntityAggregateKey(command.entityId(), command.requestHeaders().tenantId()), state);
+      return cache.put(new EntityKey(command.entityId(), command.commandHeaders().tenantId()), state);
     }
   }
 
-  private void handleSnapshot(EntityAggregateState<T> state) {
+  private void handleSnapshot(EntityState<T> state) {
     if (snapshotRepository != null && state.snapshotAfter() != null && state.processedEventsAfterLastSnapshot() >= state.snapshotAfter()) {
       if (Boolean.TRUE.equals(state.snapshotPresent())) {
         LOGGER.info("Updating snapshot -> " + state);
@@ -439,22 +436,22 @@ public class ActorLogic<T extends Entity> {
     }
   }
 
-  private Uni<EntityAggregateState<T>> updateStateAfterSnapshot(final EntityAggregateState<T> state, final AggregateSnapshot snapshot) {
+  private Uni<EntityState<T>> updateStateAfterSnapshot(final EntityState<T> state, final AggregateSnapshot snapshot) {
     state.eventsAfterSnapshot().clear();
     state.setProcessedEventsAfterLastSnapshot(0).setSnapshot(snapshot);
-    return cache.put(new EntityAggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
+    return cache.put(new EntityKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
   }
 
   private void handleRejectedCommand(final Throwable throwable, final Command command) {
     LOGGER.error("Command rejected -> ", throwable);
-    if (entityAggregateConfiguration.persistenceMode() == PersistenceMode.DATABASE && rejectedCommandRepository != null) {
+    if (entityConfiguration.persistenceMode() == PersistenceMode.DATABASE && rejectedCommandRepository != null) {
       if (throwable instanceof CommandRejected commandRejected) {
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(commandRejected.error()), BaseRecord.newRecord(command.requestHeaders().tenantId()));
+        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(commandRejected.error()), BaseRecord.newRecord(command.commandHeaders().tenantId()));
         rejectedCommandRepository.insertAndForget(rejectedCommand);
       } else {
         LOGGER.warn("Unknown exception, consider using RejectedCommandException.class for better error handling");
         final var cause = throwable.getCause() != null ? throwable.getCause().getMessage() : throwable.getLocalizedMessage();
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(new Error(throwable.getMessage(), cause, 500)), BaseRecord.newRecord(command.requestHeaders().tenantId()));
+        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(new Error(throwable.getMessage(), cause, 500)), BaseRecord.newRecord(command.commandHeaders().tenantId()));
         rejectedCommandRepository.insertAndForget(rejectedCommand);
       }
     }

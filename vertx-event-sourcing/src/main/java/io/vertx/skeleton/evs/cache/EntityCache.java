@@ -1,8 +1,8 @@
 package io.vertx.skeleton.evs.cache;
 
-import io.vertx.skeleton.evs.objects.EntityAggregateState;
+import io.vertx.skeleton.evs.objects.EntityState;
 import io.vertx.skeleton.evs.Entity;
-import io.vertx.skeleton.evs.objects.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityKey;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
@@ -16,27 +16,24 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 // todo move this to caffeine, which is probably better suited for this kind of stuff.
-public class EntityAggregateCache<T extends Entity, V extends EntityAggregateState<T>> {
+public class EntityCache<T extends Entity, V extends EntityState<T>> {
 
   private final Vertx vertx;
   private final Long aggregateTtlInMinutes;
-  private static final Logger LOGGER = LoggerFactory.getLogger(EntityAggregateCache.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(EntityCache.class);
   private final Class<T> aggregateClass;
-  private final String handlerAddress;
 
-  public EntityAggregateCache(
+  public EntityCache(
     Vertx vertx,
     Class<T> aggregateClass,
-    String handlerAddress,
     Long aggregateTtlInMinutes
   ) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
     this.aggregateTtlInMinutes = aggregateTtlInMinutes;
-    this.handlerAddress = handlerAddress;
   }
 
-  public V get(EntityAggregateKey k) {
+  public V get(EntityKey k) {
     final var holder = localEntityMap().get(k);
     if (holder != null && holder.hasNotExpired()) {
       return holder.value;
@@ -45,11 +42,10 @@ public class EntityAggregateCache<T extends Entity, V extends EntityAggregateSta
     }
   }
 
-  public Uni<V> put(EntityAggregateKey k, V v) {
+  public Uni<V> put(EntityKey k, V v) {
     long timestamp = System.nanoTime();
     long timerId = vertx.setTimer(aggregateTtlInMinutes, l -> removeIfExpired(k));
     Holder<V> previous = localEntityMap().put(k, new Holder<>(v, timerId, aggregateTtlInMinutes * 60000, timestamp));
-    LOGGER.info("EntityAggregate added to handler cache -> " + k + " handler address -> " + handlerAddress);
     if (previous != null) {
       vertx.cancelTimer(previous.timerId);
     }
@@ -61,16 +57,16 @@ public class EntityAggregateCache<T extends Entity, V extends EntityAggregateSta
   }
 
   public List<Holder<V>> values() {
-    return vertx.getDelegate().sharedData().<EntityAggregateKey, Holder<V>>getLocalMap(aggregateClass.getName())
+    return vertx.getDelegate().sharedData().<EntityKey, Holder<V>>getLocalMap(aggregateClass.getName())
       .values().stream()
       .toList();
   }
 
-  private LocalMap<EntityAggregateKey, Holder<V>> localEntityMap() {
-    return vertx.sharedData().<EntityAggregateKey, Holder<V>>getLocalMap(aggregateClass.getName());
+  private LocalMap<EntityKey, Holder<V>> localEntityMap() {
+    return vertx.sharedData().<EntityKey, Holder<V>>getLocalMap(aggregateClass.getName());
   }
 
-  private void removeIfExpired(EntityAggregateKey k) {
+  private void removeIfExpired(EntityKey k) {
     final var value = localEntityMap().get(k);
     if (!value.hasNotExpired()) {
       LOGGER.info(k + " evicted form cache");
@@ -78,7 +74,7 @@ public class EntityAggregateCache<T extends Entity, V extends EntityAggregateSta
     }
   }
 
-  public V remove(EntityAggregateKey k) {
+  public V remove(EntityKey k) {
     final var previous = localEntityMap().remove(k);
     if (previous != null) {
       if (previous.expires()) {

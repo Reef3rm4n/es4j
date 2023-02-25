@@ -10,109 +10,42 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.eventbus.Message;
+import io.vertx.skeleton.evs.Entity;
 import io.vertx.skeleton.evs.cache.Actions;
-import io.vertx.skeleton.evs.cache.AddressResolver;
+import io.vertx.skeleton.evs.cache.ChannelAddress;
 import io.vertx.skeleton.evs.exceptions.NodeNotFoundException;
-import io.vertx.skeleton.evs.objects.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityKey;
 import io.vertx.skeleton.models.Error;
 import io.vertx.skeleton.models.exceptions.CacheException;
+import org.ishugaliy.allgood.consistent.hash.HashRing;
+import org.ishugaliy.allgood.consistent.hash.hasher.DefaultHasher;
 import org.ishugaliy.allgood.consistent.hash.node.SimpleNode;
 
 import java.time.Duration;
 
-public class Channel<T> {
+public class Channel {
+  private Channel() {
+  }
+
   private static final Logger LOGGER = LoggerFactory.getLogger(Channel.class);
-  private final Vertx vertx;
-  private final Integer heartBeatInterval;
-  private final Class<T> aggregateClass;
-  private final String handlerAddress;
-  private long refreshTaskTimerId;
+  private static final HashRing<SimpleNode> actorHashRing = HashRing.<SimpleNode>newBuilder()
+    .name("entity-aggregate-hash-ring")       // set hash ring name
+    .hasher(DefaultHasher.MURMUR_3)   // hash function to distribute partitions
+    .partitionRate(100000)                  // number of partitions per node
+    .build();
 
-  public Channel(
-    final Vertx vertx,
-    final Integer heartBeatInterval,
-    final Class<T> aggregateClass,
-    final String handlerAddress
-  ) {
-    this.vertx = vertx;
-    this.heartBeatInterval = heartBeatInterval;
-    this.aggregateClass = aggregateClass;
-    this.handlerAddress = handlerAddress;
-  }
-
-
-  public void registerHandler() {
-    LOGGER.info("Publishing handler registration [address: " + handlerAddress + "]");
-    vertx.eventBus().<String>publish(
-      AddressResolver.actorChannel(aggregateClass),
-      handlerAddress,
-      new DeliveryOptions()
-        .setTracingPolicy(TracingPolicy.ALWAYS)
-        .addHeader(Actions.ACTION.name(), Actions.ADD.name())
-    );
+  public static <T extends Entity> Uni<Void> registerActor(Vertx vertx, Class<T> entityClass, String deploymentID) {
     // publishes heart beats for aggregate handlers.
-    handlerRefreshTimer(heartBeatInterval);
+    return invokeChannelConsumer(vertx, entityClass, deploymentID)
+      .flatMap(avoid -> broadcastListener(vertx, entityClass));
   }
 
-  private void handlerRefreshTimer(Integer delay) {
-    this.refreshTaskTimerId = vertx.setTimer(
-      delay,
-      d -> {
-        vertx.eventBus().publish(
-          AddressResolver.actorChannel(aggregateClass),
-          handlerAddress,
-          new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.ADD.name())
-        );
-        LOGGER.info("Handler hearth beat [address: " + handlerAddress + "]");
-        handlerRefreshTimer(delay);
-      }
-    );
-  }
-
-  public void unregisterHandler() {
-    LOGGER.info("Unregistering handler for [ " + aggregateClass + "] [address: " + handlerAddress + "]");
-    vertx.eventBus().publish(
-      AddressResolver.actorChannel(aggregateClass),
-      handlerAddress,
-      new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name())
-    );
-    vertx.cancelTimer(refreshTaskTimerId);
-  }
-
-  public void pollEntityActors() {
-    vertx.eventBus().publish(
-      AddressResolver.actorChannel(aggregateClass),
-      handlerAddress,
-      new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name())
-    );
-  }
-  private void addHandler(final String handler) {
-    final var simpleNode = SimpleNode.of(handler);
-    if (!hashRing.contains(simpleNode)) {
-      LOGGER.info("Adding new handler to hash-ring -> " + handler);
-      hashRing.add(simpleNode);
-    } else {
-      LOGGER.info("Handler already present in hash-ring -> " + handler);
-    }
-  }
-
-  public String locateHandler(EntityAggregateKey key) {
-    LOGGER.info("Looking for handler for entity -> " + key);
-    final var node = hashRing.locate(key.entityId());
-    LOGGER.info("Resolved to node -> " + node);
-    return node.orElse(hashRing.getNodes().stream().findFirst()
-        .orElseThrow(() -> new NodeNotFoundException(key.entityId()))
-      )
-      .getKey();
-  }
-
-  public Uni<ChannelProxy<T>> start() {
-    // this is responsible for the synchronization of the hash-ring when nodes leave the cluster...
-    return vertx.eventBus().<String>consumer(AddressResolver.actorChannel(aggregateEntityClass))
-      .handler(this::synchronizeHashRing)
-      .exceptionHandler(this::handlerThrowable)
+  private static <T extends Entity> Uni<Void> broadcastListener(Vertx vertx, Class<T> entityClass) {
+    return vertx.eventBus().<String>consumer(ChannelAddress.broadcastChannel(entityClass))
+      .handler(Channel::synchronizeChannel)
+      .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
       .completionHandler()
-      .flatMap(avoid -> Multi.createBy().repeating().supplier(() -> hashRing.getNodes().isEmpty())
+      .flatMap(avoid -> Multi.createBy().repeating().supplier(() -> actorHashRing.getNodes().isEmpty())
         .atMost(10).capDemandsTo(1).paceDemand()
         .using(new FixedDemandPacer(1, Duration.ofMillis(500)))
         .collect().last()
@@ -121,14 +54,88 @@ public class Channel<T> {
               if (Boolean.TRUE.equals(aBoolean)) {
                 throw new NodeNotFoundException(new Error("Hash ring empty", "Hash ring synchronizer was still empty after 10 seconds, there's no entity deployed in the platform", -999));
               }
-              return this;
+              return aBoolean;
             }
           )
         )
-      );
+      )
+      .replaceWithVoid();
   }
 
-  private void synchronizeHashRing(Message<String> objectMessage) {
+  private static <T extends Entity> Uni<Void> invokeChannelConsumer(Vertx vertx, Class<T> entityClass, String deploymentID) {
+    return vertx.eventBus().<String>consumer(ChannelAddress.invokeChannel(entityClass))
+      .handler(stringMessage -> broadcast(vertx, entityClass, deploymentID))
+      .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
+      .completionHandler()
+      .replaceWithVoid();
+  }
+
+  public static <T extends Entity> void broadcast(Vertx vertx, Class<T> entityClass, String deploymentID) {
+    LOGGER.info("Publishing entity " + entityClass.getSimpleName() + " [address: " + Channel.actorAddress(entityClass, deploymentID) + "]");
+    vertx.eventBus().<String>publish(
+      ChannelAddress.broadcastChannel(entityClass),
+      actorAddress(entityClass, deploymentID),
+      new DeliveryOptions()
+        .setTracingPolicy(TracingPolicy.ALWAYS)
+        .addHeader(Actions.ACTION.name(), Actions.ADD.name())
+    );
+  }
+
+  public static <T extends Entity> void killActor(Vertx vertx, Class<T> entityClass, String deploymentID) {
+    vertx.eventBus().publish(
+      ChannelAddress.broadcastChannel(entityClass),
+      actorAddress(entityClass, deploymentID),
+      new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name())
+    );
+  }
+
+  public static <T extends Entity> void invokeBroadCast(Class<T> entityClass, Vertx vertx) {
+    vertx.eventBus().publish(
+      ChannelAddress.invokeChannel(entityClass),
+      "null",
+      new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name())
+    );
+  }
+
+  public static String actorAddress(Class<? extends Entity> entityClass, String deploymendID) {
+    return entityClass.getSimpleName() + "-" + deploymendID;
+  }
+
+  private static void addHandler(final String actorAddress) {
+    final var simpleNode = SimpleNode.of(actorAddress);
+    if (!actorHashRing.contains(simpleNode)) {
+      LOGGER.info("Adding actor to hash-ring [address:" + actorAddress + "]");
+      actorHashRing.add(simpleNode);
+    } else {
+      LOGGER.info("Actor already in hash-ring [address:" + actorAddress + "]");
+    }
+  }
+
+  public static <T extends Entity> String resolveActor(Class<T> entityClass, EntityKey key) {
+    LOGGER.info("Looking for handler for entity -> " + key);
+    final var node = actorHashRing.locate(entityClass.getSimpleName() + key.entityId());
+    LOGGER.info("Resolved to node -> " + node);
+    return node.orElse(actorHashRing.getNodes().stream().findFirst()
+        .orElseThrow(() -> new NodeNotFoundException(key.entityId()))
+      )
+      .getKey();
+  }
+
+  private static void handlerThrowable(final Throwable throwable, Class<?> entityClass) {
+    LOGGER.error("[-- Channel for entity " + entityClass.getSimpleName() + " had to drop the following exception --]", throwable);
+  }
+
+  private static void removeHandler(final String handler) {
+    final var simpleNode = SimpleNode.of(handler);
+    if (actorHashRing.contains(simpleNode)) {
+      LOGGER.info("Removing handler form hash ring -> " + handler);
+      actorHashRing.remove(simpleNode);
+    } else {
+      LOGGER.info("Handler not present in hash ring -> " + handler);
+    }
+  }
+
+  private static void synchronizeChannel(Message<String> objectMessage) {
     LOGGER.debug("Synchronizing handler -> " + objectMessage.body());
     switch (Actions.valueOf(objectMessage.headers().get(Actions.ACTION.name()))) {
       case ADD -> addHandler(objectMessage.body());
@@ -136,21 +143,6 @@ public class Channel<T> {
       default -> throw CacheException.illegalState();
     }
   }
-
-  private void removeHandler(final String handler) {
-    final var simpleNode = SimpleNode.of(handler);
-    if (hashRing.contains(simpleNode)) {
-      LOGGER.info("Removing handler form hash ring -> " + handler);
-      hashRing.remove(simpleNode);
-    } else {
-      LOGGER.info("Handler not present in hash ring -> " + handler);
-    }
-  }
-
-  private void handlerThrowable(final Throwable throwable) {
-    LOGGER.error("[-- EntityAggregateSynchronizer for entity " + aggregateEntityClass.getSimpleName() + " had to drop the following exception --]", throwable);
-  }
-
 
 
 }

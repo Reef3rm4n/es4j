@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
-public class EntityAggregateState<T extends Entity> implements Shareable {
+public class EntityState<T extends Entity> implements Shareable {
 
   private T aggregateState = null;
   private final List<EntityEvent> eventsAfterSnapshot;
@@ -24,7 +24,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
 
   private Long provisoryEventVersion = null;
 
-  public EntityAggregateState(final Integer snapshotAfter, final Integer numberOfCommandsKeptForIdempotency) {
+  public EntityState(final Integer snapshotAfter, final Integer numberOfCommandsKeptForIdempotency) {
     this.snapshotAfter = snapshotAfter;
     this.eventsAfterSnapshot = new ArrayList<>(snapshotAfter + 1);
     if (numberOfCommandsKeptForIdempotency > 0) {
@@ -38,7 +38,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return aggregateState;
   }
 
-  public EntityAggregateState<T> setAggregateState(final T aggregateState) {
+  public EntityState<T> setAggregateState(final T aggregateState) {
     this.aggregateState = aggregateState;
     return this;
   }
@@ -51,7 +51,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return provisoryEventVersion;
   }
 
-  public EntityAggregateState<T> setProvisoryEventVersion(final Long provisoryEventVersion) {
+  public EntityState<T> setProvisoryEventVersion(final Long provisoryEventVersion) {
     this.provisoryEventVersion = provisoryEventVersion;
     return this;
   }
@@ -64,7 +64,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return processedEventsAfterLastSnapshot;
   }
 
-  public EntityAggregateState<T> setProcessedEventsAfterLastSnapshot(final Integer processedEventsAfterLastSnapshot) {
+  public EntityState<T> setProcessedEventsAfterLastSnapshot(final Integer processedEventsAfterLastSnapshot) {
     this.processedEventsAfterLastSnapshot = processedEventsAfterLastSnapshot;
     return this;
   }
@@ -73,7 +73,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return snapshotAfter;
   }
 
-  public EntityAggregateState<T> setSnapshotAfter(final Integer snapshotAfter) {
+  public EntityState<T> setSnapshotAfter(final Integer snapshotAfter) {
     this.snapshotAfter = snapshotAfter;
     return this;
   }
@@ -82,7 +82,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return snapshotPresent;
   }
 
-  public EntityAggregateState<T> setSnapshotPresent(final Boolean snapshotPresent) {
+  public EntityState<T> setSnapshotPresent(final Boolean snapshotPresent) {
     this.snapshotPresent = snapshotPresent;
     return this;
   }
@@ -91,7 +91,7 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return snapshot;
   }
 
-  public EntityAggregateState<T> setSnapshot(final AggregateSnapshot snapshot) {
+  public EntityState<T> setSnapshot(final AggregateSnapshot snapshot) {
     this.snapshot = snapshot;
     return this;
   }
@@ -100,14 +100,14 @@ public class EntityAggregateState<T extends Entity> implements Shareable {
     return currentEventVersion;
   }
 
-  public EntityAggregateState<T> setCurrentEventVersion(final Long currentEventVersion) {
+  public EntityState<T> setCurrentEventVersion(final Long currentEventVersion) {
     this.currentEventVersion = currentEventVersion;
     return this;
   }
 
   @Override
   public String toString() {
-    return new StringJoiner(", ", EntityAggregateState.class.getSimpleName() + "[", "]")
+    return new StringJoiner(", ", EntityState.class.getSimpleName() + "[", "]")
       .add("aggregateState=" + aggregateState)
       .add("eventsAfterSnapshot=" + eventsAfterSnapshot)
       .add("commands=" + commands)

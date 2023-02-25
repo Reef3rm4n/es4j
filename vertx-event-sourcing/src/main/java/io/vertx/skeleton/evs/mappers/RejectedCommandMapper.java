@@ -1,7 +1,7 @@
 package io.vertx.skeleton.evs.mappers;
 
 import io.vertx.skeleton.sql.RecordMapper;
-import io.vertx.skeleton.evs.objects.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityKey;
 import io.vertx.skeleton.evs.objects.RejectedCommand;
 import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
 import io.vertx.skeleton.sql.models.EmptyQuery;
@@ -9,7 +9,7 @@ import io.vertx.sqlclient.Row;
 import java.util.Map;
 import java.util.Set;
 
-public class RejectedCommandMapper implements RecordMapper<EntityAggregateKey, RejectedCommand, EmptyQuery> {
+public class RejectedCommandMapper implements RecordMapper<EntityKey, RejectedCommand, EmptyQuery> {
 
 
   private static final String ENTITY_ID = "entity_id";
@@ -54,7 +54,7 @@ public class RejectedCommandMapper implements RecordMapper<EntityAggregateKey, R
   }
 
   @Override
-  public void keyParams(Map<String, Object> params, EntityAggregateKey key) {
+  public void keyParams(Map<String, Object> params, EntityKey key) {
     params.put(ENTITY_ID, key.entityId());
   }
 

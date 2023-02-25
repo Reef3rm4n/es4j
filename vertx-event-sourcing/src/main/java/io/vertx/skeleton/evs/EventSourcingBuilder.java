@@ -12,6 +12,8 @@ import io.vertx.skeleton.evs.actors.EntityActor;
 import java.util.ArrayList;
 import java.util.Collection;
 
+import static io.vertx.skeleton.evs.actors.Channel.registerActor;
+
 public class EventSourcingBuilder<T extends Entity> {
   private final Class<T> entityAggregateClass;
   private Collection<Module> modules;
@@ -43,11 +45,12 @@ public class EventSourcingBuilder<T extends Entity> {
     return this;
   }
 
-  public Uni<Void> deploy() {
-    return vertx.deployVerticle(() -> new EntityActor<>(entityAggregateClass, ModuleBuilder.create().install(modules)), new DeploymentOptions()
-        .setConfig(vertxConfiguration)
-        .setInstances(CpuCoreSensor.availableProcessors() * 2)
-      )
-      .replaceWithVoid();
+  public Uni<Void> deploy(String deploymentId) {
+    return registerActor(vertx, entityAggregateClass, deploymentId)
+      .flatMap(avoid -> vertx.deployVerticle(() -> new EntityActor<>(deploymentId, entityAggregateClass, ModuleBuilder.create().install(modules)), new DeploymentOptions()
+          .setConfig(vertxConfiguration)
+          .setInstances(CpuCoreSensor.availableProcessors() * 2)
+        )
+        .replaceWithVoid());
   }
 }

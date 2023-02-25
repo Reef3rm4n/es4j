@@ -1,8 +1,10 @@
 package io.vertx.skeleton.evs;
 
+import io.smallrye.mutiny.Uni;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;
+import io.vertx.skeleton.evs.actors.ChannelProxy;
 import io.vertx.skeleton.evs.domain.FakeEntity;
 import io.vertx.skeleton.evs.domain.commands.ChangeData1;
 import io.vertx.skeleton.models.CommandHeaders;
@@ -37,9 +39,9 @@ public class EventSourcingBehaviourTest {
 
   @Test
   void test_command_event_behaviour(Vertx vertx, VertxTestContext vertxTestContext) {
-    final var proxy = new AggregateInternalChannel<>(vertx, FakeEntity.class).start().await().indefinitely();
-    final var entity = proxy.forwardCommand(new ChangeData1(UUID.randomUUID().toString(),"", CommandHeaders.defaultHeaders())).await().indefinitely();
-
+    final var proxy = new ChannelProxy<>(vertx, FakeEntity.class);
+    final var entity = proxy.forwardCommand(new ChangeData1(UUID.randomUUID().toString(), "", CommandHeaders.defaultHeaders())).await().indefinitely();
+    vertxTestContext.completeNow();
   }
 
 

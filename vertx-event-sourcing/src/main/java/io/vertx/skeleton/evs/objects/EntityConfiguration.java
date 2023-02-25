@@ -3,7 +3,7 @@ package io.vertx.skeleton.evs.objects;
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
-public class EntityAggregateConfiguration {
+public class EntityConfiguration {
   private Boolean useCache = true;
   private Long aggregateCacheTtlInMinutes = 20L;
   private Boolean snapshots = true;
@@ -17,7 +17,7 @@ public class EntityAggregateConfiguration {
     return handlerHeartBeatInterval;
   }
 
-  public EntityAggregateConfiguration setHandlerHeartBeatInterval(Integer handlerHeartBeatInterval) {
+  public EntityConfiguration setHandlerHeartBeatInterval(Integer handlerHeartBeatInterval) {
     this.handlerHeartBeatInterval = handlerHeartBeatInterval;
     return this;
   }
@@ -26,7 +26,7 @@ public class EntityAggregateConfiguration {
     return replication;
   }
 
-  public EntityAggregateConfiguration setReplication(final Boolean replication) {
+  public EntityConfiguration setReplication(final Boolean replication) {
     this.replication = replication;
     return this;
   }
@@ -35,7 +35,7 @@ public class EntityAggregateConfiguration {
     return persistenceMode;
   }
 
-  public EntityAggregateConfiguration setPersistenceMode(final PersistenceMode persistenceMode) {
+  public EntityConfiguration setPersistenceMode(final PersistenceMode persistenceMode) {
     this.persistenceMode = persistenceMode;
     return this;
   }
@@ -44,19 +44,19 @@ public class EntityAggregateConfiguration {
     return aggregateCacheTtlInMinutes;
   }
 
-  public EntityAggregateConfiguration setAggregateCacheTtlInMinutes(final Long aggregateCacheTtlInMinutes) {
+  public EntityConfiguration setAggregateCacheTtlInMinutes(final Long aggregateCacheTtlInMinutes) {
     this.aggregateCacheTtlInMinutes = aggregateCacheTtlInMinutes;
     return this;
   }
 
-  public EntityAggregateConfiguration() {
+  public EntityConfiguration() {
   }
 
   public Boolean snapshots() {
     return snapshots;
   }
 
-  public EntityAggregateConfiguration setSnapshots(final Boolean snapshots) {
+  public EntityConfiguration setSnapshots(final Boolean snapshots) {
     this.snapshots = snapshots;
     return this;
   }
@@ -65,7 +65,7 @@ public class EntityAggregateConfiguration {
     return useCache;
   }
 
-  public EntityAggregateConfiguration setUseCache(final Boolean useCache) {
+  public EntityConfiguration setUseCache(final Boolean useCache) {
     this.useCache = useCache;
     return this;
   }
@@ -74,7 +74,7 @@ public class EntityAggregateConfiguration {
     return snapshotEvery;
   }
 
-  public EntityAggregateConfiguration setSnapshotEvery(final Integer snapshotEvery) {
+  public EntityConfiguration setSnapshotEvery(final Integer snapshotEvery) {
     this.snapshotEvery = snapshotEvery;
     return this;
   }
@@ -83,7 +83,7 @@ public class EntityAggregateConfiguration {
     return maxNumberOfCommandsForIdempotency;
   }
 
-  public EntityAggregateConfiguration setMaxNumberOfCommandsForIdempotency(final Integer maxNumberOfCommandsForIdempotency) {
+  public EntityConfiguration setMaxNumberOfCommandsForIdempotency(final Integer maxNumberOfCommandsForIdempotency) {
     this.maxNumberOfCommandsForIdempotency = maxNumberOfCommandsForIdempotency;
     return this;
   }

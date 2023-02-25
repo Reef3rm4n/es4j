@@ -7,7 +7,7 @@ import io.vertx.skeleton.evs.consistenthashing.exceptions.MemberAlreadyAddedExce
 import io.vertx.skeleton.evs.consistenthashing.exceptions.MemberNotFoundException;
 import io.vertx.skeleton.evs.consistenthashing.member.Member;
 import io.vertx.skeleton.evs.consistenthashing.member.impl.MemberImpl;
-import io.vertx.skeleton.evs.objects.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityKey;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import org.ishugaliy.allgood.consistent.hash.HashRing;
@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class ConsistentHashingTest {
   private static final Logger LOGGER = LoggerFactory.getLogger(ConsistentHashingTest.class);
 
-  List<EntityAggregateKey> KEYS = IntStream.range(0, 1000000)
-    .mapToObj(i -> new EntityAggregateKey(UUID.randomUUID().toString(), "default"))
+  List<EntityKey> KEYS = IntStream.range(0, 1000000)
+    .mapToObj(i -> new EntityKey(UUID.randomUUID().toString(), "default"))
     .toList();
 
   private ArrayList<Member> createMembers(Consistent c, int numMembers) {
@@ -76,7 +76,7 @@ class ConsistentHashingTest {
     hashRingMetrics.printLoadDistribution();
     hashRingMetrics.printStandardDeviation();
     hashRingMetrics.printExtrema();
-    final var key = new EntityAggregateKey(UUID.randomUUID().toString(), "default");
+    final var key = new EntityKey(UUID.randomUUID().toString(), "default");
     final var location = hashRingMetrics.locate(key.entityId() + "::" + key.tenant()).get();
     IntStream.range(0, CONSISTENCY_ITERATIONS).forEach(i -> {
       final var loc = hashRingMetrics.locate(key.entityId() + "::" + key.tenant());
@@ -165,7 +165,7 @@ class ConsistentHashingTest {
     }
   }
 
-  private static void iterate(final ConsistentMetrics hashRing, final EntityAggregateKey key, final Member location) {
+  private static void iterate(final ConsistentMetrics hashRing, final EntityKey key, final Member location) {
     IntStream.range(0, 1000).forEach(i -> {
       final var loc = hashRing.locate(key.entityId() + "::" + key.tenant());
       assertEquals(location.name(), loc.name(), "Hashing inconsistent at iteration number -> " + i);

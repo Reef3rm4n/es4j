@@ -1,5 +1,5 @@
 package io.vertx.skeleton.evs.objects;
 
-public enum AggregateHandlerAction {
+public enum ActorCommand {
   COMMAND, COMPOSITE_COMMAND, LOAD
 }

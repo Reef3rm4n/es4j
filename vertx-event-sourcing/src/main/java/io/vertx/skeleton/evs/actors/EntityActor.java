@@ -8,7 +8,7 @@ import io.vertx.skeleton.evs.Command;
 import io.vertx.skeleton.evs.Behaviour;
 import io.vertx.skeleton.evs.Entity;
 import io.vertx.skeleton.evs.Aggregator;
-import io.vertx.skeleton.evs.cache.EntityAggregateCache;
+import io.vertx.skeleton.evs.cache.EntityCache;
 import io.vertx.skeleton.evs.objects.*;
 import io.vertx.skeleton.models.exceptions.VertxServiceException;
 import io.vertx.skeleton.sql.Repository;
@@ -30,6 +30,8 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+import static io.vertx.skeleton.evs.actors.Channel.registerActor;
+
 // todo move cache to caffeine for better performance
 // ensure that it always gets executed in the current context
 //    Caffeine.newBuilder()
@@ -46,69 +48,66 @@ public class EntityActor<T extends Entity> extends AbstractVerticle {
 
   public static final String ACTION = "action";
   public static final String CLASS_NAME = "className";
-  private List<CommandBehaviourWrapper> commandBehaviours;
-  private List<EventBehaviourWrapper> eventBehaviours;
+  private final String deploymentID;
+  private List<BehaviourWrapper> behaviourWrappers;
+  private List<AggregatorWrapper> aggregatorWrappers;
   private final ModuleBuilder moduleBuilder;
-  private EntityAggregateCache<T, EntityAggregateState<T>> entityAggregateCache = null;
-  private Channel<T> Channel;
-  private final Class<T> entityAggregateClass;
-  private EntityAggregateConfiguration entityAggregateConfiguration;
+  private EntityCache<T, EntityState<T>> entityCache = null;
+  private final Class<T> entityClass;
+  private EntityConfiguration entityConfiguration;
   private RepositoryHandler repositoryHandler;
-  public ActorLogic<T> ActorLogic;
+  public ActorLogic<T> logic;
 
   public EntityActor(
-    final Class<T> entityAggregateClass,
+    final String deploymentID,
+    final Class<T> entityClass,
     final ModuleBuilder moduleBuilder
   ) {
-    this.entityAggregateClass = entityAggregateClass;
+    this.deploymentID = deploymentID;
+    this.entityClass = entityClass;
     this.moduleBuilder = moduleBuilder;
   }
 
   @Override
   public Uni<Void> asyncStart() {
-    this.entityAggregateConfiguration = config().getJsonObject("entityAggregateConfiguration", new JsonObject()).mapTo(EntityAggregateConfiguration.class);
-    LOGGER.info("Starting " + this.getClass().getSimpleName() + " " + context.deploymentID() + " configuration -> " + JsonObject.mapFrom(entityAggregateConfiguration).encodePrettily());
+    this.entityConfiguration = config().getJsonObject(entityClass.getSimpleName(), new JsonObject()).mapTo(EntityConfiguration.class);
+    LOGGER.info("Starting " + entityClass.getSimpleName() + " [address:" + Channel.actorAddress(entityClass, deploymentID) + "]");
     final var injector = startInjector();
-    this.eventBehaviours = loadEventBehaviours(injector, entityAggregateClass);
-    this.commandBehaviours = loadCommandBehaviours(injector, entityAggregateClass);
-    this.Channel = new Channel<>(vertx, entityAggregateConfiguration.handlerHeartBeatInterval(), entityAggregateClass, handlerAddress());
-    if (Boolean.TRUE.equals(entityAggregateConfiguration.useCache())) {
-
-      this.entityAggregateCache = new EntityAggregateCache<>(
+    this.aggregatorWrappers = loadAggregators(injector, entityClass);
+    this.behaviourWrappers = loadBehaviours(injector, entityClass);
+    if (Boolean.TRUE.equals(entityConfiguration.useCache())) {
+      this.entityCache = new EntityCache<>(
         vertx,
-        entityAggregateClass,
-        handlerAddress(),
-        entityAggregateConfiguration.aggregateCacheTtlInMinutes()
+        entityClass,
+        entityConfiguration.aggregateCacheTtlInMinutes()
       );
     }
-    this.ActorLogic = new ActorLogic<>(
-      entityAggregateClass,
-      eventBehaviours,
-      commandBehaviours,
-      entityAggregateConfiguration,
+    this.logic = new ActorLogic<>(
+      entityClass,
+      aggregatorWrappers,
+      behaviourWrappers,
+      entityConfiguration,
       new Repository<>(EventJournalMapper.INSTANCE, repositoryHandler),
-      Boolean.TRUE.equals(entityAggregateConfiguration.snapshots()) ? new Repository<>(AggregateSnapshotMapper.INSTANCE, repositoryHandler) : null,
+      Boolean.TRUE.equals(entityConfiguration.snapshots()) ? new Repository<>(AggregateSnapshotMapper.INSTANCE, repositoryHandler) : null,
       new Repository<>(RejectedCommandMapper.INSTANCE, repositoryHandler),
-      entityAggregateCache,
-      entityAggregateConfiguration.persistenceMode()
+      entityCache
     );
-    return vertx.eventBus().<JsonObject>consumer(handlerAddress())
-      .handler(objectMessage -> {
-          final var responseUni = switch (AggregateHandlerAction.valueOf(objectMessage.headers().get(ACTION))) {
-            case LOAD -> ActorLogic.load(objectMessage.body().mapTo(EntityAggregateKey.class));
-            case COMMAND -> ActorLogic.process(objectMessage.headers().get(CLASS_NAME), objectMessage.body());
-            case COMPOSITE_COMMAND ->
-              ActorLogic.process(objectMessage.body().mapTo(CompositeCommandWrapper.class));
+    return vertx.eventBus().<JsonObject>consumer(Channel.actorAddress(entityClass, deploymentID))
+      .handler(jsonMessage -> {
+          final var responseUni = switch (ActorCommand.valueOf(jsonMessage.headers().get(ACTION))) {
+            case LOAD -> logic.load(jsonMessage.body().mapTo(EntityKey.class));
+            case COMMAND -> logic.process(jsonMessage.headers().get(CLASS_NAME), jsonMessage.body());
+            case COMPOSITE_COMMAND -> logic.process(jsonMessage.body().mapTo(CompositeCommandWrapper.class));
           };
           responseUni.subscribe()
             .with(
-              objectMessage::reply,
+              jsonMessage::reply,
               throwable -> {
                 if (throwable instanceof VertxServiceException vertxServiceException) {
-                  objectMessage.fail(vertxServiceException.error().errorCode(), JsonObject.mapFrom(vertxServiceException.error()).encode());
+                  jsonMessage.fail(vertxServiceException.error().errorCode(), JsonObject.mapFrom(vertxServiceException.error()).encode());
                 } else {
-                  LOGGER.error("Unexpected exception raised -> " + objectMessage.body(), throwable);
-                  objectMessage.fail(500, JsonObject.mapFrom(new Error(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
+                  LOGGER.error("Unexpected exception raised -> " + jsonMessage.body(), throwable);
+                  jsonMessage.fail(500, JsonObject.mapFrom(new Error(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
                 }
               }
             );
@@ -116,8 +115,7 @@ public class EntityActor<T extends Entity> extends AbstractVerticle {
       )
       .exceptionHandler(this::droppedException)
       .completionHandler()
-      .onItem().delayIt().by(Duration.of(1, ChronoUnit.SECONDS)) // enough time to
-      .invoke(avoid -> Channel.registerHandler());
+      .onItem().delayIt().by(Duration.of(1, ChronoUnit.SECONDS));
   }
 
   private Injector startInjector() {
@@ -125,15 +123,15 @@ public class EntityActor<T extends Entity> extends AbstractVerticle {
     moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
-    moduleBuilder.bind(EntityAggregateConfiguration.class).toInstance(entityAggregateConfiguration);
+    moduleBuilder.bind(EntityConfiguration.class).toInstance(entityConfiguration);
     return Injector.of(moduleBuilder.build());
   }
 
-  public static <T extends Entity> List<CommandBehaviourWrapper> loadCommandBehaviours(final Injector injector, Class<T> entityAggregateClass) {
+  public static <T extends Entity> List<BehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
     final var entityAggregateCommandBehaviours = CustomClassLoader.loadFromInjector(injector, Behaviour.class).stream()
       .map(commandBehaviour -> {
         final var genericTypes = parseCommandBehaviourGenericTypes(commandBehaviour.getClass());
-        return new CommandBehaviourWrapper(commandBehaviour, genericTypes.getItem1(), genericTypes.getItem2());
+        return new BehaviourWrapper(commandBehaviour, genericTypes.getItem1(), genericTypes.getItem2());
       })
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
       .toList();
@@ -141,11 +139,11 @@ public class EntityActor<T extends Entity> extends AbstractVerticle {
     return entityAggregateCommandBehaviours;
   }
 
-  public static<T extends Entity> List<EventBehaviourWrapper> loadEventBehaviours(final Injector injector, Class<T> entityAggregateClass) {
+  public static <T extends Entity> List<AggregatorWrapper> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
     final var entityAggregateCommandBehaviours = CustomClassLoader.loadFromInjector(injector, Aggregator.class).stream()
       .map(aggregator -> {
-          final var genericTypes = parseEventBehaviourTypes(aggregator.getClass());
-          return new EventBehaviourWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
+          final var genericTypes = parseAggregatorClass(aggregator.getClass());
+          return new AggregatorWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
         }
       )
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
@@ -154,7 +152,7 @@ public class EntityActor<T extends Entity> extends AbstractVerticle {
     return entityAggregateCommandBehaviours;
   }
 
-  public static Tuple2<Class<? extends Entity>, Class<?>> parseEventBehaviourTypes(Class<? extends Aggregator> behaviour) {
+  public static Tuple2<Class<? extends Entity>, Class<?>> parseAggregatorClass(Class<? extends Aggregator> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -205,26 +203,14 @@ public class EntityActor<T extends Entity> extends AbstractVerticle {
     }
   }
 
-
-  @Override
-  public String deploymentID() {
-    return verticleUUID;
-  }
-
-  private String handlerAddress() {
-    return entityAggregateClass.getName() + "." + context.deploymentID();
-  }
-
   private void droppedException(final Throwable throwable) {
-    LOGGER.error("[-- AggregateHandlerVerticle " + handlerAddress() + " had to drop the following exception --]", throwable);
+    LOGGER.error("[-- " + entityClass.getSimpleName() + " had to drop the following exception --]", throwable);
   }
-
-  private final String verticleUUID = UUID.randomUUID().toString();
 
   @Override
   public Uni<Void> asyncStop() {
-    LOGGER.info("Stopping " + this.getClass().getSimpleName() + " deploymentID -> " + this.deploymentID());
-    Channel.unregisterHandler();
+    LOGGER.info("Stopping " + entityClass.getSimpleName());
+    Channel.killActor(vertx, entityClass, deploymentID);
     return repositoryHandler.shutDown();
   }
 

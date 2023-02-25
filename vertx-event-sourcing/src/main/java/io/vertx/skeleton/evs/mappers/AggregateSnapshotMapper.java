@@ -3,7 +3,7 @@ package io.vertx.skeleton.evs.mappers;
 import io.vertx.skeleton.sql.RecordMapper;
 import io.vertx.skeleton.sql.generator.filters.QueryBuilder;
 import io.vertx.skeleton.evs.objects.AggregateSnapshot;
-import io.vertx.skeleton.evs.objects.EntityAggregateKey;
+import io.vertx.skeleton.evs.objects.EntityKey;
 import io.vertx.skeleton.orm.Constants;
 import io.vertx.skeleton.sql.models.EmptyQuery;
 import io.vertx.sqlclient.Row;
@@ -11,7 +11,7 @@ import io.vertx.sqlclient.Row;
 import java.util.Map;
 import java.util.Set;
 
-public class AggregateSnapshotMapper implements RecordMapper<EntityAggregateKey, AggregateSnapshot, EmptyQuery> {
+public class AggregateSnapshotMapper implements RecordMapper<EntityKey, AggregateSnapshot, EmptyQuery> {
 
   public static final AggregateSnapshotMapper INSTANCE = new AggregateSnapshotMapper();
   private static final String ENTITY_ID = "entity_id";
@@ -52,7 +52,7 @@ public class AggregateSnapshotMapper implements RecordMapper<EntityAggregateKey,
   }
 
   @Override
-  public void keyParams(Map<String, Object> params, EntityAggregateKey key) {
+  public void keyParams(Map<String, Object> params, EntityKey key) {
     params.put(ENTITY_ID, key.entityId());
   }
 

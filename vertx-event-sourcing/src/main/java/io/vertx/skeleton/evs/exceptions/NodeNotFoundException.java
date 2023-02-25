@@ -9,6 +9,6 @@ public class NodeNotFoundException extends VertxServiceException {
     super(error);
   }
   public NodeNotFoundException(String entityId) {
-    super(new Error("Handler not found for entityId" + entityId,"Cluster is most likely not ready to accept orders or handlers have not registered in the proxy hashRing",400));
+    super(new Error("Entity not found [ entityId:" + entityId + "]","Entity not present in cluster",400));
   }
 }

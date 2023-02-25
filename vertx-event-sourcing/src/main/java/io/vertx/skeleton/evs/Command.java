@@ -5,6 +5,6 @@ import io.vertx.skeleton.models.CommandHeaders;
 
 public interface Command {
   String entityId();
-  CommandHeaders requestHeaders();
+  CommandHeaders commandHeaders();
 
 }
