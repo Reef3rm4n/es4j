@@ -3,8 +3,8 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
-    <artifactId>vertx-skeleton</artifactId>
-    <groupId>io.vertx.skeleton</groupId>
+    <artifactId>eventx</artifactId>
+    <groupId>io.vertx.eventx</groupId>
     <version>${revision}</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
@@ -20,8 +20,8 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.vertx.skeleton</groupId>
-        <artifactId>vertx-dependencies</artifactId>
+        <groupId>io.vertx.eventx</groupId>
+        <artifactId>dependencies</artifactId>
         <version>${project.version}</version>
         <type>pom</type>
         <scope>import</scope>
@@ -32,28 +32,19 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.vertx.skeleton</groupId>
+      <groupId>io.vertx.eventx</groupId>
       <artifactId>sql</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.vertx.skeleton</groupId>
-      <artifactId>vertx-utils</artifactId>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>common</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.vertx.skeleton</groupId>
-      <artifactId>vertx-rabbitmq</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.smallrye.reactive</groupId>
-      <artifactId>smallrye-mutiny-vertx-circuit-breaker</artifactId>
-      <scope>compile</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx.skeleton</groupId>
-      <artifactId>vertx-test</artifactId>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>test</artifactId>
       <scope>test</scope>
+      <version>${project.version}</version>
     </dependency>
   </dependencies>
 

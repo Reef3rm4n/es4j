@@ -4,28 +4,23 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.vertx.skeleton</groupId>
-  <artifactId>vertx-skeleton</artifactId>
+  <groupId>io.vertx.eventx</groupId>
+  <artifactId>eventx</artifactId>
   <packaging>pom</packaging>
   <version>${revision}</version>
 
   <modules>
-    <module>vertx-models</module>
-    <module>vertx-orm</module>
-    <module>vertx-solr</module>
-    <module>vertx-framework</module>
-    <module>vertx-kafka</module>
-    <module>vertx-config</module>
-    <module>vertx-dependencies</module>
-    <module>vertx-http-client</module>
-    <module>vertx-http-router</module>
-    <module>vertx-event-sourcing</module>
+    <module>common</module>
+    <module>solr-client</module>
+    <module>eventx-launcher</module>
+    <module>config</module>
+    <module>dependencies</module>
+    <module>http</module>
+    <module>event-sourcing</module>
     <module>task-queue</module>
-    <module>vertx-utils</module>
-    <module>vertx-step-reactor</module>
-    <module>vertx-test</module>
-    <module>vertx-rabbitmq</module>
-    <module>vertx-task</module>
+    <module>saga</module>
+    <module>test</module>
+    <module>task</module>
     <module>sql</module>
   </modules>
 
