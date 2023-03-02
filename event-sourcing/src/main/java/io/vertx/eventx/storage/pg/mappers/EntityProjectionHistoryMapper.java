@@ -3,7 +3,7 @@ package io.vertx.eventx.storage.pg.mappers;
 import io.vertx.eventx.sql.RecordMapper;
 import io.vertx.eventx.sql.generator.filters.QueryBuilder;
 import io.vertx.eventx.sql.models.QueryFilters;
-import io.vertx.eventx.storage.pg.models.ProjectionHistory;
+import io.vertx.eventx.storage.pg.models.ProjectionOffset;
 import io.vertx.eventx.storage.pg.models.ProjectionHistoryKey;
 import io.vertx.eventx.storage.pg.models.ProjectionHistoryQuery;
 import io.vertx.sqlclient.Row;
@@ -11,7 +11,7 @@ import io.vertx.sqlclient.Row;
 import java.util.Map;
 import java.util.Set;
 
-public class EntityProjectionHistoryMapper implements RecordMapper<ProjectionHistoryKey, ProjectionHistory, ProjectionHistoryQuery> {
+public class EntityProjectionHistoryMapper implements RecordMapper<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> {
 
   public static final String PROJECTION_HISTORY = "projection_history";
   public static final String PROJECTION_CLASS = "projection_class";
@@ -37,8 +37,8 @@ public class EntityProjectionHistoryMapper implements RecordMapper<ProjectionHis
   }
 
   @Override
-  public ProjectionHistory rowMapper(Row row) {
-    return new ProjectionHistory(
+  public ProjectionOffset rowMapper(Row row) {
+    return new ProjectionOffset(
       row.getString(ENTITY_ID),
       row.getString(PROJECTION_CLASS),
       row.getLong(LAST_EVENT_VERSION),
@@ -47,10 +47,10 @@ public class EntityProjectionHistoryMapper implements RecordMapper<ProjectionHis
   }
 
   @Override
-  public void params(Map<String, Object> params, ProjectionHistory actualRecord) {
+  public void params(Map<String, Object> params, ProjectionOffset actualRecord) {
     params.put(PROJECTION_CLASS, actualRecord.projectionClass());
     params.put(ENTITY_ID, actualRecord.entityId());
-    params.put(LAST_EVENT_VERSION, actualRecord.lastEventVersion());
+    params.put(LAST_EVENT_VERSION, actualRecord.lastAggregateVersion());
   }
 
   @Override

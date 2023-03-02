@@ -30,14 +30,14 @@ public class ProjectionUpdateActor<T extends Aggregate> implements TimerTask {
   private final ChannelProxy<T> proxy;
   private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
   private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset;
-  private final Repository<ProjectionHistoryKey, ProjectionHistory, ProjectionHistoryQuery> projectionHistory;
+  private final Repository<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> projectionHistory;
 
   public ProjectionUpdateActor(
     final List<ProjectionWrapper<T>> projections,
     final ChannelProxy<T> proxy,
     final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal,
     final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset,
-    final Repository<ProjectionHistoryKey, ProjectionHistory, ProjectionHistoryQuery> projectionHistory
+    final Repository<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> projectionHistory
   ) {
     this.projections = projections;
     this.proxy = proxy;
@@ -140,7 +140,7 @@ public class ProjectionUpdateActor<T extends Aggregate> implements TimerTask {
           .flatMap(history -> {
               final var maxEventId = entityEvents.getValue().stream().map(EventRecord::id).max(Comparator.naturalOrder()).orElseThrow();
               final var minEventId = entityEvents.getValue().stream().map(EventRecord::id).min(Comparator.naturalOrder()).orElseThrow();
-              if (history.lastEventVersion() < maxEventId) {
+              if (history.lastAggregateVersion() < maxEventId) {
                 logger.info("Updating projection ->" + projection.projection().getClass().getName());
                 return proxy.wakeUp(new AggregateKey(entityEvents.getKey(), entityEvents.getValue().stream().findFirst().orElseThrow().baseRecord().tenantId()))
                   .flatMap(aggregateState -> projection.update(
@@ -165,8 +165,8 @@ public class ProjectionUpdateActor<T extends Aggregate> implements TimerTask {
     return Uni.createFrom().voidItem();
   }
 
-  private Uni<ProjectionHistory> insertNewProjectionHistory(ProjectionWrapper<?> projection, String entityId, SqlConnection sqlConnection) {
-    return projectionHistory.insert(new ProjectionHistory(
+  private Uni<ProjectionOffset> insertNewProjectionHistory(ProjectionWrapper<?> projection, String entityId, SqlConnection sqlConnection) {
+    return projectionHistory.insert(new ProjectionOffset(
         entityId,
         projection.projection().getClass().getName(),
         0L,

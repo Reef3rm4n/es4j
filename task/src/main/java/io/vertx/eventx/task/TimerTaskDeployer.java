@@ -26,7 +26,7 @@ public class TimerTaskDeployer {
   List<TaskWrapper> taskWrappers;
   private Vertx vertx;
 
-  public void stopTimers() {
+  public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
   }
   public void deploy(RepositoryHandler repositoryHandler, final Injector injector) {
@@ -86,6 +86,7 @@ public class TimerTaskDeployer {
     );
     timers.put(taskWrapper.task().getClass(), timerId);
   }
+
 
 
   public record TaskWrapper(

@@ -60,14 +60,6 @@
       <groupId>io.vertx.eventx</groupId>
       <artifactId>common</artifactId>
     </dependency>
-    <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>sql</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>config</artifactId>
-    </dependency>
 
     <!--    -->
 

@@ -26,7 +26,6 @@ import io.vertx.eventx.common.EventXError;
 import io.vertx.eventx.sql.exceptions.*;
 import io.vertx.eventx.sql.misc.Constants;
 import io.vertx.eventx.sql.misc.EnvVars;
-import io.vertx.eventx.sql.misc.JdbcUrlParser;
 import io.vertx.sqlclient.PoolOptions;
 
 import java.net.ConnectException;
@@ -63,18 +62,6 @@ public record RepositoryHandler(
     return new RepositoryHandler(vertx, bootstrapPgPool(configuration, vertx), bootstrapSqlClient(configuration, vertx), configuration);
   }
 
-  public static RepositoryHandler leasePool(JdbcUrl jdbcUrl1) {
-    final var url = new JdbcUrlParser(jdbcUrl1.jdbcUrl());
-    final var configuration = new JsonObject()
-      .put("pgPort", url.port)
-      .put("pgHost", url.host)
-      .put("pgDatabase", url.database)
-      .put("schema", jdbcUrl1.schema())
-      .put("pgUser", jdbcUrl1.userName())
-      .put("pgPassword", jdbcUrl1.password());
-    return new RepositoryHandler(jdbcUrl1.vertx(), bootstrapPgPool(configuration, jdbcUrl1.vertx()), bootstrapSqlClient(configuration, jdbcUrl1.vertx()), configuration);
-  }
-
   public static SqlClient bootstrapSqlClient(JsonObject config, Vertx vertx) {
     return PgPool.client(vertx, connectionOptions(config), pooledOptions(config));
   }
@@ -85,7 +72,7 @@ public record RepositoryHandler(
       .setConnectionTimeout(config.getInteger("pgConnectionTimeOut", EnvVars.PG_CONNECTION_TIMEOUT))
       .setPoolCleanerPeriod(config.getInteger("pgPoolCleanerPeriod", EnvVars.PG_CLEANER_PERIOD))
       .setShared(true)
-      .setName("postgres-pool");
+      .setName(config.getString("schema", EnvVars.SCHEMA) + "-postgres-pool");
   }
 
   private static PoolOptions pooledOptions(JsonObject config) {
@@ -94,7 +81,7 @@ public record RepositoryHandler(
       .setConnectionTimeout(config.getInteger("pgConnectionTimeOut", EnvVars.PG_CONNECTION_TIMEOUT))
       .setPoolCleanerPeriod(config.getInteger("pgPoolCleanerPeriod", EnvVars.PG_CLEANER_PERIOD))
       .setShared(true)
-      .setName("postgres-pooled");
+      .setName(config.getString("schema", EnvVars.SCHEMA) + "-postgres-pooled");
   }
 
   public static PgPool bootstrapPgPool(JsonObject config, Vertx vertx) {
@@ -103,7 +90,7 @@ public record RepositoryHandler(
 
   public static PgConnectOptions connectionOptions(JsonObject config) {
     return new PgConnectOptions()
-      .setMetricsName("postgres-connection")
+      .setMetricsName(config.getString("schema", EnvVars.SCHEMA) + "-postgres")
       .setTracingPolicy(TracingPolicy.PROPAGATE)
       .setCachePreparedStatements(true)
       .setLogActivity(config.getBoolean("logActivity", EnvVars.LOG_ACTIVITY))
@@ -129,8 +116,9 @@ public record RepositoryHandler(
 
   public static RepositoryHandler leasePool(JsonObject configuration, Vertx vertx, Class<?> aggregate) {
     configuration.put(Constants.SCHEMA, camelToSnake(aggregate.getSimpleName().toLowerCase()));
-    return leasePool(configuration,vertx);
+    return leasePool(configuration, vertx);
   }
+
   public static String camelToSnake(String str) {
     // Regular Expression
     String regex = "([a-z])([A-Z]+)";
@@ -150,7 +138,7 @@ public record RepositoryHandler(
     return str;
   }
 
-  public Uni<Void> shutDown() {
+  public Uni<Void> close() {
     return pgPool.close().flatMap(aVoid -> sqlClient.close());
   }
 

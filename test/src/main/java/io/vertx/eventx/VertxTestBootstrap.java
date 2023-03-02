@@ -4,7 +4,7 @@ import io.activej.inject.module.Module;
 import io.smallrye.mutiny.Multi;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.eventx.config.ConfigurationEntry;
-import io.vertx.eventx.launcher.EventXMainVerticle;
+import io.vertx.eventx.launcher.EventXMain;
 import io.vertx.eventx.sql.misc.Constants;
 import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.RepositoryHandler;
@@ -68,7 +68,7 @@ public class VertxTestBootstrap {
   }
 
   public VertxTestBootstrap addModule(Module module) {
-    EventXMainVerticle.MODULES.add(module);
+    EventXMain.MAIN_MODULES.add(module);
     return this;
   }
 
@@ -208,7 +208,7 @@ public class VertxTestBootstrap {
 //          .recoverWithUni(throwable -> CFG.updateAll(configurationEntries))
 //          .await().indefinitely();
 //      }
-      VERTX.deployVerticle(EventXMainVerticle::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
+      VERTX.deployVerticle(EventXMain::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
 
     }
   }

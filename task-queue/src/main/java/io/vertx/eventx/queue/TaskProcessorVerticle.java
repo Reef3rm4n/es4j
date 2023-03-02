@@ -96,9 +96,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
   }
 
   private Injector bindModules(Collection<Module> modules) {
-    final var repositoryHandler = RepositoryHandler.leasePool(config(), vertx);
     final var moduleBuilder = ModuleBuilder.create().install(modules);
-    moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
     moduleBuilder.bind(TaskQueueConfiguration.class).toInstance(taskConfiguration);

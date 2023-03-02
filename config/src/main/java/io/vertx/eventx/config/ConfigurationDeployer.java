@@ -161,4 +161,11 @@ public class ConfigurationDeployer {
       throw new IllegalArgumentException(e);
     }
   }
+
+  public Uni<Void> close() {
+    if (listeners != null && !listeners.isEmpty()) {
+      listeners.forEach(ConfigRetriever::close);
+    }
+    return pgSubscriber.close();
+  }
 }

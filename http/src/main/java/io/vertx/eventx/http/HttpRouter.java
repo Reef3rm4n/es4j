@@ -16,7 +16,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.common.exceptions.EventXException;
-import io.vertx.eventx.sql.RepositoryHandler;
 import io.vertx.ext.healthchecks.Status;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.micrometer.PrometheusScrapingHandler;
@@ -29,7 +28,6 @@ import io.vertx.mutiny.ext.web.Router;
 import io.vertx.mutiny.ext.web.RoutingContext;
 import io.vertx.mutiny.ext.web.handler.BodyHandler;
 import io.vertx.mutiny.ext.web.handler.LoggerHandler;
-import io.vertx.eventx.config.*;
 import io.vertx.eventx.common.EventXError;
 import io.vertx.eventx.common.CustomClassLoader;
 
@@ -40,11 +38,8 @@ import java.util.UUID;
 public class HttpRouter extends AbstractVerticle {
   protected static final Logger LOGGER = LoggerFactory.getLogger(HttpRouter.class);
   private final ModuleBuilder moduleBuilder;
-  protected RepositoryHandler repositoryHandler;
   private HttpServer httpServer;
   public static final int HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
-
-
   private final Handler<io.vertx.ext.web.RoutingContext> prometheusScrapingHandler = PrometheusScrapingHandler.create();
   private Injector injector;
 
@@ -54,8 +49,6 @@ public class HttpRouter extends AbstractVerticle {
 
 
   private Injector startInjector() {
-    this.repositoryHandler = RepositoryHandler.leasePool(config(), vertx);
-    moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
     return Injector.of(moduleBuilder.build());
@@ -122,10 +115,6 @@ public class HttpRouter extends AbstractVerticle {
       );
   }
 
-  private Uni<String> decompressTarBall(final String dirPath, final FileUpload fileUpload) {
-    return vertx.executeBlocking(Uni.createFrom().item(() -> TarGzipHandler.decompress(fileUpload.fileName(), dirPath)));
-  }
-
   private void handleInvalidRequest(final HttpServerRequest httpServerRequest) {
     final var json = new JsonObject()
       .put("method", httpServerRequest.method().name())
@@ -153,18 +142,18 @@ public class HttpRouter extends AbstractVerticle {
         )
       );
     }
-    healthChecks.register(
-      "database-health",
-      promise -> repositoryHandler.sqlClient().query("select datname from pg_database")
-        .execute()
-        .subscribe()
-        .with(rowSet -> promise.tryComplete(Status.OK())
-          , throwable -> {
-            LOGGER.error("Database connection is bad shape", throwable);
-            promise.tryComplete(Status.KO(new JsonObject().put("message", throwable.getMessage())));
-          }
-        )
-    );
+//    healthChecks.register(
+//      "database-health",
+//      promise -> repositoryHandler.sqlClient().query("select datname from pg_database")
+//        .execute()
+//        .subscribe()
+//        .with(rowSet -> promise.tryComplete(Status.OK())
+//          , throwable -> {
+//            LOGGER.error("Database connection is bad shape", throwable);
+//            promise.tryComplete(Status.KO(new JsonObject().put("message", throwable.getMessage())));
+//          }
+//        )
+//    );
     router.get("/readiness").handler(HealthCheckHandler.createWithHealthChecks(io.vertx.mutiny.ext.healthchecks.HealthChecks.newInstance(healthChecks)))
       .failureHandler(this::failureHandler);
   }
@@ -177,8 +166,7 @@ public class HttpRouter extends AbstractVerticle {
   @Override
   public Uni<Void> asyncStop() {
     LOGGER.info("Stopping " + this.getClass().getSimpleName() + this.deploymentID());
-    return httpServer.close()
-      .flatMap(aVoid -> repositoryHandler.shutDown());
+    return httpServer.close();
   }
 
   String deploymentId = UUID.randomUUID().toString();

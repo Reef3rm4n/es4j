@@ -101,6 +101,57 @@ public class LiquibaseHandler {
     );
   }
 
+  public static Uni<Void> runliquibaseChangeLogFile(Vertx vertx, JsonObject config,Class<?> schemaClass) {
+    return UniHelper.toUni(vertx.getDelegate().executeBlocking(
+        promise -> {
+          final var pgHost = config.getString(Constants.PG_HOST, EnvVars.PG_HOST);
+          final var pgPassword = config.getString(Constants.PG_PASSWORD, EnvVars.PG_PASSWORD);
+          final var pgUser = config.getString(Constants.PG_USER, EnvVars.PG_USER);
+          final var pgDatabase = config.getString(Constants.PG_DATABASE, EnvVars.PG_DATABASE);
+          final var pgPort = config.getString(Constants.PG_PORT, String.valueOf(EnvVars.PG_PORT));
+          final var schema = schemaClass.getSimpleName().toLowerCase();
+          final var changelog = config.getString(Constants.CHANGELOG, EnvVars.CHANGELOG);
+          final String url = config.getString(Constants.JDBC_URL, "jdbc:postgresql://" + pgHost + ":" + pgPort + "/" + pgDatabase);
+          logger.debug("Using jdbc connection string -> " + url);
+          final Connection conn = getProps(pgPassword, pgUser, schema, url);
+          final Liquibase liquibase = liquibase(schema, changelog, conn);
+          final var liquibaseTag = config.getString("liquibaseTag", REVISION);
+          final var rollbackPoint = "rollbackPoint::" + liquibaseTag;
+          final var context = config.getString("liquibaseContext");
+          try {
+            if (!liquibase.tagExists(liquibaseTag)) {
+              placeTag(liquibase, rollbackPoint, promise);
+              try {
+                if (Boolean.TRUE.equals(config.getBoolean("liquibaseTestRollback", false))) {
+                  liquibase.updateTestingRollback(liquibaseTag, new Contexts(context), null);
+                }
+                liquibase.update(liquibaseTag, context);
+              } catch (LiquibaseException liquibaseException) {
+                try {
+                  liquibase.rollback(rollbackPoint, context);
+                  promise.fail(liquibaseException);
+                } catch (LiquibaseException liquibaseException1) {
+                  promise.fail(liquibaseException1);
+                }
+                logger.error("Unable to update");
+                promise.fail(liquibaseException);
+              }
+            }
+            liquibase.close();
+            conn.close();
+          } catch (LiquibaseException e) {
+            logger.error("Error handling liquibase", e);
+            promise.fail(e);
+          } catch (SQLException sqlException) {
+            logger.error("Unable");
+            promise.fail(sqlException);
+          }
+          promise.complete();
+        }
+      )
+    );
+  }
+
   public static Uni<Void> liquibaseString(
     RepositoryHandler repositoryHandler,
     String fileName,
@@ -149,6 +200,10 @@ public class LiquibaseHandler {
         }
       )
     );
+  }
+
+  public static <T> Uni handle(Vertx vertx, JsonObject newConfiguration, Class<T> aggregateClass) {
+    return null;
   }
 
   private static class StringAccessor extends AbstractResourceAccessor {

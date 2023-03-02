@@ -7,7 +7,7 @@ import io.vertx.eventx.http.HttpRouter;
 
 import java.util.function.Supplier;
 
-import static io.vertx.eventx.launcher.EventXMainVerticle.MODULES;
+import static io.vertx.eventx.launcher.EventXMain.MAIN_MODULES;
 
 public class EventXRouteVerticle implements Verticle {
 
@@ -20,6 +20,6 @@ public class EventXRouteVerticle implements Verticle {
 
   @Override
   public Supplier<io.vertx.core.Verticle> supplier() {
-    return () -> new HttpRouter(ModuleBuilder.create().install(MODULES));
+    return () -> new HttpRouter(ModuleBuilder.create().install(MAIN_MODULES));
   }
 }

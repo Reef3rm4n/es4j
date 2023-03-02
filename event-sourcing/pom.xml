@@ -40,10 +40,6 @@
       <version>3.0.6</version>
     </dependency>
     <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>common</artifactId>
-    </dependency>
-    <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-core</artifactId>
     </dependency>
@@ -104,15 +100,5 @@
       <artifactId>commons-codec</artifactId>
       <version>1.15</version>
     </dependency>
-
-
-    <!--    Test Dependencies  -->
-    <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>test</artifactId>
-      <scope>test</scope>
-      <version>${project.version}</version>
-    </dependency>
-    <!---->
   </dependencies>
 </project>

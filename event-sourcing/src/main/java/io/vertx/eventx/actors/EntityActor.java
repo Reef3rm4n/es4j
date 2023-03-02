@@ -2,8 +2,10 @@ package io.vertx.eventx.actors;
 
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
+import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.eventx.cache.VertxAggregateCache;
+import io.vertx.eventx.common.CommandHeaders;
 import io.vertx.eventx.common.EventXError;
 import io.vertx.eventx.common.exceptions.EventXException;
 import io.vertx.eventx.objects.*;
@@ -24,6 +26,7 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.common.CustomClassLoader;
+import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -112,6 +115,19 @@ public class EntityActor<T extends Aggregate> extends AbstractVerticle {
           );
       }
     );
+  }
+
+  private void addContextualData(DeliveryContext<Object> event) {
+    final var commandID = event.message().headers().get(CommandHeaders.COMMAND_ID);
+    final var tenantID = event.message().headers().get(CommandHeaders.TENANT_ID);
+    if (commandID != null) {
+      ContextualData.put(CommandHeaders.COMMAND_ID, commandID);
+    }
+    if (tenantID != null) {
+      ContextualData.put(CommandHeaders.TENANT_ID, tenantID);
+    }
+    ContextualData.put("aggregate", aggregateClass.getSimpleName());
+    event.next();
   }
 
   private Injector startInjector() {
@@ -218,7 +234,7 @@ public class EntityActor<T extends Aggregate> extends AbstractVerticle {
     Channel.killActor(vertx, aggregateClass, this.deploymentID());
     LOGGER.info("[deploymentIDs:" + vertx.deploymentIDs() + "]");
     LOGGER.info("[contextID:" + context.deploymentID() + "]");
-    return repositoryHandler.shutDown();
+    return repositoryHandler.close();
   }
 
 

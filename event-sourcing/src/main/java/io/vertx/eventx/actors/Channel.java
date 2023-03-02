@@ -27,6 +27,8 @@ import org.ishugaliy.allgood.consistent.hash.hasher.DefaultHasher;
 import org.ishugaliy.allgood.consistent.hash.node.SimpleNode;
 
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 
@@ -38,13 +40,17 @@ public class Channel {
   }
 
   public static final String ACTION = "action";
-  public static final String CLASS_NAME = "className";
   private static final Logger LOGGER = LoggerFactory.getLogger(Channel.class);
-  private static final HashRing<SimpleNode> ACTOR_HASH_RING = HashRing.<SimpleNode>newBuilder()
-    .name("entity-aggregate-hash-ring")       // set hash ring name
-    .hasher(DefaultHasher.MURMUR_3)   // hash function to distribute partitions
-    .partitionRate(100000)                  // number of partitions per node
-    .build();
+
+  private static HashRing<SimpleNode> startHashRing(Class<? extends Aggregate> aggregateClass) {
+    return HashRing.<SimpleNode>newBuilder()
+      .name(aggregateClass.getName())       // set hash ring name
+      .hasher(DefaultHasher.MURMUR_3)   // hash function to distribute partitions
+      .partitionRate(100000)                  // number of partitions per node
+      .build();
+  }
+
+  private static final Map<Class<? extends Aggregate>, HashRing<SimpleNode>> HASH_RING_MAP = new HashMap<>();
 
   // todo put a pipe in the channel that routes commands from the eventbus to the correct handler.
   public static <T extends Aggregate> Uni<Void> createChannel(Vertx vertx, Class<T> entityClass, String deploymentID) {
@@ -72,7 +78,7 @@ public class Channel {
       .handler(objectMessage -> synchronizeChannel(objectMessage, entityClass))
       .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
       .completionHandler()
-      .flatMap(avoid -> Multi.createBy().repeating().supplier(() -> ACTOR_HASH_RING.getNodes().isEmpty())
+      .flatMap(avoid -> Multi.createBy().repeating().supplier(() -> HASH_RING_MAP.get(entityClass).getNodes().isEmpty())
         .atMost(10).capDemandsTo(1).paceDemand()
         .using(new FixedDemandPacer(1, Duration.ofMillis(500)))
         .collect().last()
@@ -143,11 +149,11 @@ public class Channel {
     LOGGER.error("[-- " + entityClass.getSimpleName() + " had to drop the following exception --]", throwable);
   }
 
-  private static void addActor(final String actorAddress) {
+  private static void addNode(final String actorAddress, HashRing<SimpleNode> hashRing) {
     final var simpleNode = SimpleNode.of(actorAddress);
-    if (!ACTOR_HASH_RING.contains(simpleNode)) {
+    if (!hashRing.contains(simpleNode)) {
       LOGGER.info("Adding actor to hash-ring [address:" + actorAddress + "]");
-      ACTOR_HASH_RING.add(simpleNode);
+      hashRing.add(simpleNode);
     } else {
       LOGGER.info("Actor already in hash-ring [address:" + actorAddress + "]");
     }
@@ -198,8 +204,8 @@ public class Channel {
   }
 
   public static <T extends Aggregate> String resolveActor(Class<T> entityClass, AggregateKey key) {
-    final var node = ACTOR_HASH_RING.locate(entityClass.getSimpleName() + key.aggregateId());
-    return node.orElse(ACTOR_HASH_RING.getNodes().stream().findFirst()
+    final var node = HASH_RING_MAP.get(entityClass).locate(entityClass.getSimpleName() + key.aggregateId());
+    return node.orElse(HASH_RING_MAP.get(entityClass).getNodes().stream().findFirst()
         .orElseThrow(() -> new NodeNotFound(key.aggregateId()))
       )
       .getKey();
@@ -209,23 +215,24 @@ public class Channel {
     LOGGER.error("[-- Channel for entity " + entityClass.getSimpleName() + " had to drop the following exception --]", throwable);
   }
 
-  private static void removeActor(final String handler) {
+  private static void removeActor(final String handler, HashRing<SimpleNode> hashRing) {
     final var simpleNode = SimpleNode.of(handler);
-    if (ACTOR_HASH_RING.contains(simpleNode)) {
+    if (hashRing.contains(simpleNode)) {
       LOGGER.info("Removing actor form hash-ring [address: " + handler + "]");
-      ACTOR_HASH_RING.remove(simpleNode);
+      hashRing.remove(simpleNode);
     } else {
       LOGGER.info("Actor not present in hash-ring [address: " + handler + "]");
     }
   }
 
-  private static void synchronizeChannel(Message<String> objectMessage, Class<?> entityID) {
-    LOGGER.debug("Synchronizing " + entityID.getSimpleName() + " Channel " + new JsonObject()
+  private static void synchronizeChannel(Message<String> objectMessage, Class<? extends Aggregate> entityClass) {
+    LOGGER.debug("Synchronizing " + entityClass.getSimpleName() + " Channel " + new JsonObject()
       .put("action", objectMessage.headers().get(Actions.ACTION.name()))
       .put("body", objectMessage.body()).encodePrettily());
+    HASH_RING_MAP.computeIfAbsent(entityClass, (aClass) -> HASH_RING_MAP.put(aClass, startHashRing(aClass)));
     switch (Actions.valueOf(objectMessage.headers().get(Actions.ACTION.name()))) {
-      case ADD -> addActor(objectMessage.body());
-      case REMOVE -> removeActor(objectMessage.body());
+      case ADD -> addNode(objectMessage.body(), HASH_RING_MAP.get(entityClass));
+      case REMOVE -> removeActor(objectMessage.body(), HASH_RING_MAP.get(entityClass));
       default -> throw UnknownCommand.unknown(objectMessage.body().getClass());
     }
   }

@@ -33,10 +33,10 @@ public class LiquibaseTest {
 //  void test_queue_changelog_local_db(Vertx vertx, VertxTestContext vertxTestContext) {
 //    bootstrap.configuration();
 //    final var configuration = new JsonObject().put("schema", "testschema");
-//    final var repositoryHandler = RepositoryHandler.leasePool(configuration, vertx);
-//    repositoryHandler.sqlClient().query("create schema if not exists testschema").execute()
+//    final var mainRepositoryHandler = RepositoryHandler.leasePool(configuration, vertx);
+//    mainRepositoryHandler.sqlClient().query("create schema if not exists testschema").execute()
 //      .await().indefinitely();
-//    repositoryHandler.vertx().fileSystem().readFile("queue.xml")
+//    mainRepositoryHandler.vertx().fileSystem().readFile("queue.xml")
 //      .flatMap(buffer -> LiquibaseHandler.liquibaseString(
 //          vertx,
 //          configuration,
@@ -51,10 +51,10 @@ public class LiquibaseTest {
 //  void test_cfg_changelog_local_db(Vertx vertx, VertxTestContext vertxTestContext) {
 //    bootstrap.configuration();
 //    final var configuration = new JsonObject().put("schema", "testschema");
-//    final var repositoryHandler = RepositoryHandler.leasePool(configuration, vertx);
-//    repositoryHandler.sqlClient().query("create schema if not exists testschema").execute()
+//    final var mainRepositoryHandler = RepositoryHandler.leasePool(configuration, vertx);
+//    mainRepositoryHandler.sqlClient().query("create schema if not exists testschema").execute()
 //      .await().indefinitely();
-//    repositoryHandler.vertx().fileSystem().readFile("config.xml")
+//    mainRepositoryHandler.vertx().fileSystem().readFile("config.xml")
 //      .flatMap(buffer -> LiquibaseHandler.liquibaseString(
 //          vertx,
 //          configuration,

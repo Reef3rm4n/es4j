@@ -204,12 +204,12 @@
       </dependency>
       <dependency>
         <groupId>io.vertx.eventx</groupId>
-        <artifactId>task</artifactId>
+        <artifactId>saga</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>io.vertx.eventx</groupId>
-        <artifactId>common</artifactId>
+        <artifactId>task</artifactId>
         <version>${project.version}</version>
       </dependency>
     </dependencies>

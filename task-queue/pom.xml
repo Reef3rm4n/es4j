@@ -40,12 +40,6 @@
       <groupId>io.vertx.eventx</groupId>
       <artifactId>common</artifactId>
     </dependency>
-    <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>test</artifactId>
-      <scope>test</scope>
-      <version>${project.version}</version>
-    </dependency>
   </dependencies>
 
 
