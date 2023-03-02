@@ -1,4 +1,4 @@
-package io.vertx.eventx.test.domain;
+package io.vertx.eventx.test.eventsourcing.domain;
 
 import io.vertx.eventx.Aggregate;
 

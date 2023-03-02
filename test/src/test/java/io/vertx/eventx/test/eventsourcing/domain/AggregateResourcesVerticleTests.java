@@ -1,10 +1,10 @@
-package io.vertx.eventx.test;
+package io.vertx.eventx.test.eventsourcing.domain;
 
 import io.vertx.eventx.VertxTestBootstrap;
 import io.vertx.eventx.handlers.AggregateChannelProxy;
-import io.vertx.eventx.test.domain.FakeAggregate;
-import io.vertx.eventx.test.domain.commands.ChangeData;
-import io.vertx.eventx.test.domain.commands.CreateData;
+import io.vertx.eventx.test.eventsourcing.domain.FakeAggregate;
+import io.vertx.eventx.test.eventsourcing.domain.commands.ChangeData;
+import io.vertx.eventx.test.eventsourcing.domain.commands.CreateData;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;

@@ -326,7 +326,7 @@ public class AggregateLogic<T extends Aggregate> {
   }
 
   private Uni<EntityState<T>> processCommand(final EntityState<T> state, final List<Command> commands) {
-    deduplicateCommand(state, commands);
+    deDuplicate(state, commands);
     state.setProvisoryEventVersion(state.currentEventVersion());
     final var eventCommandTuple = commands.stream()
       .map(finalCommand -> applyBehaviour(state, finalCommand))
@@ -334,7 +334,7 @@ public class AggregateLogic<T extends Aggregate> {
     return flattenEventsAndAggregate(state, eventCommandTuple);
   }
 
-  private static void deduplicateCommand(EntityState<?> state, List<Command> commands) {
+  private static void deDuplicate(EntityState<?> state, List<Command> commands) {
     if (state.commands() != null && !state.commands().isEmpty()) {
       state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.headers().commandID().equals(txId)))
         .findAny()
@@ -361,14 +361,9 @@ public class AggregateLogic<T extends Aggregate> {
   }
 
   private Uni<EntityState<T>> aggregateEventsAndFlushToDisk(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple, final List<EventRecord> flattenedEvents) {
-    return eventJournal.transaction(
-      sqlConnection -> eventJournal.insertBatch(flattenedEvents, sqlConnection)
-        .flatMap(avoid2 -> {
-            eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-            return cache.put(new AggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
-          }
-        )
-    );
+    eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
+    return eventJournal.insertBatch(flattenedEvents)
+      .flatMap(avoid -> cache.put(new AggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state));
   }
 
 

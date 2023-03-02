@@ -1,9 +1,9 @@
-package io.vertx.eventx.test.domain.behaviours;
+package io.vertx.eventx.test.eventsourcing.domain.behaviours;
 
 
 import io.vertx.eventx.Aggregator;
-import io.vertx.eventx.test.domain.FakeAggregate;
-import io.vertx.eventx.test.domain.events.DataChanged;
+import io.vertx.eventx.test.eventsourcing.domain.FakeAggregate;
+import io.vertx.eventx.test.eventsourcing.domain.events.DataChanged;
 
 public class ChangedAggregator implements Aggregator<FakeAggregate, DataChanged> {
 

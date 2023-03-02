@@ -5,6 +5,13 @@ import java.time.Instant;
 public record CommandOptions(
   Instant schedule,
   String cron,
-  Boolean simulate
+  boolean simulate
 ) {
+  public static CommandOptions defaultOptions() {
+    return new CommandOptions(
+      null,
+      null,
+      false
+    );
+  }
 }

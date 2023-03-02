@@ -1,4 +1,4 @@
-package io.vertx.eventx.test.domain.commands;
+package io.vertx.eventx.test.eventsourcing.domain.commands;
 
 import io.vertx.eventx.Command;
 import io.vertx.eventx.common.CommandHeaders;
