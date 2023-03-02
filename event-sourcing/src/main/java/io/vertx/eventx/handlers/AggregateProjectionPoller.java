@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -23,18 +23,18 @@ import java.util.List;
 
 import static java.util.stream.Collectors.groupingBy;
 
-public class ProjectionUpdateActor<T extends Aggregate> implements TimerTask {
+public class AggregateProjectionPoller<T extends Aggregate> implements TimerTask {
 
-  private static final Logger logger = LoggerFactory.getLogger(ProjectionUpdateActor.class);
+  private static final Logger logger = LoggerFactory.getLogger(AggregateProjectionPoller.class);
   private final List<ProjectionWrapper<T>> projections;
-  private final ChannelProxy<T> proxy;
+  private final AggregateChannelProxy<T> proxy;
   private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
   private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset;
   private final Repository<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> projectionHistory;
 
-  public ProjectionUpdateActor(
+  public AggregateProjectionPoller(
     final List<ProjectionWrapper<T>> projections,
-    final ChannelProxy<T> proxy,
+    final AggregateChannelProxy<T> proxy,
     final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal,
     final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset,
     final Repository<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> projectionHistory
@@ -126,12 +126,13 @@ public class ProjectionUpdateActor<T extends Aggregate> implements TimerTask {
   private Uni<Void> handleProjection(ProjectionWrapper<?> projection, final List<EventRecord> events, SqlConnection sqlConnection) {
     final var groupedEvents = events.stream()
       .filter(
-        event -> projection.projection().eventClasses() == null ||
-          projection.projection().eventClasses().stream().anyMatch(clazz -> clazz.getName().equals(event.eventClass()))
+        event -> projection.projection().events() == null ||
+          projection.projection().events().stream().anyMatch(clazz -> clazz.getName().equals(event.eventClass()))
       )
       .collect(groupingBy(EventRecord::entityId));
     if (!groupedEvents.isEmpty()) {
-      // todo improve concurrency by adding a task-queue that triggers the entity update it self
+      // todo reduce stress on event-journal table study a way to use wal as source.
+      // todo improve projection granular concurrency by adding a task-queue that triggers the entity update it self
       // this multi stream should be converted to tasks that get submitted to a job-queue so that computation can be distributed
       return Multi.createFrom().iterable(groupedEvents.entrySet())
         .onItem().transformToUniAndMerge(entityEvents -> projectionHistory.selectByKey(new ProjectionHistoryKey(entityEvents.getKey(), projection.projection().getClass().getName(), projection.projection().tenantID()), sqlConnection)

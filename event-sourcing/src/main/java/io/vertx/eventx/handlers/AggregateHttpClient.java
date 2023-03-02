@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Uni;
@@ -14,12 +14,9 @@ import io.vertx.mutiny.ext.web.client.HttpResponse;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Command;
-import io.vertx.eventx.Proxy;
 import io.vertx.eventx.common.CommandHeaders;
 
-import java.util.function.Consumer;
-
-public class AggregateHttpClient<T extends Aggregate> implements Proxy<T> {
+public class AggregateHttpClient<T extends Aggregate> {
 
   protected final String host;
   protected final Integer port;
@@ -44,24 +41,16 @@ public class AggregateHttpClient<T extends Aggregate> implements Proxy<T> {
   private static final Logger logger = LoggerFactory.getLogger(AggregateHttpClient.class);
 
 
-  @Override
   public Uni<T> load(String entityId, CommandHeaders commandHeaders) {
     return get("/" + aggregateClass.getSimpleName().toLowerCase() + "/load", commandHeaders)
       .sendJson(new AggregateKey(entityId, commandHeaders.tenantId()))
       .map(this::parseResponse);
   }
 
-  @Override
   public <C extends Command> Uni<T> forward(C command) {
     return post("/" + aggregateClass.getSimpleName().toLowerCase() + "/command", command)
       .sendJson(JsonObject.mapFrom(command))
       .map(this::parseResponse);
-  }
-
-  @Override
-  public Uni<Void> subscribe(Consumer<T> consumer) {
-    // todo use http2 and subscribe to a socket
-    return Proxy.super.subscribe(consumer);
   }
 
   protected HttpRequest<Buffer> get(String path, CommandHeaders commandHeaders) {

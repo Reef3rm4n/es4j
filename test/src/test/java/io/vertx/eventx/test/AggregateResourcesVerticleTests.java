@@ -1,7 +1,7 @@
 package io.vertx.eventx.test;
 
 import io.vertx.eventx.VertxTestBootstrap;
-import io.vertx.eventx.actors.ChannelProxy;
+import io.vertx.eventx.handlers.AggregateChannelProxy;
 import io.vertx.eventx.test.domain.FakeAggregate;
 import io.vertx.eventx.test.domain.commands.ChangeData;
 import io.vertx.eventx.test.domain.commands.CreateData;
@@ -37,7 +37,7 @@ public class AggregateResourcesVerticleTests {
 
   @Test
   void test_channel_proxy(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var proxy = new ChannelProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
+    final var proxy = new AggregateChannelProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
     final var changeData = new ChangeData(entity.entityId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
@@ -49,7 +49,7 @@ public class AggregateResourcesVerticleTests {
 
   @Test
   void test_projection(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var proxy = new ChannelProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
+    final var proxy = new AggregateChannelProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
     final var changeData = new ChangeData(entity.entityId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
@@ -61,7 +61,7 @@ public class AggregateResourcesVerticleTests {
 
   @Test
   void test_web_socket_proxy(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var proxy = new ChannelProxy<>(BOOTSTRAP.VERTX, FakeAggregate.class);
+    final var proxy = new AggregateChannelProxy<>(BOOTSTRAP.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
     final var changeData = new ChangeData(entity.entityId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());

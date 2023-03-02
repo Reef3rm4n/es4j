@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.Command;
@@ -10,15 +10,15 @@ import io.vertx.eventx.objects.Action;
 import io.vertx.eventx.storage.pg.models.AggregateKey;
 import io.vertx.mutiny.core.Vertx;
 
-import static io.vertx.eventx.actors.Channel.request;
+import static io.vertx.eventx.handlers.AggregateChannel.request;
 
 
-public class ChannelProxy<T extends Aggregate> {
+public class AggregateChannelProxy<T extends Aggregate> {
   private final Vertx vertx;
   public final Class<T> entityClass;
-  public static final Logger LOGGER = LoggerFactory.getLogger(ChannelProxy.class);
+  public static final Logger LOGGER = LoggerFactory.getLogger(AggregateChannelProxy.class);
 
-  public ChannelProxy(
+  public AggregateChannelProxy(
     final Vertx vertx,
     final Class<T> entityClass
   ) {

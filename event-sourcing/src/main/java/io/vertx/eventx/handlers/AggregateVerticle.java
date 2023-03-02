@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
@@ -42,9 +42,9 @@ import java.util.*;
 //          Future<Buffer> future = fetchCatImage(key); // (6)
 //          return future.toCompletionStage(); // (7)
 //        }, exec).thenComposeAsync(Function.identity(), exec));
-public class EntityActor<T extends Aggregate> extends AbstractVerticle {
+public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(EntityActor.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateVerticle.class);
 
   public static final String ACTION = "action";
   public static final String CLASS_NAME = "className";
@@ -53,12 +53,12 @@ public class EntityActor<T extends Aggregate> extends AbstractVerticle {
   private final Class<T> aggregateClass;
   private EntityConfiguration entityConfiguration;
   private RepositoryHandler repositoryHandler;
-  public ActorLogic<T> logic;
+  public AggregateLogic<T> logic;
   private VertxAggregateCache<T, EntityState<T>> vertxAggregateCache = null;
   private List<BehaviourWrapper> behaviourWrappers;
   private List<AggregatorWrapper> aggregatorWrappers;
 
-  public EntityActor(
+  public AggregateVerticle(
     final Class<T> aggregateClass,
     final ModuleBuilder moduleBuilder
   ) {
@@ -80,7 +80,7 @@ public class EntityActor<T extends Aggregate> extends AbstractVerticle {
         entityConfiguration.aggregateCacheTtlInMinutes()
       );
     }
-    this.logic = new ActorLogic<>(
+    this.logic = new AggregateLogic<>(
       aggregateClass,
       aggregatorWrappers,
       behaviourWrappers,
@@ -90,7 +90,7 @@ public class EntityActor<T extends Aggregate> extends AbstractVerticle {
       new Repository<>(RejectedCommandMapper.INSTANCE, repositoryHandler),
       vertxAggregateCache
     );
-    return Channel.registerCommandConsumer(
+    return AggregateChannel.registerCommandConsumer(
       vertx,
       aggregateClass,
       this.deploymentID(),
@@ -231,7 +231,7 @@ public class EntityActor<T extends Aggregate> extends AbstractVerticle {
   @Override
   public Uni<Void> asyncStop() {
     LOGGER.info("Stopping " + aggregateClass.getSimpleName());
-    Channel.killActor(vertx, aggregateClass, this.deploymentID());
+    AggregateChannel.killActor(vertx, aggregateClass, this.deploymentID());
     LOGGER.info("[deploymentIDs:" + vertx.deploymentIDs() + "]");
     LOGGER.info("[contextID:" + context.deploymentID() + "]");
     return repositoryHandler.close();

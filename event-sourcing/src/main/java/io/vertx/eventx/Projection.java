@@ -6,9 +6,9 @@ import java.util.List;
 
 public interface Projection<T> {
 
-  Uni<Void> update(T state, List<Object> eventClasses);
+  Uni<Void> update(T currentState, List<Object> events);
 
-  default List<Class<?>> eventClasses() {
+  default List<Class<?>> events() {
     return null;
   }
 

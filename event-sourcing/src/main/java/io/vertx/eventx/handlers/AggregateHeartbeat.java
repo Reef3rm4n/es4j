@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
@@ -13,13 +13,13 @@ import io.vertx.eventx.task.TimerTaskConfiguration;
 import java.util.List;
 
 
-public class ActorHeartbeat<T extends Aggregate> implements TimerTask {
+public class AggregateHeartbeat<T extends Aggregate> implements TimerTask {
 
   private final Vertx vertx;
   private final Class<T> aggregateCLass;
-  protected static final Logger LOGGER = LoggerFactory.getLogger(ActorHeartbeat.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateHeartbeat.class);
 
-  public ActorHeartbeat(
+  public AggregateHeartbeat(
     Vertx vertx,
     Class<T> entityClass
   ) {
@@ -29,7 +29,7 @@ public class ActorHeartbeat<T extends Aggregate> implements TimerTask {
 
   @Override
   public Uni<Void> performTask() {
-    Channel.invokeActorsBroadcast(aggregateCLass, vertx);
+    AggregateChannel.invokeActorsBroadcast(aggregateCLass, vertx);
     return Uni.createFrom().voidItem();
   }
 

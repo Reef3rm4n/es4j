@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.core.json.JsonArray;
@@ -26,7 +26,7 @@ import io.vertx.eventx.storage.pg.models.*;
 import java.util.*;
 import java.util.stream.IntStream;
 
-public class ActorLogic<T extends Aggregate> {
+public class AggregateLogic<T extends Aggregate> {
   private final List<BehaviourWrapper> behaviours;
   // todo create an interface for the eventJournal
   // todo move this repository as an implementation of the eventJournal
@@ -38,15 +38,13 @@ public class ActorLogic<T extends Aggregate> {
   // todo create an interface for the entityCache
   // todo move this cache as an implementation of the entity cache
   private final VertxAggregateCache<T, EntityState<T>> cache;
-  private static final Logger LOGGER = LoggerFactory.getLogger(ActorLogic.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(AggregateLogic.class);
   private final EntityConfiguration configuration;
   private final List<AggregatorWrapper> aggregators;
   private final Class<T> entityClass;
-
-
   private final Map<String, String> commandClassMap = new HashMap<>();
 
-  public ActorLogic(
+  public AggregateLogic(
     final Class<T> entityClass,
     final List<AggregatorWrapper> aggregators,
     final List<BehaviourWrapper> behaviours,
@@ -331,12 +329,12 @@ public class ActorLogic<T extends Aggregate> {
     deduplicateCommand(state, commands);
     state.setProvisoryEventVersion(state.currentEventVersion());
     final var eventCommandTuple = commands.stream()
-      .map(finalCommand -> processSingleCommand(state, finalCommand))
+      .map(finalCommand -> applyBehaviour(state, finalCommand))
       .toList();
-    return handleEvents(state, eventCommandTuple);
+    return flattenEventsAndAggregate(state, eventCommandTuple);
   }
 
-  private  static void deduplicateCommand(EntityState<?> state, List<Command> commands) {
+  private static void deduplicateCommand(EntityState<?> state, List<Command> commands) {
     if (state.commands() != null && !state.commands().isEmpty()) {
       state.commands().stream().filter(txId -> commands.stream().anyMatch(cmd -> cmd.headers().commandID().equals(txId)))
         .findAny()
@@ -347,22 +345,22 @@ public class ActorLogic<T extends Aggregate> {
     }
   }
 
-  private Uni<EntityState<T>> handleEvents(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple) {
+  private Uni<EntityState<T>> flattenEventsAndAggregate(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple) {
     final var flattenedEvents = eventCommandTuple.stream().map(Tuple2::getItem1).flatMap(List::stream).toList();
     if (configuration.persistenceMode() == PersistenceMode.DATABASE) {
-      return persistEventsUpdateStateAndProjections(state, eventCommandTuple, flattenedEvents);
+      return aggregateEventsAndFlushToDisk(state, eventCommandTuple, flattenedEvents);
     } else {
-      return updateStateAndProjections(state, eventCommandTuple);
+      return aggregateEvents(state, eventCommandTuple);
     }
   }
 
-  private Uni<EntityState<T>> updateStateAndProjections(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple) {
+  private Uni<EntityState<T>> aggregateEvents(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple) {
     LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + configuration.persistenceMode());
     eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
     return cache.put(new AggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
   }
 
-  private Uni<EntityState<T>> persistEventsUpdateStateAndProjections(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple, final List<EventRecord> flattenedEvents) {
+  private Uni<EntityState<T>> aggregateEventsAndFlushToDisk(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple, final List<EventRecord> flattenedEvents) {
     return eventJournal.transaction(
       sqlConnection -> eventJournal.insertBatch(flattenedEvents, sqlConnection)
         .flatMap(avoid2 -> {
@@ -373,7 +371,8 @@ public class ActorLogic<T extends Aggregate> {
     );
   }
 
-  private Tuple2<List<EventRecord>, Command> processSingleCommand(final EntityState<T> state, final Command finalCommand) {
+
+  private Tuple2<List<EventRecord>, Command> applyBehaviour(final EntityState<T> state, final Command finalCommand) {
     final var currentVersion = state.provisoryEventVersion() == null ? 0 : state.provisoryEventVersion();
     final var events = applyBehaviour(state.aggregateState(), finalCommand);
     LOGGER.info("Events created " + new JsonArray(events).encodePrettily());
@@ -388,8 +387,6 @@ public class ActorLogic<T extends Aggregate> {
             ev.getClass().getName(),
             nextEventVersion,
             JsonObject.mapFrom(ev),
-            JsonObject.mapFrom(finalCommand),
-            finalCommand.getClass().getName(),
             BaseRecord.newRecord(finalCommand.headers().tenantId())
           );
         }
@@ -408,7 +405,7 @@ public class ActorLogic<T extends Aggregate> {
         );
     }
     state.setProvisoryEventVersion(state.currentEventVersion());
-    final var eventCommandTuple = processSingleCommand(state, command);
+    final var eventCommandTuple = applyBehaviour(state, command);
     if (configuration.persistenceMode() == PersistenceMode.DATABASE) {
       return eventJournal.transaction(
         sqlConnection -> eventJournal.insertBatch(eventCommandTuple.getItem1(), sqlConnection)

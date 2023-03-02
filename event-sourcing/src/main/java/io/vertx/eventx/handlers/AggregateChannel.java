@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -35,12 +35,12 @@ import java.util.function.Consumer;
 import static io.vertx.core.eventbus.ReplyFailure.RECIPIENT_FAILURE;
 import static io.vertx.eventx.cache.ChannelAddress.commandConsumer;
 
-public class Channel {
-  private Channel() {
+public class AggregateChannel {
+  private AggregateChannel() {
   }
 
   public static final String ACTION = "action";
-  private static final Logger LOGGER = LoggerFactory.getLogger(Channel.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(AggregateChannel.class);
 
   private static HashRing<SimpleNode> startHashRing(Class<? extends Aggregate> aggregateClass) {
     return HashRing.<SimpleNode>newBuilder()
@@ -161,7 +161,7 @@ public class Channel {
 
   public static <T extends Aggregate> Uni<T> request(Vertx vertx, Class<T> entityClass, JsonObject payload, Action action) {
     final var aggregateKey = new AggregateKey(Objects.requireNonNull(payload.getString("aggregateId")), payload.getJsonObject("headers").getString("tenantId", "default"));
-    final var address = Channel.resolveActor(entityClass, aggregateKey);
+    final var address = AggregateChannel.resolveActor(entityClass, aggregateKey);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Proxying command -> " + new JsonObject()
         .put("key", aggregateKey)
@@ -180,7 +180,7 @@ public class Channel {
       )
       .onFailure(ReplyException.class).retry().atMost(3)
       .map(response -> response.body().mapTo(entityClass))
-      .onFailure().transform(Unchecked.function(Channel::transformError));
+      .onFailure().transform(Unchecked.function(AggregateChannel::transformError));
   }
 
   private static Throwable transformError(final Throwable throwable) {

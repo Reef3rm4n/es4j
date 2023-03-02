@@ -17,7 +17,7 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Projection;
-import io.vertx.eventx.actors.*;
+import io.vertx.eventx.handlers.*;
 import io.vertx.eventx.common.CustomClassLoader;
 import io.vertx.eventx.config.ConfigurationDeployer;
 import io.vertx.eventx.config.ConfigurationHandler;
@@ -40,7 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static io.vertx.eventx.actors.Channel.createChannel;
+import static io.vertx.eventx.handlers.AggregateChannel.createChannel;
 import static io.vertx.eventx.launcher.EventXMain.MAIN_MODULES;
 
 public class AggregateResources<T extends Aggregate> {
@@ -99,7 +99,7 @@ public class AggregateResources<T extends Aggregate> {
           .call(tuple2 -> configurationDeployer.deploy(tuple2.getItem1(), tuple2.getItem2()))
           .invoke(tuple2 -> timerTaskDeployer.deploy(tuple2.getItem2(), tuple2.getItem1()))
           .call(injector -> {
-              final Supplier<Verticle> supplier = () -> new EntityActor<>(aggregateClass, ModuleBuilder.create().install(localModules));
+              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules));
               return createChannel(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
                       .setConfig(newConfiguration)
@@ -152,8 +152,8 @@ public class AggregateResources<T extends Aggregate> {
       new AbstractModule() {
         @Provides
         @Inject
-        HttpProxy httpProxy(Vertx vertx) {
-          return new HttpProxy(vertx, aggregateClass);
+        AggregateHttpProxy httpProxy(Vertx vertx) {
+          return new AggregateHttpProxy(vertx, aggregateClass);
         }
       }
     );
@@ -164,15 +164,15 @@ public class AggregateResources<T extends Aggregate> {
       new AbstractModule() {
         @Provides
         @Inject
-        ProjectionUpdateActor<T> projectionUpdateActor(
+        AggregateProjectionPoller<T> projectionUpdateActor(
           final List<ProjectionWrapper<T>> projections,
           final JsonObject configuration,
           final Vertx vertx
         ) {
           final var rh = RepositoryHandler.leasePool(configuration, vertx, aggregateClass);
-          return new ProjectionUpdateActor<>(
+          return new AggregateProjectionPoller<>(
             projections,
-            new ChannelProxy<>(vertx, aggregateClass),
+            new AggregateChannelProxy<>(vertx, aggregateClass),
             new Repository<>(EventJournalMapper.INSTANCE, rh),
             new Repository<>(EventJournalOffsetMapper.INSTANCE, rh),
             new Repository<>(EntityProjectionHistoryMapper.INSTANCE, rh)
@@ -199,8 +199,8 @@ public class AggregateResources<T extends Aggregate> {
       new AbstractModule() {
         @Inject
         @Provides
-        ActorHeartbeat<T> heartbeat(Vertx vertx) {
-          return new ActorHeartbeat<>(vertx, aggregateClass);
+        AggregateHeartbeat<T> heartbeat(Vertx vertx) {
+          return new AggregateHeartbeat<>(vertx, aggregateClass);
         }
       }
     );

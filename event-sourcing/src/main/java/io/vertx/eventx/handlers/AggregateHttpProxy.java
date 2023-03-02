@@ -1,4 +1,4 @@
-package io.vertx.eventx.actors;
+package io.vertx.eventx.handlers;
 
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
@@ -14,21 +14,21 @@ import io.vertx.mutiny.ext.web.Router;
 import io.vertx.mutiny.ext.web.handler.sockjs.SockJSHandler;
 import io.vertx.eventx.Aggregate;
 
-public class HttpProxy implements HttpRoute {
+public class AggregateHttpProxy implements HttpRoute {
 
   private final Vertx vertx;
   private final Class<? extends Aggregate> aggregateClass;
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(HttpProxy.class);
-  private final ChannelProxy<? extends Aggregate> entityAggregateProxy;
+  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateHttpProxy.class);
+  private final AggregateChannelProxy<? extends Aggregate> entityAggregateProxy;
 
-  public HttpProxy(
+  public AggregateHttpProxy(
     Vertx vertx,
     Class<? extends Aggregate> aggregateClass
   ) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
-    this.entityAggregateProxy = new ChannelProxy<>(vertx,aggregateClass);
+    this.entityAggregateProxy = new AggregateChannelProxy<>(vertx,aggregateClass);
   }
 
 
