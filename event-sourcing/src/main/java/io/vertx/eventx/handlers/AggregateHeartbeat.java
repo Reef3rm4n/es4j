@@ -3,6 +3,7 @@ package io.vertx.eventx.handlers;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
+import io.vertx.eventx.infrastructure.bus.AggregateBus;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.task.LockLevel;
@@ -29,7 +30,7 @@ public class AggregateHeartbeat<T extends Aggregate> implements TimerTask {
 
   @Override
   public Uni<Void> performTask() {
-    AggregateChannel.invokeActorsBroadcast(aggregateCLass, vertx);
+    AggregateBus.invokeActorsBroadcast(aggregateCLass, vertx);
     return Uni.createFrom().voidItem();
   }
 

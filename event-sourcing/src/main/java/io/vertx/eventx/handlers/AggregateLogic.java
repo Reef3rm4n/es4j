@@ -1,16 +1,20 @@
 package io.vertx.eventx.handlers;
 
 import io.smallrye.mutiny.tuples.Tuple4;
+import io.smallrye.mutiny.vertx.UniHelper;
 import io.vertx.core.json.JsonArray;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Command;
-import io.vertx.eventx.cache.VertxAggregateCache;
+import io.vertx.eventx.common.ErrorSource;
+import io.vertx.eventx.common.EventxError;
+import io.vertx.eventx.infrastructure.Infrastructure;
+import io.vertx.eventx.infrastructure.models.*;
 import io.vertx.eventx.common.EventXError;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.exceptions.UnknownCommand;
 import io.vertx.eventx.exceptions.UnknownEvent;
+import io.vertx.eventx.infrastructure.pg.models.*;
 import io.vertx.eventx.objects.*;
-import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.exceptions.Conflict;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.smallrye.mutiny.Uni;
@@ -18,28 +22,15 @@ import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.sql.models.BaseRecord;
-import io.vertx.eventx.sql.models.EmptyQuery;
-import io.vertx.eventx.sql.models.QueryOptions;
-import io.vertx.eventx.storage.pg.models.*;
 
 import java.util.*;
 import java.util.stream.IntStream;
 
 public class AggregateLogic<T extends Aggregate> {
   private final List<BehaviourWrapper> behaviours;
-  // todo create an interface for the eventJournal
-  // todo move this repository as an implementation of the eventJournal
-  private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
-  private final Repository<AggregateKey, RejectedCommand, ?> rejectedCommands;
-  // todo create an interface for the snapshots
-  // todo move this repository as an implementation of the snapshot
-  private final Repository<AggregateKey, AggregateSnapshot, ?> snapshots;
-  // todo create an interface for the entityCache
-  // todo move this cache as an implementation of the entity cache
-  private final VertxAggregateCache<T, EntityState<T>> cache;
+  private final Infrastructure<T> infrastructure;
   private static final Logger LOGGER = LoggerFactory.getLogger(AggregateLogic.class);
-  private final EntityConfiguration configuration;
+  private final AggregateConfiguration configuration;
   private final List<AggregatorWrapper> aggregators;
   private final Class<T> entityClass;
   private final Map<String, String> commandClassMap = new HashMap<>();
@@ -48,20 +39,14 @@ public class AggregateLogic<T extends Aggregate> {
     final Class<T> entityClass,
     final List<AggregatorWrapper> aggregators,
     final List<BehaviourWrapper> behaviours,
-    final EntityConfiguration configuration,
-    final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal,
-    final Repository<AggregateKey, AggregateSnapshot, EmptyQuery> snapshots,
-    final Repository<AggregateKey, RejectedCommand, ?> rejectedCommands,
-    final VertxAggregateCache<T, EntityState<T>> cache
+    final AggregateConfiguration configuration,
+    final Infrastructure infrastructure
   ) {
-    this.eventJournal = eventJournal;
+    this.infrastructure = infrastructure;
     this.entityClass = entityClass;
     this.aggregators = aggregators;
     this.behaviours = behaviours;
-    this.snapshots = snapshots;
-    this.rejectedCommands = rejectedCommands;
     this.configuration = configuration;
-    this.cache = cache;
     if (behaviours.isEmpty()) {
       throw new IllegalStateException("Empty behaviours");
     }
@@ -89,9 +74,9 @@ public class AggregateLogic<T extends Aggregate> {
     );
   }
 
-  public Uni<JsonObject> load(AggregateKey entityAggregateKey) {
-    LOGGER.debug("Loading entity locally  -> " + entityAggregateKey);
-    return load(entityAggregateKey.aggregateId(), entityAggregateKey.tenantId(), ConsistencyStrategy.STRONGLY_CONSISTENT)
+  public Uni<JsonObject> load(AggregateRecordKey entityAggregateRecordKey) {
+    LOGGER.debug("Loading entity locally  -> " + entityAggregateRecordKey);
+    return load(entityAggregateRecordKey.aggregateId(), entityAggregateRecordKey.tenantId(), ConsistencyStrategy.STRONGLY_CONSISTENT)
       .map(state -> JsonObject.mapFrom(state.aggregateState()));
   }
 
@@ -101,14 +86,14 @@ public class AggregateLogic<T extends Aggregate> {
     final var commands = command.commands().stream()
       .map(cmd -> getCommand(cmd.commandType(), cmd.command()))
       .toList();
-    if (!commands.stream().allMatch(cmd -> cmd.entityId().equals(command.entityId()))) {
+    if (!commands.stream().allMatch(cmd -> cmd.aggregateId().equals(command.aggregateId()))) {
       throw new CommandRejected(new EventXError("ID mismatch in composite command", "All composite commands should have the same aggregateId", 400));
     }
-    return load(command.entityId(), command.headers().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
+    return load(command.aggregateId(), command.headers().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, commands)
           .onFailure(Conflict.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.entityId(), command.headers().tenantId())
+            () -> ensureConsistency(aggregateState, command.aggregateId(), command.headers().tenantId())
               .flatMap(reconstructedState -> processCommand(reconstructedState, command))
           )
           .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
@@ -120,11 +105,11 @@ public class AggregateLogic<T extends Aggregate> {
   public Uni<JsonObject> process(String commandType, JsonObject jsonCommand) {
     LOGGER.debug("Processing " + commandType + " -> " + jsonCommand.encodePrettily());
     final var command = getCommand(commandType, jsonCommand);
-    return load(command.entityId(), command.headers().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
+    return load(command.aggregateId(), command.headers().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
       .flatMap(
         aggregateState -> processCommand(aggregateState, command)
           .onFailure(Conflict.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.entityId(), command.headers().tenantId())
+            () -> ensureConsistency(aggregateState, command.aggregateId(), command.headers().tenantId())
               .flatMap(reconstructedState -> processCommand(reconstructedState, command))
           )
           .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
@@ -176,22 +161,22 @@ public class AggregateLogic<T extends Aggregate> {
     return switch (consistencyStrategy) {
       case EVENTUALLY_CONSISTENT -> {
         EntityState<T> state = null;
-        if (cache != null) {
-          state = cache.get(new AggregateKey(entityId, tenant));
+        if (infrastructure.cache() != null) {
+          state = infrastructure.cache().get(new AggregateKey<>(entityClass, entityId, tenant));
         }
         if (state == null) {
-          yield loadFromDatabase(entityId, tenant);
+          yield loadFromEventJournal(entityId, tenant);
         } else {
           yield Uni.createFrom().item(state);
         }
       }
       case STRONGLY_CONSISTENT -> {
         EntityState<T> state = null;
-        if (cache != null) {
-          state = cache.get(new AggregateKey(entityId, tenant));
+        if (infrastructure.cache() != null) {
+          state = infrastructure.cache().get(new AggregateKey<>(entityClass, entityId, tenant));
         }
         if (state == null) {
-          yield loadFromDatabase(entityId, tenant);
+          yield loadFromEventJournal(entityId, tenant);
         } else {
           yield ensureConsistency(state, entityId, tenant);
         }
@@ -202,12 +187,19 @@ public class AggregateLogic<T extends Aggregate> {
   private Uni<EntityState<T>> ensureConsistency(EntityState<T> state, final String entityId, final String tenant) {
     if (configuration.persistenceMode() == PersistenceMode.DATABASE) {
       LOGGER.warn("Ensuring consistency for entity -> " + entityId);
-      return eventJournal.query(ensureConsistencyQuery(entityId, tenant, state))
-        .flatMap(events -> {
+      return infrastructure.eventJournal().stream(new StreamInstruction<>(
+            entityClass,
+            entityId,
+            tenant,
+            state.currentEventVersion()
+          )
+        )
+        .map(events -> {
             if (events != null && !events.isEmpty()) {
               applyEvents(state, events, null);
             }
-            return cache.put(new AggregateKey(entityId, tenant), state);
+            infrastructure.cache().put(state);
+            return state;
           }
         )
         .onFailure(NotFound.class).recoverWithItem(state);
@@ -217,7 +209,7 @@ public class AggregateLogic<T extends Aggregate> {
     }
   }
 
-  private Uni<EntityState<T>> loadFromDatabase(final String entityId, final String tenant) {
+  private Uni<EntityState<T>> loadFromEventJournal(final String entityId, final String tenant) {
     final var state = new EntityState<T>(
       configuration.snapshotEvery(),
       configuration.maxNumberOfCommandsForIdempotency()
@@ -225,18 +217,31 @@ public class AggregateLogic<T extends Aggregate> {
     if (configuration.persistenceMode() == PersistenceMode.DATABASE) {
       LOGGER.warn("Loading entity from database -> " + entityId);
       Uni<Void> snapshotUni = Uni.createFrom().voidItem();
-      if (snapshots != null) {
-        snapshotUni = snapshots.selectByKey(new AggregateKey(entityId, tenant))
-          .map(persistedSnapshot -> loadSnapshot(state, persistedSnapshot))
+      if (infrastructure.snapshotStore() != null) {
+        snapshotUni = infrastructure.snapshotStore().get(new AggregateKey<>(
+              entityClass,
+              entityId,
+              tenant
+            )
+          )
           .onFailure(NotFound.class).recoverWithNull()
           .replaceWithVoid();
       }
-      return snapshotUni.flatMap(avoid -> eventJournal.query(eventJournalQuery(entityId, tenant, state)))
-        .flatMap(events -> {
+      return snapshotUni.flatMap(avoid -> infrastructure.eventJournal().stream(
+            new StreamInstruction<>(
+              entityClass,
+              entityId,
+              tenant,
+              state.currentEventVersion()
+            )
+          )
+        )
+        .map(events -> {
             if (events != null && !events.isEmpty()) {
               applyEvents(state, events, null);
             }
-            return cache.put(new AggregateKey(entityId, tenant), state);
+            infrastructure.cache().put(state);
+            return state;
           }
         )
         .onFailure(NotFound.class).recoverWithItem(state);
@@ -247,7 +252,7 @@ public class AggregateLogic<T extends Aggregate> {
 
   }
 
-  private EntityState<T> loadSnapshot(final EntityState<T> state, final AggregateSnapshot persistedSnapshot) {
+  private EntityState<T> loadSnapshot(final EntityState<T> state, final AggregateSnapshotRecord persistedSnapshot) {
     LOGGER.info("Loading snapshot -> " + persistedSnapshot.state().encodePrettily());
     return state.setAggregateState(persistedSnapshot.state().mapTo(entityClass))
       .setCurrentEventVersion(persistedSnapshot.eventVersion())
@@ -255,9 +260,9 @@ public class AggregateLogic<T extends Aggregate> {
       .setSnapshotPresent(true);
   }
 
-  private void applyEvents(final EntityState<T> state, final List<EventRecord> events, Command command) {
+  private void applyEvents(final EntityState<T> state, final List<Event> events, Command command) {
     events.stream()
-      .sorted(Comparator.comparingLong(EventRecord::eventVersion))
+      .sorted(Comparator.comparingLong(Event::eventVersion))
       .forEachOrdered(event -> {
           LOGGER.info("Aggregating event -> " + event.eventClass());
           final var newState = aggregateEvent(state.aggregateState(), getEvent(event.eventClass(), event.event()));
@@ -275,55 +280,6 @@ public class AggregateLogic<T extends Aggregate> {
       );
   }
 
-
-  private EventRecordQuery eventJournalQuery(final String entityId, final String tenant, EntityState<T> state) {
-    return new EventRecordQuery(
-      List.of(entityId),
-      null,
-      state.snapshot() != null ? state.snapshot().eventVersion() : null,
-      null,
-      null,
-      null,
-      null,
-      new QueryOptions(
-        "event_version",
-        false,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        tenant
-      )
-    );
-  }
-
-  private EventRecordQuery ensureConsistencyQuery(final String entityId, final String tenant, EntityState<T> state) {
-    // todo add idFrom to improve performance
-    return new EventRecordQuery(
-      List.of(entityId),
-      null,
-      state.currentEventVersion() != null ? state.currentEventVersion() : 0,
-      null,
-      null,
-      null,
-      null,
-      new QueryOptions(
-        "event_version",
-        false,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        tenant
-      )
-    );
-  }
 
   private Uni<EntityState<T>> processCommand(final EntityState<T> state, final List<Command> commands) {
     deDuplicate(state, commands);
@@ -345,29 +301,40 @@ public class AggregateLogic<T extends Aggregate> {
     }
   }
 
-  private Uni<EntityState<T>> flattenEventsAndAggregate(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple) {
+  private Uni<EntityState<T>> flattenEventsAndAggregate(final EntityState<T> state, final List<Tuple2<List<Event>, Command>> eventCommandTuple) {
     final var flattenedEvents = eventCommandTuple.stream().map(Tuple2::getItem1).flatMap(List::stream).toList();
     if (configuration.persistenceMode() == PersistenceMode.DATABASE) {
       return aggregateEventsAndFlushToDisk(state, eventCommandTuple, flattenedEvents);
     } else {
-      return aggregateEvents(state, eventCommandTuple);
+      return Uni.createFrom().item(aggregateEvents(state, eventCommandTuple));
     }
   }
 
-  private Uni<EntityState<T>> aggregateEvents(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple) {
+  private EntityState<T> aggregateEvents(final EntityState<T> state, final List<Tuple2<List<Event>, Command>> eventCommandTuple) {
     LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + configuration.persistenceMode());
     eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-    return cache.put(new AggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
+    infrastructure.cache().put(state);
+    return state;
   }
 
-  private Uni<EntityState<T>> aggregateEventsAndFlushToDisk(final EntityState<T> state, final List<Tuple2<List<EventRecord>, Command>> eventCommandTuple, final List<EventRecord> flattenedEvents) {
+  private Uni<EntityState<T>> aggregateEventsAndFlushToDisk(final EntityState<T> state, final List<Tuple2<List<Event>, Command>> eventCommandTuple, final List<Event> flattenedEvents) {
     eventCommandTuple.forEach(tuple -> applyEvents(state, tuple.getItem1(), tuple.getItem2()));
-    return eventJournal.insertBatch(flattenedEvents)
-      .flatMap(avoid -> cache.put(new AggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state));
+    return infrastructure.eventJournal().append(
+        new AppendInstruction<>(
+          entityClass,
+          state.aggregateState().aggregateId(),
+          state.aggregateState().tenantID(),
+          flattenedEvents
+        )
+      )
+      .map(avoid -> {
+        infrastructure.cache().put(state);
+        return state;
+      });
   }
 
 
-  private Tuple2<List<EventRecord>, Command> applyBehaviour(final EntityState<T> state, final Command finalCommand) {
+  private Tuple2<List<Event>, Command> applyBehaviour(final EntityState<T> state, final Command finalCommand) {
     final var currentVersion = state.provisoryEventVersion() == null ? 0 : state.provisoryEventVersion();
     final var events = applyBehaviour(state.aggregateState(), finalCommand);
     LOGGER.info("Events created " + new JsonArray(events).encodePrettily());
@@ -377,12 +344,12 @@ public class AggregateLogic<T extends Aggregate> {
           final var ev = array[index - 1];
           final var nextEventVersion = currentVersion + index;
           state.setProvisoryEventVersion(nextEventVersion);
-          return new EventRecord(
-            finalCommand.entityId(),
+          return new Event(
+            finalCommand.aggregateId(),
             ev.getClass().getName(),
             nextEventVersion,
             JsonObject.mapFrom(ev),
-            BaseRecord.newRecord(finalCommand.headers().tenantId())
+            finalCommand.headers().tenantId()
           );
         }
       ).toList();
@@ -402,37 +369,43 @@ public class AggregateLogic<T extends Aggregate> {
     state.setProvisoryEventVersion(state.currentEventVersion());
     final var eventCommandTuple = applyBehaviour(state, command);
     if (configuration.persistenceMode() == PersistenceMode.DATABASE) {
-      return eventJournal.transaction(
-        sqlConnection -> eventJournal.insertBatch(eventCommandTuple.getItem1(), sqlConnection)
-          .flatMap(avoid2 -> {
-              applyEvents(state, eventCommandTuple.getItem1(), command);
-              return cache.put(new AggregateKey(command.entityId(), command.headers().tenantId()), state);
-            }
+      applyEvents(state, eventCommandTuple.getItem1(), command);
+      return infrastructure.eventJournal().append(
+          new AppendInstruction<>(
+            entityClass,
+            state.aggregateState().aggregateId(),
+            state.aggregateState().tenantID(),
+            eventCommandTuple.getItem1()
           )
-      );
+        )
+        .map(
+          avoid -> {
+            infrastructure.cache().put(state);
+            return state;
+          }
+        );
     } else {
       LOGGER.warn("EntityAggregate will not be persisted to the database since persistence mode is set to -> " + configuration.persistenceMode());
       applyEvents(state, eventCommandTuple.getItem1(), command);
-      return cache.put(new AggregateKey(command.entityId(), command.headers().tenantId()), state);
+      infrastructure.cache().put(state);
+      return Uni.createFrom().item(state);
     }
   }
 
   private void handleSnapshot(EntityState<T> state) {
-    if (snapshots != null && state.snapshotAfter() != null && state.processedEventsAfterLastSnapshot() >= state.snapshotAfter()) {
+    if (state.snapshotAfter() != null && state.processedEventsAfterLastSnapshot() >= state.snapshotAfter()) {
       if (Boolean.TRUE.equals(state.snapshotPresent())) {
         LOGGER.info("Updating snapshot -> " + state);
-        final var snapshot = state.snapshot().withState(JsonObject.mapFrom(state));
-        snapshots.updateByKey(snapshot)
-          .flatMap(avoid -> updateStateAfterSnapshot(state, snapshot))
+        infrastructure.snapshotStore().update(state)
+          .map(avoid -> updateStateAfterSnapshot(state))
           .subscribe()
           .with(
             item -> LOGGER.info("Snapshot added -> " + item)
             , throwable -> LOGGER.error("Unable to add snapshot", throwable));
       } else {
         LOGGER.info("Adding snapshot -> " + state);
-        final var snapshot = new AggregateSnapshot(state.aggregateState().entityId(), state.currentEventVersion(), JsonObject.mapFrom(state.aggregateState()), BaseRecord.newRecord(state.aggregateState().tenantID()));
-        snapshots.insert(snapshot)
-          .flatMap(avoid -> updateStateAfterSnapshot(state, snapshot))
+        infrastructure.snapshotStore().add(state)
+          .map(avoid -> updateStateAfterSnapshot(state))
           .subscribe()
           .with(
             item -> LOGGER.info("Snapshot added -> " + item),
@@ -442,23 +415,48 @@ public class AggregateLogic<T extends Aggregate> {
     }
   }
 
-  private Uni<EntityState<T>> updateStateAfterSnapshot(final EntityState<T> state, final AggregateSnapshot snapshot) {
+  private EntityState<T> updateStateAfterSnapshot(final EntityState<T> state) {
     state.eventsAfterSnapshot().clear();
-    state.setProcessedEventsAfterLastSnapshot(0).setSnapshot(snapshot);
-    return cache.put(new AggregateKey(state.aggregateState().entityId(), state.aggregateState().tenantID()), state);
+    state.setProcessedEventsAfterLastSnapshot(0);
+    infrastructure.cache().put(state);
+    return state;
   }
 
   private void handleRejectedCommand(final Throwable throwable, final Command command) {
     LOGGER.error("Command rejected -> ", throwable);
-    if (configuration.persistenceMode() == PersistenceMode.DATABASE && rejectedCommands != null) {
+    if (configuration.persistenceMode() == PersistenceMode.DATABASE && infrastructure.commandStore() != null) {
       if (throwable instanceof CommandRejected commandRejected) {
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(commandRejected.error()), BaseRecord.newRecord(command.headers().tenantId()));
-        rejectedCommands.insertAndForget(rejectedCommand);
+        infrastructure.commandStore().save(new StoreCommand<>(
+              entityClass,
+              command.aggregateId(),
+              command,
+              new EventxError(
+                ErrorSource.LOGIC,
+                null,
+                commandRejected.error().cause(),
+                commandRejected.error().hint(),
+                commandRejected.error().errorCode()
+              )
+            )
+          )
+          .subscribe()
+          .with(UniHelper.NOOP);
       } else {
-        LOGGER.warn("Unknown exception, consider using RejectedCommandException.class for better error handling");
-        final var cause = throwable.getCause() != null ? throwable.getCause().getMessage() : throwable.getLocalizedMessage();
-        final var rejectedCommand = new RejectedCommand(command.entityId(), JsonObject.mapFrom(command), command.getClass().getName(), JsonObject.mapFrom(new EventXError(throwable.getMessage(), cause, 500)), BaseRecord.newRecord(command.headers().tenantId()));
-        rejectedCommands.insertAndForget(rejectedCommand);
+        infrastructure.commandStore().save(new StoreCommand<>(
+              entityClass,
+              command.aggregateId(),
+              command,
+              new EventxError(
+                ErrorSource.UNKNOWN,
+                null,
+                throwable.getMessage(),
+                throwable.getLocalizedMessage(),
+                999
+              )
+            )
+          )
+          .subscribe()
+          .with(UniHelper.NOOP);
       }
     }
   }

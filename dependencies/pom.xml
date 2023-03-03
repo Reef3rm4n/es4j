@@ -163,7 +163,7 @@
       </dependency>
       <dependency>
         <groupId>io.vertx.eventx</groupId>
-        <artifactId>eventx-launcher</artifactId>
+        <artifactId>launcher</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>

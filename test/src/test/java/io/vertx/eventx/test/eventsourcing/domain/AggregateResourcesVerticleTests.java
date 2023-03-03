@@ -1,8 +1,7 @@
 package io.vertx.eventx.test.eventsourcing.domain;
 
 import io.vertx.eventx.VertxTestBootstrap;
-import io.vertx.eventx.handlers.AggregateChannelProxy;
-import io.vertx.eventx.test.eventsourcing.domain.FakeAggregate;
+import io.vertx.eventx.infrastructure.proxies.AggregateEventbusProxy;
 import io.vertx.eventx.test.eventsourcing.domain.commands.ChangeData;
 import io.vertx.eventx.test.eventsourcing.domain.commands.CreateData;
 import io.vertx.junit5.VertxExtension;
@@ -37,10 +36,10 @@ public class AggregateResourcesVerticleTests {
 
   @Test
   void test_channel_proxy(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var proxy = new AggregateChannelProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
+    final var proxy = new AggregateEventbusProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
-    final var changeData = new ChangeData(entity.entityId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
+    final var changeData = new ChangeData(entity.aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
     assertNotNull(entity.data().get("key"), "data should have been created");
     final var entityAfterChange = proxy.command(changeData).await().indefinitely();
     assertNotEquals(entity.data().get("key"), entityAfterChange.data().get("key"), "data should have been replaced");
@@ -49,10 +48,10 @@ public class AggregateResourcesVerticleTests {
 
   @Test
   void test_projection(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var proxy = new AggregateChannelProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
+    final var proxy = new AggregateEventbusProxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
-    final var changeData = new ChangeData(entity.entityId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
+    final var changeData = new ChangeData(entity.aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
     assertNotNull(entity.data().get("key"), "data should have been created");
     final var entityAfterChange = proxy.command(changeData).await().indefinitely();
     assertNotEquals(entity.data().get("key"), entityAfterChange.data().get("key"), "data should have been replaced");
@@ -61,10 +60,10 @@ public class AggregateResourcesVerticleTests {
 
   @Test
   void test_web_socket_proxy(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var proxy = new AggregateChannelProxy<>(BOOTSTRAP.VERTX, FakeAggregate.class);
+    final var proxy = new AggregateEventbusProxy<>(BOOTSTRAP.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
-    final var changeData = new ChangeData(entity.entityId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
+    final var changeData = new ChangeData(entity.aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
     assertNotNull(entity.data().get("key"), "data should have been created");
     final var entityAfterChange = proxy.command(changeData).await().indefinitely();
     assertNotEquals(entity.data().get("key"), entityAfterChange.data().get("key"), "data should have been replaced");

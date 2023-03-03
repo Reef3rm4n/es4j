@@ -12,7 +12,7 @@
   <modules>
     <module>common</module>
     <module>solr-client</module>
-    <module>eventx-launcher</module>
+    <module>launcher</module>
     <module>config</module>
     <module>dependencies</module>
     <module>http</module>

@@ -5,7 +5,7 @@ import io.vertx.eventx.common.CommandHeaders;
 import io.vertx.eventx.common.CommandOptions;
 
 public interface Command {
-  String entityId();
+  String aggregateId();
 
   CommandHeaders headers();
 

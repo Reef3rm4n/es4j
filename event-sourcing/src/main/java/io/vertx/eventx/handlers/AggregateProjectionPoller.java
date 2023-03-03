@@ -5,9 +5,10 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
+import io.vertx.eventx.infrastructure.proxies.AggregateEventbusProxy;
+import io.vertx.eventx.infrastructure.pg.models.*;
 import io.vertx.eventx.objects.ProjectionWrapper;
 import io.vertx.eventx.sql.Repository;
-import io.vertx.eventx.storage.pg.models.*;
 import io.vertx.eventx.task.TimerTaskConfiguration;
 import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.eventx.Aggregate;
@@ -27,14 +28,14 @@ public class AggregateProjectionPoller<T extends Aggregate> implements TimerTask
 
   private static final Logger logger = LoggerFactory.getLogger(AggregateProjectionPoller.class);
   private final List<ProjectionWrapper<T>> projections;
-  private final AggregateChannelProxy<T> proxy;
+  private final AggregateEventbusProxy<T> proxy;
   private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
   private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset;
   private final Repository<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> projectionHistory;
 
   public AggregateProjectionPoller(
     final List<ProjectionWrapper<T>> projections,
-    final AggregateChannelProxy<T> proxy,
+    final AggregateEventbusProxy<T> proxy,
     final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal,
     final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> eventJournalOffset,
     final Repository<ProjectionHistoryKey, ProjectionOffset, ProjectionHistoryQuery> projectionHistory
@@ -143,7 +144,7 @@ public class AggregateProjectionPoller<T extends Aggregate> implements TimerTask
               final var minEventId = entityEvents.getValue().stream().map(EventRecord::id).min(Comparator.naturalOrder()).orElseThrow();
               if (history.lastAggregateVersion() < maxEventId) {
                 logger.info("Updating projection ->" + projection.projection().getClass().getName());
-                return proxy.wakeUp(new AggregateKey(entityEvents.getKey(), entityEvents.getValue().stream().findFirst().orElseThrow().baseRecord().tenantId()))
+                return proxy.wakeUp(new AggregateRecordKey(entityEvents.getKey(), entityEvents.getValue().stream().findFirst().orElseThrow().baseRecord().tenantId()))
                   .flatMap(aggregateState -> projection.update(
                       aggregateState,
                       entityEvents.getValue().stream()

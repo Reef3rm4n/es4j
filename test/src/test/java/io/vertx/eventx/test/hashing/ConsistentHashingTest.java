@@ -9,7 +9,8 @@ import io.vertx.eventx.consistenthashing.exceptions.MemberAlreadyAddedException;
 import io.vertx.eventx.consistenthashing.exceptions.MemberNotFoundException;
 import io.vertx.eventx.consistenthashing.member.Member;
 import io.vertx.eventx.consistenthashing.member.impl.MemberImpl;
-import io.vertx.eventx.storage.pg.models.AggregateKey;
+import io.vertx.eventx.infrastructure.models.AggregateKey;
+import io.vertx.eventx.infrastructure.pg.models.AggregateRecordKey;
 import org.ishugaliy.allgood.consistent.hash.HashRing;
 import org.ishugaliy.allgood.consistent.hash.hasher.DefaultHasher;
 import org.ishugaliy.allgood.consistent.hash.node.SimpleNode;
@@ -26,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class ConsistentHashingTest {
   private static final Logger LOGGER = LoggerFactory.getLogger(ConsistentHashingTest.class);
 
-  List<AggregateKey> KEYS = IntStream.range(0, 1000000)
-    .mapToObj(i -> new AggregateKey(UUID.randomUUID().toString(), "default"))
+  List<AggregateRecordKey> KEYS = IntStream.range(0, 1000000)
+    .mapToObj(i -> new AggregateRecordKey(UUID.randomUUID().toString(), "default"))
     .toList();
 
   private ArrayList<Member> createMembers(Consistent c, int numMembers) {
@@ -76,7 +77,7 @@ class ConsistentHashingTest {
     hashRingMetrics.printLoadDistribution();
     hashRingMetrics.printStandardDeviation();
     hashRingMetrics.printExtrema();
-    final var key = new AggregateKey(UUID.randomUUID().toString(), "default");
+    final var key = new AggregateRecordKey(UUID.randomUUID().toString(), "default");
     final var location = hashRingMetrics.locate(key.aggregateId() + "::" + key.tenantId()).get();
     IntStream.range(0, CONSISTENCY_ITERATIONS).forEach(i -> {
       final var loc = hashRingMetrics.locate(key.aggregateId() + "::" + key.tenantId());

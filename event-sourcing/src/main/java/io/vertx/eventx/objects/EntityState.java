@@ -5,8 +5,9 @@ import com.google.common.collect.EvictingQueue;
 import io.vertx.eventx.Aggregate;
 
 import io.vertx.core.shareddata.Shareable;
-import io.vertx.eventx.storage.pg.models.AggregateSnapshot;
-import io.vertx.eventx.storage.pg.models.EventRecord;
+import io.vertx.eventx.infrastructure.models.Event;
+import io.vertx.eventx.infrastructure.pg.models.AggregateSnapshotRecord;
+import io.vertx.eventx.infrastructure.pg.models.EventRecord;
 
 
 import java.util.ArrayList;
@@ -16,12 +17,12 @@ import java.util.StringJoiner;
 public class EntityState<T extends Aggregate> implements Shareable {
 
   private T aggregateState = null;
-  private final List<EventRecord> eventsAfterSnapshot;
+  private final List<Event> eventsAfterSnapshot;
   private final EvictingQueue<String> commands;
   private Integer processedEventsAfterLastSnapshot = 0;
   private  Integer snapshotAfter;
   private Boolean snapshotPresent = false;
-  private AggregateSnapshot snapshot = null;
+  private AggregateSnapshotRecord snapshot = null;
   private Long currentEventVersion = null;
 
   private Long provisoryEventVersion = null;
@@ -58,7 +59,7 @@ public class EntityState<T extends Aggregate> implements Shareable {
     return this;
   }
 
-  public List<EventRecord> eventsAfterSnapshot() {
+  public List<Event> eventsAfterSnapshot() {
     return eventsAfterSnapshot;
   }
 
@@ -89,11 +90,11 @@ public class EntityState<T extends Aggregate> implements Shareable {
     return this;
   }
 
-  public AggregateSnapshot snapshot() {
+  public AggregateSnapshotRecord snapshot() {
     return snapshot;
   }
 
-  public EntityState<T> setSnapshot(final AggregateSnapshot snapshot) {
+  public EntityState<T> setSnapshot(final AggregateSnapshotRecord snapshot) {
     this.snapshot = snapshot;
     return this;
   }

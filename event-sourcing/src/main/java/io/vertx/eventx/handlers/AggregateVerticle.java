@@ -2,31 +2,24 @@ package io.vertx.eventx.handlers;
 
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
-import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.eventx.cache.VertxAggregateCache;
-import io.vertx.eventx.common.CommandHeaders;
+import io.vertx.eventx.infrastructure.Infrastructure;
+import io.vertx.eventx.infrastructure.bus.AggregateBus;
 import io.vertx.eventx.common.EventXError;
 import io.vertx.eventx.common.exceptions.EventXException;
 import io.vertx.eventx.objects.*;
-import io.vertx.eventx.storage.pg.mappers.AggregateSnapshotMapper;
-import io.vertx.eventx.storage.pg.mappers.EventJournalMapper;
-import io.vertx.eventx.storage.pg.mappers.RejectedCommandMapper;
-import io.vertx.eventx.storage.pg.models.AggregateKey;
+import io.vertx.eventx.infrastructure.pg.models.AggregateRecordKey;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.eventx.Command;
 import io.vertx.eventx.Behaviour;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Aggregator;
-import io.vertx.eventx.sql.Repository;
-import io.vertx.eventx.sql.RepositoryHandler;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.common.CustomClassLoader;
-import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -48,15 +41,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   public static final String ACTION = "action";
   public static final String CLASS_NAME = "className";
-
   private final ModuleBuilder moduleBuilder;
   private final Class<T> aggregateClass;
-  private EntityConfiguration entityConfiguration;
-  private RepositoryHandler repositoryHandler;
-  public AggregateLogic<T> logic;
-  private VertxAggregateCache<T, EntityState<T>> vertxAggregateCache = null;
+  private AggregateConfiguration aggregateConfiguration;
+  private AggregateLogic<T> logic;
   private List<BehaviourWrapper> behaviourWrappers;
   private List<AggregatorWrapper> aggregatorWrappers;
+  private Infrastructure<T> infrastructure;
 
   public AggregateVerticle(
     final Class<T> aggregateClass,
@@ -68,36 +59,27 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   @Override
   public Uni<Void> asyncStart() {
-    this.entityConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(EntityConfiguration.class);
+    this.aggregateConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(AggregateConfiguration.class);
     LOGGER.info("Starting Entity Actor " + aggregateClass.getSimpleName());
     final var injector = startInjector();
     this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
     this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
-    if (Boolean.TRUE.equals(entityConfiguration.useCache())) {
-      this.vertxAggregateCache = new VertxAggregateCache<>(
-        vertx,
-        aggregateClass,
-        entityConfiguration.aggregateCacheTtlInMinutes()
-      );
-    }
+    this.infrastructure = Infrastructure.bootstrap(aggregateClass, vertx, config());
     this.logic = new AggregateLogic<>(
       aggregateClass,
       aggregatorWrappers,
       behaviourWrappers,
-      entityConfiguration,
-      new Repository<>(EventJournalMapper.INSTANCE, repositoryHandler),
-      Boolean.TRUE.equals(entityConfiguration.snapshots()) ? new Repository<>(AggregateSnapshotMapper.INSTANCE, repositoryHandler) : null,
-      new Repository<>(RejectedCommandMapper.INSTANCE, repositoryHandler),
-      vertxAggregateCache
+      aggregateConfiguration,
+      infrastructure
     );
-    return AggregateChannel.registerCommandConsumer(
+    return AggregateBus.registerCommandConsumer(
       vertx,
       aggregateClass,
       this.deploymentID(),
       jsonMessage -> {
         LOGGER.info("Incoming command " + jsonMessage.body().encodePrettily());
         final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
-          case LOAD -> logic.load(jsonMessage.body().mapTo(AggregateKey.class));
+          case LOAD -> logic.load(jsonMessage.body().mapTo(AggregateRecordKey.class));
           case COMMAND -> logic.process(jsonMessage.headers().get(CLASS_NAME), jsonMessage.body());
           case COMPOSITE_COMMAND -> logic.process(jsonMessage.body().mapTo(CompositeCommandWrapper.class));
         };
@@ -117,25 +99,10 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     );
   }
 
-  private void addContextualData(DeliveryContext<Object> event) {
-    final var commandID = event.message().headers().get(CommandHeaders.COMMAND_ID);
-    final var tenantID = event.message().headers().get(CommandHeaders.TENANT_ID);
-    if (commandID != null) {
-      ContextualData.put(CommandHeaders.COMMAND_ID, commandID);
-    }
-    if (tenantID != null) {
-      ContextualData.put(CommandHeaders.TENANT_ID, tenantID);
-    }
-    ContextualData.put("aggregate", aggregateClass.getSimpleName());
-    event.next();
-  }
-
   private Injector startInjector() {
-    this.repositoryHandler = RepositoryHandler.leasePool(config(), vertx, aggregateClass);
-    moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
-    moduleBuilder.bind(EntityConfiguration.class).toInstance(entityConfiguration);
+    moduleBuilder.bind(AggregateConfiguration.class).toInstance(aggregateConfiguration);
     return Injector.of(moduleBuilder.build());
   }
 
@@ -231,10 +198,10 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   @Override
   public Uni<Void> asyncStop() {
     LOGGER.info("Stopping " + aggregateClass.getSimpleName());
-    AggregateChannel.killActor(vertx, aggregateClass, this.deploymentID());
+    AggregateBus.killActor(vertx, aggregateClass, this.deploymentID());
     LOGGER.info("[deploymentIDs:" + vertx.deploymentIDs() + "]");
     LOGGER.info("[contextID:" + context.deploymentID() + "]");
-    return repositoryHandler.close();
+    return infrastructure.stop();
   }
 
 
