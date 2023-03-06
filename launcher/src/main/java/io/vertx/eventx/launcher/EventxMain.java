@@ -25,17 +25,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
 
-public class EventXMain extends AbstractVerticle {
+public class EventxMain extends AbstractVerticle {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(EventXMain.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
   public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadComponents());
-  private List<AggregateResources> resources = new ArrayList<>();
+  private List<AggregateResources<? extends Aggregate>> resources = new ArrayList<>();
 
   @Override
   public void start(final Promise<Void> startPromise) {
-    LOGGER.info(" ---- Starting " + this.getClass().getSimpleName() + " " + this.deploymentID() + " ---- ");
-    LOGGER.info("Bindings -> " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
-    Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- Mutiny [event.x] Infrastructure had to drop the following exception --]", throwable));
+    LOGGER.info(" ---- Starting " + this.getClass().getSimpleName() + " ----");
+    Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x] Infrastructure had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
     addEventBusInterceptors();
     startAggregateResources(startPromise);
@@ -75,39 +74,40 @@ public class EventXMain extends AbstractVerticle {
         }
       )
       .toList();
-   Uni.join().all(futures).andFailFast()
-     .flatMap(avoid -> deployRoutes())
-     .subscribe()
-     .with(
-       aVoid -> {
-         startPromise.complete();
-         LOGGER.info("---------------------------------- Event.x Main Started -----------------------------------");
-       }
-       , throwable -> {
-         LOGGER.error("---------------------- Error starting Event.x ------------------------------------------", throwable);
-         vertx.closeAndForget();
-         startPromise.fail(throwable);
-       }
-     );
+    LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
+    Uni.join().all(futures).andFailFast()
+      .flatMap(avoid -> deployRoutes())
+      .subscribe()
+      .with(
+        aVoid -> {
+          startPromise.complete();
+          LOGGER.info("---------------------------------- Event.x Main Started -----------------------------------");
+        }
+        , throwable -> {
+          LOGGER.error("---------------------- Error starting Event.x ------------------------------------------", throwable);
+          vertx.closeAndForget();
+          startPromise.fail(throwable);
+        }
+      );
   }
 
   private Uni<Void> deployRoutes() {
     // this deploys all the aggregate routes to all routers.
     final Supplier<Verticle> verticleSupplier = () -> new HttpRouter(ModuleBuilder.create().install(MAIN_MODULES));
     return vertx.deployVerticle(
-      verticleSupplier,new DeploymentOptions()
-        .setInstances(CpuCoreSensor.availableProcessors() * 2)
-    )
+        verticleSupplier, new DeploymentOptions()
+          .setInstances(CpuCoreSensor.availableProcessors() * 2)
+      )
       .replaceWithVoid();
   }
 
   private void handleException(Throwable throwable) {
-    LOGGER.error("[-- EventXMain had to drop the following exception --]", throwable);
+    LOGGER.error("[-- Event.x Main had to drop the following exception --]", throwable);
   }
 
   @Override
   public void stop(final Promise<Void> stopPromise) {
-    LOGGER.warn("Stopping EventXMain deploymentID " + context.deploymentID());
+    LOGGER.warn("Stopping Event.x Main deploymentID " + context.deploymentID());
     undeployComponent()
       .subscribe()
       .with(avoid -> stopPromise.complete(), stopPromise::fail);
@@ -116,9 +116,7 @@ public class EventXMain extends AbstractVerticle {
 
   private Uni<Void> undeployComponent() {
     return Multi.createFrom().iterable(resources)
-      .onItem().transformToUniAndMerge(
-        resource -> resource.close()
-      )
+      .onItem().transformToUniAndMerge(AggregateResources::close)
       .collect().asList()
       .replaceWithVoid();
   }

@@ -5,8 +5,8 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.exceptions.RestChannelError;
+import io.vertx.eventx.common.EventxError;
+import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.infrastructure.pg.models.AggregateRecordKey;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.HttpRequest;
@@ -95,17 +95,17 @@ public class AggregateHttpClient<T extends Aggregate> {
     if (response.statusCode() == 200) {
       return t.mapTo(aggregateClass);
     }
-    final var error = response.bodyAsJsonObject().mapTo(EventXError.class);
+    final var error = response.bodyAsJsonObject().mapTo(EventxError.class);
     logger.error(error);
-    throw new RestChannelError(error);
+    throw new CommandRejected(error);
   }
 
   private void checkNotFound(HttpResponse<Buffer> response) {
     if (response.statusCode() == 404) {
       logger.error(response.bodyAsString());
-      final var error = response.bodyAsJsonObject().mapTo(EventXError.class);
+      final var error = response.bodyAsJsonObject().mapTo(EventxError.class);
       logger.error(error);
-      throw new RestChannelError(error);
+      throw new CommandRejected(error);
     }
   }
 

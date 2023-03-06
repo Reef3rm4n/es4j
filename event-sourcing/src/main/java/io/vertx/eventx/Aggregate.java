@@ -12,8 +12,8 @@ public interface Aggregate extends Shareable {
     return "default";
   }
 
-  default Optional<Class<? extends Command>> finalState() {
-    return Optional.empty();
+  default boolean finalState() {
+    return false;
   }
 
 }

@@ -8,7 +8,7 @@
 
 package io.vertx.eventx.config;
 
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
@@ -48,7 +48,7 @@ public class TarGzipHandler {
         tOut.finish();
       }
     } catch (Exception e) {
-      throw new EventXException("unable to compress files", e.getMessage(), 500);
+      throw new EventxException("unable to compress files", e.getMessage(), 500);
     }
     return outputFilePath;
   }
@@ -85,7 +85,7 @@ public class TarGzipHandler {
         }
       }
     } catch (Exception e) {
-      throw new EventXException("unable to decompress files", e.getMessage(), 500);
+      throw new EventxException("unable to decompress files", e.getMessage(), 500);
     }
     return targetDir;
   }

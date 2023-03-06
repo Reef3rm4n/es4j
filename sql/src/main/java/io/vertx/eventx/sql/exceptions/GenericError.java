@@ -2,9 +2,9 @@ package io.vertx.eventx.sql.exceptions;
 
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class GenericError extends EventXException {
+public class GenericError extends EventxException {
 
 
   public GenericError(EventXError cobraEventXError) {

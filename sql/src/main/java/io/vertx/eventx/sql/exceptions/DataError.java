@@ -2,11 +2,11 @@ package io.vertx.eventx.sql.exceptions;
 
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
 import java.util.List;
 
-public class DataError extends EventXException {
+public class DataError extends EventxException {
 
   public DataError(EventXError cobraEventXError) {
     super(cobraEventXError);

@@ -3,10 +3,11 @@ package io.vertx.eventx.handlers;
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.eventx.infrastructure.Infrastructure;
+import io.vertx.eventx.infrastructure.Infra;
+import io.vertx.eventx.infrastructure.PgInfrastructure;
 import io.vertx.eventx.infrastructure.bus.AggregateBus;
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 import io.vertx.eventx.objects.*;
 import io.vertx.eventx.infrastructure.pg.models.AggregateRecordKey;
 import io.vertx.mutiny.core.Vertx;
@@ -47,7 +48,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   private AggregateLogic<T> logic;
   private List<BehaviourWrapper> behaviourWrappers;
   private List<AggregatorWrapper> aggregatorWrappers;
-  private Infrastructure<T> infrastructure;
+  private Infra<T> pgInfrastructure;
 
   public AggregateVerticle(
     final Class<T> aggregateClass,
@@ -64,13 +65,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     final var injector = startInjector();
     this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
     this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
-    this.infrastructure = Infrastructure.bootstrap(aggregateClass, vertx, config());
+    this.pgInfrastructure = injector.getInstance(Infra.class);
     this.logic = new AggregateLogic<>(
       aggregateClass,
       aggregatorWrappers,
       behaviourWrappers,
       aggregateConfiguration,
-      infrastructure
+      pgInfrastructure
     );
     return AggregateBus.registerCommandConsumer(
       vertx,
@@ -79,16 +80,15 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       jsonMessage -> {
         LOGGER.info("Incoming command " + jsonMessage.body().encodePrettily());
         final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
-          case LOAD -> logic.load(jsonMessage.body().mapTo(AggregateRecordKey.class));
+          case LOAD -> logic.fetch(jsonMessage.body().mapTo(AggregateRecordKey.class));
           case COMMAND -> logic.process(jsonMessage.headers().get(CLASS_NAME), jsonMessage.body());
-          case COMPOSITE_COMMAND -> logic.process(jsonMessage.body().mapTo(CompositeCommandWrapper.class));
         };
         responseUni.subscribe()
           .with(
             jsonMessage::reply,
             throwable -> {
-              if (throwable instanceof EventXException vertxServiceException) {
-                jsonMessage.fail(vertxServiceException.error().errorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
+              if (throwable instanceof EventxException vertxServiceException) {
+                jsonMessage.fail(vertxServiceException.error().internalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
               } else {
                 LOGGER.error("Unexpected exception raised -> " + jsonMessage.body(), throwable);
                 jsonMessage.fail(500, JsonObject.mapFrom(new EventXError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
@@ -201,7 +201,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     AggregateBus.killActor(vertx, aggregateClass, this.deploymentID());
     LOGGER.info("[deploymentIDs:" + vertx.deploymentIDs() + "]");
     LOGGER.info("[contextID:" + context.deploymentID() + "]");
-    return infrastructure.stop();
+    return pgInfrastructure.stop();
   }
 
 

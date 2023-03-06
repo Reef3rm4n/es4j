@@ -2,12 +2,12 @@ package io.vertx.eventx.sql.exceptions;
 
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
 import java.util.Collection;
 import java.util.List;
 
-public class UnmanagedQueryParam extends EventXException {
+public class UnmanagedQueryParam extends EventxException {
   public UnmanagedQueryParam(EventXError eventxError) {
     super(eventxError);
   }

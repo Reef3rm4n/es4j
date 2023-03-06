@@ -7,9 +7,9 @@ import io.vertx.eventx.http.HttpRouter;
 
 import java.util.function.Supplier;
 
-import static io.vertx.eventx.launcher.EventXMain.MAIN_MODULES;
+import static io.vertx.eventx.launcher.EventxMain.MAIN_MODULES;
 
-public class EventXRouteVerticle implements Verticle {
+public class EventxRouteVerticle implements Verticle {
 
 
   @Override

@@ -34,7 +34,6 @@ public class AggregateHttpProxy implements HttpRoute {
 
   @Override
   public void registerRoutes(Router router) {
-
     router.post("/" + aggregateClass.getSimpleName().toLowerCase())
       .consumes(Constants.APPLICATION_JSON)
       .produces(Constants.APPLICATION_JSON)

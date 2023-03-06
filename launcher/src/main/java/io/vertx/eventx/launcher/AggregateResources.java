@@ -2,12 +2,12 @@ package io.vertx.eventx.launcher;
 
 import io.activej.inject.Injector;
 import io.activej.inject.annotation.Inject;
+import io.activej.inject.annotation.Named;
 import io.activej.inject.annotation.Provides;
 import io.activej.inject.module.AbstractModule;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
@@ -22,13 +22,12 @@ import io.vertx.eventx.common.CustomClassLoader;
 import io.vertx.eventx.config.ConfigurationDeployer;
 import io.vertx.eventx.config.ConfigurationHandler;
 import io.vertx.eventx.http.HealthCheck;
+import io.vertx.eventx.infrastructure.PgInfrastructure;
 import io.vertx.eventx.infrastructure.proxies.AggregateEventbusProxy;
 import io.vertx.eventx.objects.ProjectionWrapper;
 import io.vertx.eventx.infrastructure.proxies.AggregateHttpProxy;
-import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.RepositoryHandler;
-import io.vertx.eventx.sql.misc.Constants;
 import io.vertx.eventx.infrastructure.pg.mappers.EntityProjectionHistoryMapper;
 import io.vertx.eventx.infrastructure.pg.mappers.EventJournalMapper;
 import io.vertx.eventx.infrastructure.pg.mappers.EventJournalOffsetMapper;
@@ -39,24 +38,23 @@ import io.vertx.mutiny.core.Vertx;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
+import static io.vertx.eventx.infrastructure.bus.AggregateBus.HASH_RING_MAP;
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.createChannel;
-import static io.vertx.eventx.launcher.EventXMain.MAIN_MODULES;
+import static io.vertx.eventx.launcher.EventxMain.MAIN_MODULES;
 
 public class AggregateResources<T extends Aggregate> {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateResources.class);
-  public static final String EVENT_SOURCING_XML = "event-sourcing.xml";
   private final Vertx vertx;
   private final String deploymentID;
   private final ArrayList<Module> localModules;
   private final TimerTaskDeployer timerTaskDeployer;
   private final ConfigurationDeployer configurationDeployer;
   private ConfigRetriever deploymentConfiguration;
-  private RepositoryHandler repositoryHandler;
   private final Class<T> aggregateClass;
+  private PgInfrastructure<T> infrastructure;
 
   public AggregateResources(
     Class<T> aggregateClass,
@@ -76,7 +74,7 @@ public class AggregateResources<T extends Aggregate> {
   public void deploy(final Promise<Void> startPromise) {
     injectHeardBeatTimerInLocalModule();
     injectProjectionsTimerLocalModule();
-    injectHealthChecks();
+    injectHealthChecksInMainModule();
     final var moduleBuilder = ModuleBuilder.create().install(localModules);
     this.deploymentConfiguration = ConfigurationHandler.configure(
       vertx,
@@ -85,21 +83,17 @@ public class AggregateResources<T extends Aggregate> {
         LOGGER.info("---------------------------------- Starting Event.x Aggregate " + aggregateClass.getSimpleName() + "-----------------------------------" + newConfiguration.encodePrettily());
         close()
           .flatMap(avoid -> {
-              this.repositoryHandler = RepositoryHandler.leasePool(newConfiguration, vertx, aggregateClass);
-              moduleBuilder.bind(RepositoryHandler.class).toInstance(repositoryHandler);
+              this.infrastructure = new PgInfrastructure<>(aggregateClass, newConfiguration, vertx);
+              moduleBuilder.bind(PgInfrastructure.class).toInstance(infrastructure);
               moduleBuilder.bind(Vertx.class).toInstance(vertx);
               moduleBuilder.bind(JsonObject.class).toInstance(newConfiguration);
+              moduleBuilder.bind(RepositoryHandler.class).toInstance(infrastructure.repositoryHandler());
               final var injector = Injector.of(moduleBuilder.build());
-              return LiquibaseHandler.liquibaseString(
-                  repositoryHandler,
-                  EVENT_SOURCING_XML,
-                  Map.of(Constants.SCHEMA, RepositoryHandler.camelToSnake(aggregateClass.getSimpleName()))
-                )
-                .replaceWith(Tuple2.of(injector, repositoryHandler));
+              return infrastructure.start().replaceWith(injector);
             }
           )
-          .call(tuple2 -> configurationDeployer.deploy(tuple2.getItem1(), tuple2.getItem2()))
-          .invoke(tuple2 -> timerTaskDeployer.deploy(tuple2.getItem2(), tuple2.getItem1()))
+          .call(configurationDeployer::deploy)
+          .invoke(timerTaskDeployer::deploy)
           .call(injector -> {
               final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules));
               return createChannel(vertx, aggregateClass, deploymentID)
@@ -126,7 +120,7 @@ public class AggregateResources<T extends Aggregate> {
     );
   }
 
-  private void injectHealthChecks() {
+  private void injectHealthChecksInMainModule() {
     MAIN_MODULES.add(
       new AbstractModule() {
 
@@ -136,14 +130,39 @@ public class AggregateResources<T extends Aggregate> {
           return new HealthCheck() {
             @Override
             public String name() {
-              return aggregateClass.getSimpleName();
+              return aggregateClass.getSimpleName() + "-bus";
             }
+
+            // implement health check on aggregate bus
+            @Override
+            public Uni<Status> checkHealth() {
+              if (HASH_RING_MAP.isEmpty()) {
+                return Uni.createFrom().item(Status.KO());
+              }
+              return Uni.createFrom().item(Status.OK());
+            }
+          };
+
+        }
+
+        @Inject
+        @Provides
+        @Named("aggregateHashRing")
+        HealthCheck aggregateHealthCheckRing() {
+          return new HealthCheck() {
+            @Override
+            public String name() {
+              return aggregateClass.getSimpleName() + "-hash-ring";
+            }
+
+            // implement health check on aggregate bus
 
             @Override
             public Uni<Status> checkHealth() {
               return Uni.createFrom().item(Status.OK());
             }
           };
+
         }
       }
     );
@@ -211,7 +230,7 @@ public class AggregateResources<T extends Aggregate> {
   public Uni<Void> close() {
     deploymentConfiguration.close();
     timerTaskDeployer.close();
-    return configurationDeployer.close().flatMap(avoid -> repositoryHandler.close());
+    return configurationDeployer.close().flatMap(avoid -> infrastructure.stop());
   }
 
 }

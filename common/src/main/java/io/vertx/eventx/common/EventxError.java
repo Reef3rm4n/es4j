@@ -1,6 +1,5 @@
 package io.vertx.eventx.common;
 
-import io.vertx.core.json.JsonObject;
 
 public record EventxError(
   ErrorSource errorSource,
@@ -9,4 +8,8 @@ public record EventxError(
   String hint,
   Integer internalErrorCode
 ) {
+
+  public EventxError(String cause, String hint, Integer internalErrorCode) {
+    this(ErrorSource.UNKNOWN, null, cause, hint, internalErrorCode);
+  }
 }

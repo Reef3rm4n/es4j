@@ -14,10 +14,10 @@ import io.vertx.micrometer.VertxPrometheusOptions;
 import io.vertx.micrometer.backends.BackendRegistries;
 
 
-public class EventXLauncher extends Launcher {
+public class EventxLauncher extends Launcher {
 
   public static void main(String[] args) {
-    new EventXLauncher().dispatch(args);
+    new EventxLauncher().dispatch(args);
   }
 
 

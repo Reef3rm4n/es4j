@@ -15,7 +15,7 @@ import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 import io.vertx.ext.healthchecks.Status;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.micrometer.PrometheusScrapingHandler;
@@ -23,7 +23,6 @@ import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.http.HttpServer;
 import io.vertx.mutiny.core.http.HttpServerRequest;
 import io.vertx.mutiny.ext.healthchecks.HealthCheckHandler;
-import io.vertx.mutiny.ext.web.FileUpload;
 import io.vertx.mutiny.ext.web.Router;
 import io.vertx.mutiny.ext.web.RoutingContext;
 import io.vertx.mutiny.ext.web.handler.BodyHandler;
@@ -178,7 +177,7 @@ public class HttpRouter extends AbstractVerticle {
 
   private void failureHandler(RoutingContext routingContext) {
     routingContext.failure();
-    if (routingContext.failure() instanceof final EventXException vertxServiceException) {
+    if (routingContext.failure() instanceof final EventxException vertxServiceException) {
       respondWithServerManagedError(routingContext, vertxServiceException.error());
     } else {
       final var error = failureHandlerHook(routingContext.failure());

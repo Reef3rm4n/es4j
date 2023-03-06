@@ -1,9 +1,9 @@
 package io.vertx.eventx.http;
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class RouterException extends EventXException {
+public class RouterException extends EventxException {
   public RouterException(EventXError eventxError) {
     super(eventxError);
   }

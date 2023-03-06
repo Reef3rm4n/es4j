@@ -1,12 +1,12 @@
 package io.vertx.eventx.exceptions;
 
 
-import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.EventxError;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class CommandRejected extends EventXException {
+public class CommandRejected extends EventxException {
 
-  public CommandRejected(final EventXError eventxError) {
+  public CommandRejected(final EventxError eventxError) {
     super(eventxError);
   }
 
@@ -15,7 +15,7 @@ public class CommandRejected extends EventXException {
   }
 
 
-  public EventXError error() {
+  public EventxError error() {
     return super.error();
   }
 

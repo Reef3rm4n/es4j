@@ -1,9 +1,9 @@
 package io.vertx.eventx.exceptions;
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class UnknownCommand extends EventXException {
+public class UnknownCommand extends EventxException {
 
 
   public UnknownCommand(final EventXError eventxError) {

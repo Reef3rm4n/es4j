@@ -28,14 +28,14 @@ public class ConfigurationDeployer {
   public PgSubscriber pgSubscriber;
 
 
-  public Uni<Injector> deploy(Injector injector, RepositoryHandler repositoryHandler) {
-    final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, repositoryHandler);
+  public Uni<Injector> deploy(Injector injector) {
+    final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, injector.getInstance(RepositoryHandler.class));
     final var kubernetesConfiguration = CustomClassLoader.loadFromInjector(injector, KubernetesConfiguration.class);
     if (!kubernetesConfiguration.isEmpty()) {
-      bootstrapKubernetesBasedConfiguration(repositoryHandler, kubernetesConfiguration);
+      bootstrapKubernetesBasedConfiguration(injector.getInstance(RepositoryHandler.class), kubernetesConfiguration);
     }
     if (CustomClassLoader.checkPresence(injector, Configuration.class)) {
-      return bootstrapRepositoryBasedConfiguration(injector, repositoryHandler, repository);
+      return bootstrapRepositoryBasedConfiguration(injector, injector.getInstance(RepositoryHandler.class), repository);
     }
     if (CustomClassLoader.checkPresence(injector, KubernetesSecret.class)) {
 

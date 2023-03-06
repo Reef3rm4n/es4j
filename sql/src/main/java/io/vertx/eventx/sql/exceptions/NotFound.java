@@ -2,9 +2,9 @@ package io.vertx.eventx.sql.exceptions;
 
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class NotFound extends EventXException {
+public class NotFound extends EventxException {
   public NotFound(EventXError cobraEventXError) {
     super(cobraEventXError);
   }

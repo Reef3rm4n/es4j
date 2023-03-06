@@ -12,7 +12,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.infrastructure.vertx.Actions;
 import io.vertx.eventx.exceptions.CommandRejected;
-import io.vertx.eventx.exceptions.NodeNotFound;
+import io.vertx.eventx.exceptions.NodeUnavailable;
 import io.vertx.eventx.exceptions.UnknownCommand;
 import io.vertx.eventx.objects.Action;
 import io.vertx.eventx.infrastructure.pg.models.AggregateRecordKey;
@@ -20,7 +20,7 @@ import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.eventbus.Message;
 import io.vertx.mutiny.core.eventbus.MessageConsumer;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.common.EventXError;
+import io.vertx.eventx.common.EventxError;
 import org.ishugaliy.allgood.consistent.hash.HashRing;
 import org.ishugaliy.allgood.consistent.hash.hasher.DefaultHasher;
 import org.ishugaliy.allgood.consistent.hash.node.SimpleNode;
@@ -32,7 +32,7 @@ import java.util.Objects;
 import java.util.function.Consumer;
 
 import static io.vertx.core.eventbus.ReplyFailure.RECIPIENT_FAILURE;
-import static io.vertx.eventx.infrastructure.bus.BusAddress.commandConsumer;
+import static io.vertx.eventx.infrastructure.bus.AddressResolver.commandConsumer;
 
 public class AggregateBus {
   private AggregateBus() {
@@ -49,7 +49,7 @@ public class AggregateBus {
       .build();
   }
 
-  private static final Map<Class<? extends Aggregate>, HashRing<SimpleNode>> HASH_RING_MAP = new HashMap<>();
+  public static final Map<Class<? extends Aggregate>, HashRing<SimpleNode>> HASH_RING_MAP = new HashMap<>();
 
   // todo put a pipe in the channel that routes commands from the eventbus to the correct handler.
   public static <T extends Aggregate> Uni<Void> createChannel(Vertx vertx, Class<T> entityClass, String deploymentID) {
@@ -61,7 +61,7 @@ public class AggregateBus {
   }
 
   private static <T extends Aggregate> MessageConsumer<JsonObject> commandBridge(Vertx vertx, Class<T> entityClass) {
-    return vertx.eventBus().<JsonObject>consumer(BusAddress.commandBridge(entityClass))
+    return vertx.eventBus().<JsonObject>consumer(AddressResolver.commandBridge(entityClass))
       .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
       .handler(message -> request(
           vertx,
@@ -73,7 +73,7 @@ public class AggregateBus {
   }
 
   private static <T extends Aggregate> Uni<Void> broadcastConsumer(Vertx vertx, Class<T> entityClass) {
-    return vertx.eventBus().<String>consumer(BusAddress.broadcastChannel(entityClass))
+    return vertx.eventBus().<String>consumer(AddressResolver.broadcastChannel(entityClass))
       .handler(objectMessage -> synchronizeChannel(objectMessage, entityClass))
       .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
       .completionHandler()
@@ -84,7 +84,7 @@ public class AggregateBus {
         .map(Unchecked.function(
             aBoolean -> {
               if (Boolean.TRUE.equals(aBoolean)) {
-                throw new NodeNotFound(new EventXError("Hash ring empty", "Hash ring synchronizer was still empty after 10 seconds, there's no entity deployed in the platform", -999));
+                throw new NodeUnavailable(new EventxError("Hash ring empty", "Hash ring synchronizer was still empty after 10 seconds, there's no entity deployed in the platform", -999));
               }
               return aBoolean;
             }
@@ -95,7 +95,7 @@ public class AggregateBus {
   }
 
   private static <T extends Aggregate> Uni<Void> invokeConsumer(Vertx vertx, Class<T> entityClass, String deploymentID) {
-    return vertx.eventBus().<String>consumer(BusAddress.invokeChannel(entityClass))
+    return vertx.eventBus().<String>consumer(AddressResolver.invokeChannel(entityClass))
       .handler(stringMessage -> broadcastActorAddress(vertx, entityClass, deploymentID))
       .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
       .completionHandler()
@@ -105,7 +105,7 @@ public class AggregateBus {
   public static <T extends Aggregate> void broadcastActorAddress(Vertx vertx, Class<T> entityClass, String deploymentID) {
     LOGGER.info("New command consumer " + entityClass.getSimpleName() + " [address: " + commandConsumer(entityClass, deploymentID) + "]");
     vertx.eventBus().<String>publish(
-      BusAddress.broadcastChannel(entityClass),
+      AddressResolver.broadcastChannel(entityClass),
       commandConsumer(entityClass, deploymentID),
       new DeliveryOptions()
         .setLocalOnly(false)
@@ -116,7 +116,7 @@ public class AggregateBus {
 
   public static <T extends Aggregate> void killActor(Vertx vertx, Class<T> entityClass, String deploymentID) {
     vertx.eventBus().publish(
-      BusAddress.broadcastChannel(entityClass),
+      AddressResolver.broadcastChannel(entityClass),
       commandConsumer(entityClass, deploymentID),
       new DeliveryOptions().addHeader(Actions.ACTION.name(), Actions.REMOVE.name())
     );
@@ -124,7 +124,7 @@ public class AggregateBus {
 
   public static <T extends Aggregate> void invokeActorsBroadcast(Class<T> entityClass, Vertx vertx) {
     vertx.eventBus().publish(
-      BusAddress.invokeChannel(entityClass),
+      AddressResolver.invokeChannel(entityClass),
       "",
       new DeliveryOptions().setLocalOnly(false)
     );
@@ -187,25 +187,25 @@ public class AggregateBus {
       LOGGER.error("Reply from handler -> ", reply);
       if (reply.failureType() == RECIPIENT_FAILURE) {
         try {
-          final var error = new JsonObject(reply.getLocalizedMessage()).mapTo(EventXError.class);
+          final var error = new JsonObject(reply.getLocalizedMessage()).mapTo(EventxError.class);
           return new CommandRejected(error);
         } catch (IllegalArgumentException illegalArgument) {
           LOGGER.error("Unable to parse rejectCommand -> ", illegalArgument);
-          return new CommandRejected(new EventXError(throwable.getMessage(), null, 500));
+          return new CommandRejected(new EventxError(throwable.getMessage(), null, 500));
         }
       } else {
-        return new CommandRejected(new EventXError(reply.failureType().name(), reply.getMessage(), reply.failureCode()));
+        return new CommandRejected(new EventxError(reply.failureType().name(), reply.getMessage(), reply.failureCode()));
       }
     } else {
       LOGGER.error("Unknown exception from handler -> ", throwable);
-      return new CommandRejected(new EventXError(throwable.getMessage(), null, 500));
+      return new CommandRejected(new EventxError(throwable.getMessage(), null, 500));
     }
   }
 
   public static <T extends Aggregate> String resolveActor(Class<T> entityClass, AggregateRecordKey key) {
     final var node = HASH_RING_MAP.get(entityClass).locate(entityClass.getSimpleName() + key.aggregateId());
     return node.orElse(HASH_RING_MAP.get(entityClass).getNodes().stream().findFirst()
-        .orElseThrow(() -> new NodeNotFound(key.aggregateId()))
+        .orElseThrow(() -> new NodeUnavailable(key.aggregateId()))
       )
       .getKey();
   }

@@ -2,9 +2,9 @@ package io.vertx.eventx.infrastructure.bus;
 
 import io.vertx.eventx.Aggregate;
 
-public class BusAddress {
+public class AddressResolver {
 
-  private BusAddress() {
+  private AddressResolver() {
   }
 
 

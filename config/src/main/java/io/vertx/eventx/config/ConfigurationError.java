@@ -1,15 +1,15 @@
 package io.vertx.eventx.config;
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class ConfigurationError extends EventXException {
+public class ConfigurationError extends EventxException {
   public ConfigurationError(EventXError eventxError) {
     super(eventxError);
   }
 
-  public static EventXException illegalState() {
-    return new EventXException(new EventXError("Illegal state", "", 500));
+  public static EventxException illegalState() {
+    return new EventxException(new EventXError("Illegal state", "", 500));
   }
 
 

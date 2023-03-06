@@ -1,9 +1,9 @@
 package io.vertx.eventx.queue.models;
 
 import io.vertx.eventx.common.EventXError;
-import io.vertx.eventx.common.exceptions.EventXException;
+import io.vertx.eventx.common.exceptions.EventxException;
 
-public class MessageProcessorException extends EventXException {
+public class MessageProcessorException extends EventxException {
 
   public MessageProcessorException(EventXError eventxError) {
     super(eventxError);

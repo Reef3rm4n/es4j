@@ -29,8 +29,8 @@ public class TimerTaskDeployer {
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
   }
-  public void deploy(RepositoryHandler repositoryHandler, final Injector injector) {
-    this.vertx = repositoryHandler.vertx();
+  public void deploy(final Injector injector) {
+    this.vertx = injector.getInstance(Vertx.class);
     if (CustomClassLoader.checkPresenceInBinding(injector, TimerTask.class)) {
       this.taskWrappers = CustomClassLoader.loadFromInjector(injector, TimerTask.class).stream()
         .map(task -> {
@@ -39,7 +39,7 @@ public class TimerTaskDeployer {
           }
         )
         .toList();
-      taskWrappers.forEach(taskWrapper -> triggerTask(taskWrapper, repositoryHandler.vertx(), 10L));
+      taskWrappers.forEach(taskWrapper -> triggerTask(taskWrapper, vertx, 10L));
     }
   }
 
