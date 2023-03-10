@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration debug="false">
+  <conversionRule conversionWord="vcl" converterClass="io.reactiverse.contextual.logging.LogbackConverter"/>
+  <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} [%thread] [%vcl{AGGREGATE}] [%vcl{TENANT-ID}] [%vcl{COMMAND-ID}] %-5level %logger{0} - %msg%n</pattern>
+    </encoder>
+  </appender>
+  <logger name="io.vertx" level="INFO"/>
+  <logger name="io.vertx.eventx" level="DEBUG"/>
+  <logger name="org.testcontainers" level="INFO"/>
+  <logger name="com.github.dockerjava" level="WARN"/>
+  <logger name="com.github.dockerjava.zerodep.shaded.org.apache.hc.client5.http.wire" level="OFF"/>
+  <logger name="io.netty.handler.logging.LoggingHandler" level="INFO"/>
+  <root level="INFO">
+    <appender-ref ref="STDOUT"/>
+  </root>
+</configuration>

@@ -5,23 +5,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.vertx.eventx</groupId>
-  <artifactId>eventx</artifactId>
+  <artifactId>eventx-framework</artifactId>
   <packaging>pom</packaging>
   <version>${revision}</version>
 
   <modules>
-    <module>common</module>
-    <module>solr-client</module>
-    <module>launcher</module>
-    <module>config</module>
-    <module>dependencies</module>
-    <module>http</module>
-    <module>event-sourcing</module>
-    <module>task-queue</module>
-    <module>saga</module>
-    <module>test</module>
-    <module>task</module>
-    <module>sql</module>
+    <module>eventx</module>
+    <module>eventx-test</module>
+    <module>eventx-dependencies</module>
+    <module>eventx-infrastructure</module>
+    <module>eventx-stack</module>
   </modules>
 
 
@@ -29,7 +22,7 @@
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <revision>1.0.0-SNAPSHOT</revision>
+    <revision>0.0.1-SNAPSHOT</revision>
     <sonar-maven-plugin.version>3.6.0.1398</sonar-maven-plugin.version>
     <flatten.maven.plugin.version>1.1.0</flatten.maven.plugin.version>
     <maven.gitflow.plugin.version>1.17.0</maven.gitflow.plugin.version>
@@ -79,12 +72,12 @@
           <pushRemote>false</pushRemote>
           <skipTestProject>true</skipTestProject>
           <gitFlowConfig>
-            <productionBranch>master_next</productionBranch>
-            <developmentBranch>next</developmentBranch>
-            <featureBranchPrefix>feature_next/</featureBranchPrefix>
-            <releaseBranchPrefix>release_next/</releaseBranchPrefix>
-            <hotfixBranchPrefix>hotfix_next/</hotfixBranchPrefix>
-            <supportBranchPrefix>support_next/</supportBranchPrefix>
+            <productionBranch>main</productionBranch>
+            <developmentBranch>develop</developmentBranch>
+            <featureBranchPrefix>feature/</featureBranchPrefix>
+            <releaseBranchPrefix>release/</releaseBranchPrefix>
+            <hotfixBranchPrefix>hotfix/</hotfixBranchPrefix>
+            <supportBranchPrefix>support/</supportBranchPrefix>
             <versionTagPrefix>${versionTagPrefix}</versionTagPrefix>
             <origin>origin</origin>
           </gitFlowConfig>
@@ -96,7 +89,4 @@
       </plugin>
     </plugins>
   </build>
-
-
-
 </project>
