@@ -241,15 +241,6 @@ public record RepositoryHandler(
     }
   }
 
-  private static SqlError postgressError(PgException pgException) {
-    return new SqlError(
-      "postgres",
-      pgException.getErrorMessage(),
-      pgException.getDetail(),
-      pgException.getCode()
-    );
-  }
-
   public Function<Supplier<Uni<RowSet<Row>>>, Uni<Long>> handleInsert(Object object) {
     final var start = Instant.now();
     return upstreamSupplier -> upstreamSupplier.get()

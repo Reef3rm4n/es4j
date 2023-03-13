@@ -69,26 +69,25 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     );
   }
 
-  public Uni<JsonObject> fetch(AggregatePlainKey aggregateRecordKey) {
+  public Uni<JsonObject> loadAggregate(AggregatePlainKey aggregateRecordKey) {
     LOGGER.debug("Loading aggregate locally  -> " + aggregateRecordKey);
-    return fetch(aggregateRecordKey.aggregateId(), aggregateRecordKey.tenantId(), ConsistencyStrategy.STRONGLY_CONSISTENT)
+    return loadAggregate(aggregateRecordKey.aggregateId(), aggregateRecordKey.tenantId())
       .map(JsonObject::mapFrom);
   }
 
   public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
     LOGGER.debug("Processing " + commandClass + " -> " + jsonCommand.encodePrettily());
-    final var command = getCommand(commandClass, jsonCommand);
-    return fetch(command.aggregateId(), command.headers().tenantId(), ConsistencyStrategy.EVENTUALLY_CONSISTENT)
-      .flatMap(
-        aggregateState -> processCommand(aggregateState, command)
-          .onFailure(Conflict.class).recoverWithUni(
-            () -> ensureConsistency(aggregateState, command.aggregateId(), command.headers().tenantId())
-              .flatMap(reconstructedState -> processCommand(reconstructedState, command))
-          )
-          .onFailure().invoke(throwable -> handleRejectedCommand(throwable, command))
+    final var command = parseCommand(commandClass, jsonCommand);
+    return loadAggregate(command.aggregateId(), command.headers().tenantId())
+      .flatMap(aggregateState -> processCommand(aggregateState, command)
+        .onFailure(Conflict.class)
+        .recoverWithUni(
+          () -> playFromLastJournalOffset(aggregateState)
+            .flatMap(reconstructedState -> processCommand(reconstructedState, command))
+        )
+        .onFailure().invoke(throwable -> logRejectedCommand(throwable, command))
       )
-      .invoke(this::handleSnapshot)
-      .map(state -> JsonObject.mapFrom(state.state()));
+      .map(JsonObject::mapFrom);
   }
 
   private T aggregateEvent(T aggregateState, final io.vertx.eventx.Event event) {
@@ -141,102 +140,51 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     return customBehaviour.process(aggregateState, command);
   }
 
-  private Uni<AggregateState<T>> fetch(String aggregateId, String tenant, ConsistencyStrategy consistencyStrategy) {
-    LOGGER.debug("Loading aggregate " + aggregateId + " with strategy " + consistencyStrategy);
-    return switch (consistencyStrategy) {
-      case EVENTUALLY_CONSISTENT -> {
-        AggregateState<T> state = null;
-        if (infrastructure.cache() != null) {
-          state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
-        }
-        if (state == null) {
-          yield eventSourceAggregate(aggregateId, tenant);
-        } else {
-          yield Uni.createFrom().item(state);
-        }
-      }
-      case STRONGLY_CONSISTENT -> {
-        AggregateState<T> state = null;
-        if (infrastructure.cache() != null) {
-          state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
-        }
-        if (state == null) {
-          yield eventSourceAggregate(aggregateId, tenant);
-        } else {
-          yield ensureConsistency(state, aggregateId, tenant);
-        }
-      }
-    };
-  }
-
-  private Uni<AggregateState<T>> ensureConsistency(AggregateState<T> state, final String aggregateId, final String tenant) {
-    if (configuration.operationMode() == OperationMode.PROD) {
-      LOGGER.warn("Ensuring consistency for aggregateId -> " + aggregateId);
-      return infrastructure.eventStore().stream(
-          new AggregateEventStream<>(
-            aggregateClass,
-            aggregateId,
-            tenant,
-            state.currentVersion(),
-            state.journalOffset()
-          ),
-          infraEvent -> applyEvent(state, infraEvent)
-        )
-        .map(avoid -> {
-            infrastructure.cache().put(
-              new AggregateKey<>(
-                aggregateClass,
-                aggregateId,
-                tenant
-              ),
-              state
-            );
-            return state;
-          }
-        );
+  private Uni<AggregateState<T>> loadAggregate(String aggregateId, String tenant) {
+    LOGGER.debug("Loading aggregateId[" + aggregateId + "::" + tenant + "]");
+    AggregateState<T> state = null;
+    if (infrastructure.cache() != null) {
+      state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
+    }
+    if (state == null) {
+      return playFromLastJournalOffset(new AggregateState<>(aggregateClass));
     } else {
-      LOGGER.warn("Event stream ignored operationMode[ " + configuration.operationMode() + "]");
       return Uni.createFrom().item(state);
     }
   }
 
-  private Uni<AggregateState<T>> eventSourceAggregate(final String aggregateId, final String tenant) {
-    final var state = new AggregateState<>(aggregateClass);
-    LOGGER.debug("Loading aggregate from event-store -> " + aggregateId);
+  private Uni<AggregateState<T>> playFromLastJournalOffset(AggregateState<T> state) {
+    LOGGER.debug("Playing from last journal offset");
     return infrastructure.eventStore().stream(
-        new AggregateEventStream<>(
-          aggregateClass,
-          aggregateId,
-          tenant,
-          state.currentVersion(),
-          state.journalOffset()
-        )
-        , event -> applyEvent(state, event)
+        streamInstruction(state),
+        infraEvent -> applyEvent(state, infraEvent)
       )
-      .map(avoid -> {
-          infrastructure.cache().put(new AggregateKey<>(
-              aggregateClass,
-              aggregateId,
-              tenant
-            ), state
-          );
-          return state;
-        }
-      );
+      .map(avoid -> cacheState(state));
   }
 
-  private void applyEvents(final AggregateState<T> state, final List<Event> events) {
+  private AggregateEventStream<T> streamInstruction(AggregateState<T> state) {
+    return new AggregateEventStream<>(
+      state.aggregateClass(),
+      state.state().aggregateId(),
+      state.state().tenantID(),
+      state.currentVersion(),
+      state.snapshotOffset()
+    );
+  }
+
+  private void aggregateEvents(final AggregateState<T> state, final List<Event> events) {
     events.stream()
       .sorted(Comparator.comparingLong(Event::eventVersion))
       .forEachOrdered(event -> {
           LOGGER.info("Aggregating event -> " + event.eventClass());
-          final var newState = aggregateEvent(state.state(), EventParser.getEvent(event.eventClass(), event.event()));
-          LOGGER.info("New aggregate state -> " + newState);
-          if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
-            state.knownCommands().add(event.commandId());
+          final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
+          final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
+          if (isSnapshot) {
+            applySnapshot(state, event, parsedEvent);
+          } else {
+            applyEvent(state, event, parsedEvent);
           }
-          state.setState(newState)
-            .setJournalOffset(event.journalOffset())
+          state
             .addKnownCommand(event.commandId())
             .setCurrentVersion(event.eventVersion());
         }
@@ -244,19 +192,39 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   }
 
-  private void applyEvent(final AggregateState<T> state, final Event event) {
-    LOGGER.info("Aggregating event -> " + event.eventClass());
-    final var newState = aggregateEvent(state.state(), EventParser.getEvent(event.eventClass(), event.event()));
+  private void applyEvent(AggregateState<T> state, Event event, io.vertx.eventx.Event parsedEvent) {
+    final var newState = aggregateEvent(state.state(), parsedEvent);
     LOGGER.info("New aggregate state -> " + newState);
     if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
       state.knownCommands().add(event.commandId());
     }
+    state.setState(newState);
+  }
+
+  private void applySnapshot(AggregateState<T> state, Event event, io.vertx.eventx.Event parsedEvent) {
+    LOGGER.debug("Applying snapshot " + JsonObject.mapFrom(event).encodePrettily());
+    if (parsedEvent.schemaVersion() != state.state().schemaVersion()) {
+      state.setState(state.aggregateClass().cast(state.state().transformSnapshot(parsedEvent.schemaVersion(), event.event())));
+    } else {
+      state.setState(JsonObject.mapFrom(((SnapshotEvent) parsedEvent).state()).mapTo(state.aggregateClass()));
+    }
+    state.setSnapshotOffset(event.journalOffset());
+  }
+
+  private void applyEvent(final AggregateState<T> state, final Event event) {
+    LOGGER.info("Aggregating event -> " + event.eventClass());
+    final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
+    final var newState = aggregateEvent(state.state(), parsedEvent);
+    LOGGER.info("New aggregate state -> " + newState);
+    if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
+      state.knownCommands().add(event.commandId());
+    }
+    final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
     state.setState(newState)
-      .setJournalOffset(event.journalOffset())
+      .setSnapshotOffset(isSnapshot ? event.journalOffset() : state.snapshotOffset())
       .addKnownCommand(event.commandId())
       .setCurrentVersion(event.eventVersion());
   }
-
 
   private List<Event> applyBehaviour(final AggregateState<T> state, final Command finalCommand) {
     final var currentVersion = state.currentVersion() == null ? 0 : state.currentVersion();
@@ -264,8 +232,14 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Events created -> " + new JsonArray(events).encodePrettily());
     }
-    final var array = events.toArray(events.toArray(new io.vertx.eventx.Event[0]));
-    return IntStream.range(1, array.length + 1)
+    final var array = events.toArray(new io.vertx.eventx.Event[0]);
+    final var resultingEvents = transformEvents(state, finalCommand, currentVersion, array);
+    addOptionalSnapshot(state, finalCommand, resultingEvents);
+    return resultingEvents;
+  }
+
+  private ArrayList<Event> transformEvents(AggregateState<T> state, Command finalCommand, long currentVersion, io.vertx.eventx.Event[] array) {
+    return new ArrayList<>(IntStream.range(1, array.length + 1)
       .mapToObj(index -> {
           final var ev = array[index - 1];
           final var eventVersion = currentVersion + index;
@@ -282,11 +256,49 @@ public class AggregateVerticleLogic<T extends Aggregate> {
             ev.schemaVersion()
           );
         }
-      ).toList();
+      ).toList()
+    );
+  }
+
+  private void addOptionalSnapshot(AggregateState<T> state, Command finalCommand, ArrayList<Event> resultingEvents) {
+    state.state().snapshotEvery().ifPresent(
+      snapshotEvery -> {
+        final var snapshot = snapshotEvery <= Math.floorMod(state.currentVersion(), snapshotEvery);
+        if (snapshot) {
+          LOGGER.debug("Appending a snapshot to the stream");
+          state.setCurrentVersion(state.currentVersion() + 1);
+          resultingEvents.add(new Event(
+              aggregateClass.getName(),
+              finalCommand.aggregateId(),
+              SnapshotEvent.class.getName(),
+              state.currentVersion(),
+              JsonObject.mapFrom(new SnapshotEvent(
+                  JsonObject.mapFrom(state.state()).getMap(),
+                  state.knownCommands().stream().toList(),
+                  state.snapshotOffset(),
+                  state.currentVersion()
+                )
+              ),
+              finalCommand.headers().tenantId(),
+              finalCommand.headers().commandID(),
+              List.of("eventx-snapshot"),
+              state.state().schemaVersion()
+            )
+          );
+        }
+      }
+    );
   }
 
 
   private <C extends Command> Uni<AggregateState<T>> processCommand(final AggregateState<T> state, final C command) {
+    checkCommandId(state, command);
+    final var events = applyBehaviour(state, command);
+    aggregateEvents(state, events);
+    return appendEvents(state, events).map(avoid -> cacheState(state));
+  }
+
+  private <C extends Command> void checkCommandId(AggregateState<T> state, C command) {
     if (state.knownCommands() != null && !state.knownCommands().isEmpty()) {
       state.knownCommands().stream().filter(txId -> txId.equals(command.headers().commandID()))
         .findAny()
@@ -295,86 +307,36 @@ public class AggregateVerticleLogic<T extends Aggregate> {
           }
         );
     }
-    final var events = applyBehaviour(state, command);
-    if (configuration.operationMode() == OperationMode.PROD) {
-      applyEvents(state, events);
-      return infrastructure.eventStore().append(
-          new AppendInstruction<>(
-            aggregateClass,
-            state.state().aggregateId(),
-            state.state().tenantID(),
-            events
-          )
-        )
-        .map(
-          avoid -> {
-            infrastructure.cache().put(
-              new AggregateKey<>(
-                aggregateClass,
-                state.state().aggregateId(),
-                state.state().tenantID()
-              ),
-              state);
-            return state;
-          }
-        );
-    } else {
-      LOGGER.warn("Aggregate will not be persisted to the database since persistence mode is set to -> " + configuration.operationMode());
-      applyEvents(state, events);
-      infrastructure.cache().put(
-        new AggregateKey<>(
-          aggregateClass,
-          state.state().aggregateId(),
-          state.state().tenantID()
-        ),
-        state);
-      return Uni.createFrom().item(state);
-    }
   }
 
-  private void handleSnapshot(AggregateState<T> state) {
-    final var snapshotFrequency = 20;
-    final var shouldTakeSnapshot = Math.floorMod(state.currentVersion(), snapshotFrequency) >= snapshotFrequency;
-    if (shouldTakeSnapshot) {
-      if (state.currentVersion() > snapshotFrequency) {
-        LOGGER.info("Adding snapshot -> " + state.state().aggregateId());
-        infrastructure.snapshotStore().add(state)
-          .map(avoid -> updateStateAfterSnapshot(state))
-          .subscribe()
-          .with(
-            item -> LOGGER.info("Snapshot added -> " + item),
-            throwable -> LOGGER.error("Unable to add snapshot", throwable)
-          );
-      } else {
-        LOGGER.info("Updating snapshot -> " + state.state().aggregateId());
-        infrastructure.snapshotStore().update(state)
-          .map(avoid -> updateStateAfterSnapshot(state))
-          .subscribe()
-          .with(
-            item -> LOGGER.info("Snapshot added -> " + item)
-            , throwable -> LOGGER.error("Unable to add snapshot", throwable));
-      }
-    }
-  }
-
-  private AggregateState<T> updateStateAfterSnapshot(final AggregateState<T> state) {
+  private AggregateState<T> cacheState(AggregateState<T> state) {
     infrastructure.cache().put(
       new AggregateKey<>(
         aggregateClass,
         state.state().aggregateId(),
         state.state().tenantID()
       ),
-      state
-    );
+      state);
     return state;
   }
 
-  private void handleRejectedCommand(final Throwable throwable, final Command command) {
+  private Uni<Void> appendEvents(AggregateState<T> state, List<Event> events) {
+    return infrastructure.eventStore().append(
+      new AppendInstruction<>(
+        aggregateClass,
+        state.state().aggregateId(),
+        state.state().tenantID(),
+        events
+      )
+    );
+  }
+
+  private void logRejectedCommand(final Throwable throwable, final Command command) {
     LOGGER.error("Command rejected " + JsonObject.mapFrom(command).encodePrettily(), throwable);
   }
 
 
-  private Command getCommand(final String commandType, final JsonObject jsonCommand) {
+  private Command parseCommand(final String commandType, final JsonObject jsonCommand) {
     try {
       final var clazz = Class.forName(Objects.requireNonNullElse(commandClassMap.get(commandType), commandType));
       final var object = jsonCommand.mapTo(clazz);

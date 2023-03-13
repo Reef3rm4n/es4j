@@ -13,26 +13,24 @@ public class AggregateState<T extends Aggregate> implements Shareable {
   private final Class<T> aggregateClass;
   private T state = null;
   private final EvictingQueue<String> knownCommands = EvictingQueue.create(100);
-  private Long journalOffset = 0L;
+  private Long snapshotOffset = null;
   private Long currentVersion = null;
 
   public AggregateState(Class<T> aggregateClass) {
     this.aggregateClass = aggregateClass;
   }
 
+  public Long snapshotOffset() {
+    return snapshotOffset;
+  }
+
+  public AggregateState<T> setSnapshotOffset(Long snapshotOffset) {
+    this.snapshotOffset = snapshotOffset;
+    return this;
+  }
+
   public Class<T> aggregateClass() {
     return aggregateClass;
-  }
-
-  public Long journalOffset() {
-    return journalOffset;
-  }
-
-  public AggregateState<T> setJournalOffset(Long journalOffset) {
-    if (journalOffset != null) {
-      this.journalOffset = journalOffset;
-    }
-    return this;
   }
 
   public Long currentVersion() {

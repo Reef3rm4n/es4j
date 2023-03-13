@@ -1,8 +1,16 @@
 package io.vertx.eventx.objects;
 
-import io.vertx.eventx.Aggregate;
 
-public record SnapshotEvent<T extends Aggregate>(
-  AggregateState<T> state
-) {
+import io.vertx.eventx.Event;
+
+import java.util.List;
+import java.util.Map;
+
+public record SnapshotEvent(
+  Map<String, Object> state,
+  List<String> knownCommands,
+  Long snapshotOffset,
+  Long currentVersion
+) implements Event {
+
 }

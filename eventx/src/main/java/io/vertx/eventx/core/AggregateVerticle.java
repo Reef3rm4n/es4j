@@ -78,7 +78,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       jsonMessage -> {
         LOGGER.info("Incoming command " + jsonMessage.body().encodePrettily());
         final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
-          case LOAD -> logic.fetch(jsonMessage.body().mapTo(AggregatePlainKey.class));
+          case LOAD -> logic.loadAggregate(jsonMessage.body().mapTo(AggregatePlainKey.class));
           case COMMAND -> logic.process(jsonMessage.headers().get(CLASS_NAME), jsonMessage.body());
         };
         responseUni.subscribe()

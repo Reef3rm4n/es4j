@@ -12,7 +12,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.common.ErrorSource;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
-import io.vertx.eventx.infrastructure.vertx.Actions;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.exceptions.NodeUnavailable;
 import io.vertx.eventx.exceptions.UnknownCommand;

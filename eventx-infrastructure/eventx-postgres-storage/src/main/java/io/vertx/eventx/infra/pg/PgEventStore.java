@@ -144,6 +144,8 @@ public class PgEventStore implements EventStore {
   }
 
   private <T extends Aggregate> EventRecordQuery eventJournalQuery(AggregateEventStream<T> aggregateEventStream) {
+    // todo make it so that stream starts from the last snapshot in the journal.
+    // select * from event_store where id >= (select max(id) from event_store where event_class = 'snapshot.class')
     return new EventRecordQuery(
       List.of(aggregateEventStream.aggregateId()),
       null,
