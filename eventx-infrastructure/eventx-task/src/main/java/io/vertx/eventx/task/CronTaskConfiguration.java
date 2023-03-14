@@ -8,9 +8,7 @@ import java.util.List;
 
 public record CronTaskConfiguration(
   Cron cron,
-  LockLevel lockLevel,
-
-  Integer timeoutInMinutes,
+  Integer priority,
   List<Class<? extends Throwable>> knownInterruptions
 ) {
 

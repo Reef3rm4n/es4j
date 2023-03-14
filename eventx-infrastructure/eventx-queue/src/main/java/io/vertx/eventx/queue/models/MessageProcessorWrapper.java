@@ -1,19 +1,19 @@
 package io.vertx.eventx.queue.models;
 
-import io.vertx.eventx.queue.TaskProcessor;
+import io.vertx.eventx.queue.MessageProcessor;
 
 import java.util.List;
 import java.util.Map;
 
 public record MessageProcessorWrapper<T> (
   String deploymentId,
-  TaskProcessor<T> defaultProcessor,
-  Map<List<String>, TaskProcessor<T>> customProcessors,
+  MessageProcessor<T> defaultProcessor,
+  Map<List<String>, MessageProcessor<T>> customProcessors,
   Class<T> payloadClass
 ) {
 
 
-  public TaskProcessor<T> resolveProcessor(String tenant) {
+  public MessageProcessor<T> resolveProcessor(String tenant) {
     return customProcessors.entrySet().stream()
       .filter(wrapper -> wrapper.getKey().stream().anyMatch(tenant::equals))
       .map(Map.Entry::getValue)

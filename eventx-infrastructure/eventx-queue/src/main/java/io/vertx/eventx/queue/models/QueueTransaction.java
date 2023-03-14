@@ -1,6 +1,6 @@
 package io.vertx.eventx.queue.models;
 
-public record TaskTransaction(
+public record QueueTransaction(
   Object connection
 ) {
 

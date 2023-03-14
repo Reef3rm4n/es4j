@@ -1,5 +1,6 @@
 package io.vertx.eventx.core;
 
+
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -24,16 +25,6 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
 
-// todo move cache to caffeine for better performance
-// ensure that it always gets executed in the current context
-//    Caffeine.newBuilder()
-//        .expireAfterWrite(Duration.ofMinutes(entityAggregateConfiguration.aggregateCacheTtlInMinutes()))
-//        .recordStats() // (3)
-//        .executor(cmd -> context.runOnContext(v -> cmd.run())) // (4)
-//        .buildAsync((key, exec) -> CompletableFuture.supplyAsync(() -> { // (5)
-//          Future<Buffer> future = fetchCatImage(key); // (6)
-//          return future.toCompletionStage(); // (7)
-//        }, exec).thenComposeAsync(Function.identity(), exec));
 public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateVerticle.class);

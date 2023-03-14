@@ -14,7 +14,6 @@ public record EventRecordQuery(
   Long eventVersionTo,
   Long idFrom,
   Long idTo,
-  List<String> commandClasses,
   QueryOptions options
 ) implements Query {
 

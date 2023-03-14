@@ -21,12 +21,6 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.solace</groupId>
-      <artifactId>solace-messaging-client</artifactId>
-      <version>1.1.0</version>
-    </dependency>
-    <!-- https://mvnrepository.com/artifact/com.solacesystems/sol-jms -->
-    <dependency>
       <groupId>com.solacesystems</groupId>
       <artifactId>sol-jms</artifactId>
       <version>10.18.0</version>

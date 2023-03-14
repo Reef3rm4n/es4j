@@ -80,8 +80,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     final var command = parseCommand(commandClass, jsonCommand);
     return loadAggregate(command.aggregateId(), command.headers().tenantId())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
-        .onFailure(Conflict.class)
-        .recoverWithUni(
+        .onFailure(Conflict.class).recoverWithUni(
           () -> playFromLastJournalOffset(aggregateState)
             .flatMap(reconstructedState -> processCommand(reconstructedState, command))
         )
@@ -91,17 +90,14 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private T aggregateEvent(T aggregateState, final io.vertx.eventx.Event event) {
-    AggregatorWrapper wrapper;
     io.vertx.eventx.Event finalEvent = event;
-    wrapper = tenantAggregator(event);
-    if (wrapper == null) {
-      wrapper = defaultAggregator(event);
+    final var aggregator = Objects.requireNonNullElse(customAggregator(event), defaultAggregator(event));
+    if (aggregator.delegate().currentSchemaVersion() != event.schemaVersion()) {
+      LOGGER.info("Parsing event -> " + aggregator.delegate().getClass().getSimpleName());
+      finalEvent = aggregator.delegate().transformFrom(event.schemaVersion(), JsonObject.mapFrom(event));
     }
-    LOGGER.info("Applying behaviour -> " + wrapper.delegate().getClass().getSimpleName());
-    if (wrapper.delegate().currentSchemaVersion() != event.schemaVersion()) {
-      finalEvent = wrapper.delegate().transformFrom(event.schemaVersion(), JsonObject.mapFrom(event));
-    }
-    return (T) wrapper.delegate().apply(aggregateState, finalEvent);
+    LOGGER.info("Applying behaviour -> " + aggregator.delegate().getClass().getSimpleName());
+    return (T) aggregator.delegate().apply(aggregateState, finalEvent);
   }
 
   private AggregatorWrapper defaultAggregator(io.vertx.eventx.Event event) {
@@ -112,8 +108,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       .orElseThrow(() -> UnknownEvent.unknown(event.getClass()));
   }
 
-  @Nullable
-  private AggregatorWrapper tenantAggregator(io.vertx.eventx.Event event) {
+  private AggregatorWrapper customAggregator(io.vertx.eventx.Event event) {
     return aggregators.stream()
       .filter(behaviour -> !Objects.equals(behaviour.delegate().tenantId(), "default"))
       .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
@@ -121,23 +116,27 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       .orElse(null);
   }
 
-  private List<io.vertx.eventx.Event> applyBehaviour(final T aggregateState, final Command command) {
-    final var customBehaviour = behaviours.stream()
+  private List<io.vertx.eventx.Event> applyCommandBehaviour(final T aggregateState, final Command command) {
+    final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
+    LOGGER.info("Applying command behaviour -> " + behaviour.getClass().getSimpleName());
+    return behaviour.process(aggregateState, command);
+  }
+
+  private BehaviourWrapper defaultBehaviour(Command command) {
+    return behaviours.stream()
+      .filter(behaviour -> Objects.equals(behaviour.delegate().tenantID(), "default"))
+      .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
+      .findFirst()
+      .orElseThrow(() -> UnknownCommand.unknown(command.getClass()));
+  }
+
+  @Nullable
+  private BehaviourWrapper customBehaviour(Command command) {
+    return behaviours.stream()
       .filter(behaviour -> !Objects.equals(behaviour.delegate().tenantID(), "default"))
       .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
       .findFirst()
       .orElse(null);
-    if (customBehaviour == null) {
-      final var defaultBehaviour = behaviours.stream()
-        .filter(behaviour -> Objects.equals(behaviour.delegate().tenantID(), "default"))
-        .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
-        .findFirst()
-        .orElseThrow(() -> UnknownCommand.unknown(command.getClass()));
-      LOGGER.info("Applying command Behaviour -> " + defaultBehaviour.getClass().getSimpleName());
-      return defaultBehaviour.process(aggregateState, command);
-    }
-    LOGGER.info("Applying command behaviour -> " + customBehaviour.getClass().getSimpleName());
-    return customBehaviour.process(aggregateState, command);
   }
 
   private Uni<AggregateState<T>> loadAggregate(String aggregateId, String tenant) {
@@ -163,12 +162,17 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private AggregateEventStream<T> streamInstruction(AggregateState<T> state) {
+    final var snapshotEvents = new ArrayList<>(state.state().snapshotOn());
+    if (state.state().snapshotEvery().isPresent()) {
+      snapshotEvents.add(SnapshotEvent.class);
+    }
     return new AggregateEventStream<>(
       state.aggregateClass(),
       state.state().aggregateId(),
       state.state().tenantID(),
       state.currentVersion(),
-      state.snapshotOffset()
+      state.snapshotOffset(),
+      snapshotEvents
     );
   }
 
@@ -226,9 +230,9 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       .setCurrentVersion(event.eventVersion());
   }
 
-  private List<Event> applyBehaviour(final AggregateState<T> state, final Command finalCommand) {
+  private List<Event> applyCommandBehaviour(final AggregateState<T> state, final Command finalCommand) {
     final var currentVersion = state.currentVersion() == null ? 0 : state.currentVersion();
-    final var events = applyBehaviour(state.state(), finalCommand);
+    final var events = applyCommandBehaviour(state.state(), finalCommand);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Events created -> " + new JsonArray(events).encodePrettily());
     }
@@ -293,7 +297,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private <C extends Command> Uni<AggregateState<T>> processCommand(final AggregateState<T> state, final C command) {
     checkCommandId(state, command);
-    final var events = applyBehaviour(state, command);
+    final var events = applyCommandBehaviour(state, command);
     aggregateEvents(state, events);
     return appendEvents(state, events).map(avoid -> cacheState(state));
   }

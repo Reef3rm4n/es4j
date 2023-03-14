@@ -61,7 +61,7 @@ public class CustomClassLoader {
     return REFLECTIONS.getSubTypesOf(EventxModule.class).stream()
       .map(CustomClassLoader::instantiate)
       .map(foundCLass -> {
-          LOGGER.info("Vert.x module found -> " + foundCLass.getClass().getName());
+          LOGGER.info("Event.x module found -> " + foundCLass.getClass().getName());
           return (Module) foundCLass;
         }
       )

@@ -46,8 +46,9 @@
       <artifactId>smallrye-mutiny-vertx-config</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.activej</groupId>
-      <artifactId>activej-inject</artifactId>
+      <groupId>com.github.ben-manes.caffeine</groupId>
+      <artifactId>caffeine</artifactId>
+      <version>3.0.6</version>
     </dependency>
     <dependency>
       <groupId>io.vertx.eventx</groupId>

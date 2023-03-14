@@ -10,13 +10,16 @@ import io.vertx.eventx.infrastructure.EventStore;
 import io.vertx.eventx.infrastructure.OffsetStore;
 import io.vertx.eventx.infrastructure.misc.EventParser;
 import io.vertx.eventx.infrastructure.models.EventStream;
+import io.vertx.eventx.objects.JournalOffset;
 import io.vertx.eventx.objects.JournalOffsetKey;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.task.LockLevel;
 import io.vertx.eventx.task.TimerTask;
 import io.vertx.eventx.task.TimerTaskConfiguration;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 
 public class EventProjectionPoller implements TimerTask {
@@ -26,7 +29,11 @@ public class EventProjectionPoller implements TimerTask {
   private final EventStore eventStore;
   private final OffsetStore offsetStore;
 
-  public EventProjectionPoller(List<EventProjection> eventProjections, EventStore eventStore, OffsetStore offsetStore) {
+  public EventProjectionPoller(
+    List<EventProjection> eventProjections,
+    EventStore eventStore,
+    OffsetStore offsetStore
+  ) {
     this.eventProjections = eventProjections;
     this.eventStore = eventStore;
     this.offsetStore = offsetStore;
@@ -38,16 +45,7 @@ public class EventProjectionPoller implements TimerTask {
   public Uni<Void> performTask() {
     return Multi.createFrom().iterable(eventProjections)
       .onItem().transformToUniAndMerge(eventProjection -> offsetStore.get(new JournalOffsetKey(eventProjection.getClass().getName(), eventProjection.tenantID()))
-        .flatMap(journalOffset -> eventStore.fetch(new EventStream(
-                eventProjection.filter().aggregates(),
-                eventProjection.filter().events(),
-                null,
-                eventProjection.filter().tags(),
-                eventProjection.tenantID(),
-                journalOffset.idOffSet(),
-                1000
-              )
-            )
+        .flatMap(journalOffset -> eventStore.fetch(streamStatement(eventProjection, journalOffset))
             .flatMap(
               events -> eventProjection.apply(parseEvents(events))
                 .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
@@ -56,6 +54,36 @@ public class EventProjectionPoller implements TimerTask {
       )
       .collect().asList()
       .replaceWithVoid();
+  }
+
+
+  private static EventStream streamStatement(EventProjection eventProjection, JournalOffset journalOffset) {
+    AtomicReference<EventStream> eventStream = new AtomicReference<>();
+    eventProjection.filter().ifPresentOrElse(
+      filter ->  {
+        eventStream.set(new EventStream(
+          filter.aggregates(),
+          filter.events(),
+          null,
+          filter.tags(),
+          eventProjection.tenantID(),
+          journalOffset.idOffSet(),
+          1000
+        ));
+      },
+      () -> eventStream.set(
+        new EventStream(
+          null,
+           null,
+          null,
+         null,
+          eventProjection.tenantID(),
+          journalOffset.idOffSet(),
+          1000
+        )
+      )
+    );
+    return eventStream.get();
   }
 
 

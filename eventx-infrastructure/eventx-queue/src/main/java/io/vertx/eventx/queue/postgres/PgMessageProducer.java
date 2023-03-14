@@ -10,7 +10,7 @@ import io.vertx.eventx.queue.postgres.models.MessageRecord;
 import io.vertx.eventx.queue.postgres.models.MessageRecordID;
 import io.vertx.eventx.queue.postgres.models.MessageRecordQuery;
 import io.vertx.eventx.queue.misc.FileSystemFallBack;
-import io.vertx.eventx.queue.TaskProducer;
+import io.vertx.eventx.queue.MessageProducer;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.RepositoryHandler;
 import io.vertx.eventx.sql.models.BaseRecord;
@@ -18,16 +18,16 @@ import io.vertx.eventx.sql.models.BaseRecord;
 
 import java.util.List;
 
-public class PgTaskProducer implements TaskProducer {
+public class PgMessageProducer implements MessageProducer {
   private final Repository<MessageRecordID, MessageRecord, MessageRecordQuery> queue;
   private final FileSystemFallBack fallback;
 
-  public PgTaskProducer(RepositoryHandler repositoryHandler) {
+  public PgMessageProducer(RepositoryHandler repositoryHandler) {
     this.queue = new Repository<>(MessageQueueMapper.INSTANCE, repositoryHandler);
     this.fallback = new FileSystemFallBack(queue);
   }
 
-  public <T> Uni<Void> enqueue(Message<T> message, TaskTransaction taskTransaction) {
+  public <T> Uni<Void> enqueue(Message<T> message, QueueTransaction queueTransaction) {
     final var queueEntry = new MessageRecord(
       message.messageId(),
       message.scheduled(),
@@ -41,11 +41,11 @@ public class PgTaskProducer implements TaskProducer {
       null,
       BaseRecord.newRecord(message.tenant())
     );
-    return queue.insert(queueEntry, (SqlConnection) taskTransaction.connection()).replaceWithVoid()
+    return queue.insert(queueEntry, (SqlConnection) queueTransaction.connection()).replaceWithVoid()
       .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntry));
   }
 
-  public <T> Uni<Void> enqueue(List<Message<T>> entries, TaskTransaction taskTransaction) {
+  public <T> Uni<Void> enqueue(List<Message<T>> entries, QueueTransaction queueTransaction) {
     final var queueEntries = entries.stream().map(
       message -> new MessageRecord(
         message.messageId(),
@@ -61,7 +61,7 @@ public class PgTaskProducer implements TaskProducer {
         BaseRecord.newRecord(message.tenant())
       )
     ).toList();
-    return queue.insertBatch(queueEntries, (SqlConnection) taskTransaction.connection()).replaceWithVoid()
+    return queue.insertBatch(queueEntries, (SqlConnection) queueTransaction.connection()).replaceWithVoid()
       .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntries));
   }
 

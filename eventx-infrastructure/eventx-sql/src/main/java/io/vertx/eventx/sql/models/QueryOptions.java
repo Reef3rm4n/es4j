@@ -12,12 +12,12 @@ public record QueryOptions(
     Instant lastUpdateTo,
     Integer pageNumber,
     Integer pageSize,
-    Long idFrom,
+    String idFrom,
     String tenantId
 ) {
 
 
-    public QueryOptions(final String orderBy, final Boolean desc, final Instant creationDateFrom, final Instant creationDateTo, final Instant lastUpdateFrom, final Instant lastUpdateTo, final Integer pageNumber, final Integer pageSize, final Long idFrom, final String tenantId) {
+    public QueryOptions(final String orderBy, final Boolean desc, final Instant creationDateFrom, final Instant creationDateTo, final Instant lastUpdateFrom, final Instant lastUpdateTo, final Integer pageNumber, final Integer pageSize, final String idFrom, final String tenantId) {
         this.orderBy = orderBy;
         this.desc = desc;
         this.creationDateFrom = creationDateFrom;

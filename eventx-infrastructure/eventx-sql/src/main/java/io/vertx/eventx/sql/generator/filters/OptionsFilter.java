@@ -27,7 +27,7 @@ public class OptionsFilter {
             queryFilters.add(" creation_date <= #{creationDateTo} ");
         }
         if (options.idFrom() != null) {
-            queryFilters.add(" messageId > #{idFrom} ");
+            queryFilters.add(" id >= #{idFrom} ");
         }
         if (options.lastUpdateFrom() != null) {
             queryFilters.add(" last_update >= #{lastUpdateDateFrom} ");
@@ -59,6 +59,9 @@ public class OptionsFilter {
         }
         if (options.pageSize() != null && options.pageNumber() != null) {
             fieldMap.put("offSet", options.pageSize() * options.pageNumber());
+        }
+        if (options.idFrom() != null) {
+          fieldMap.put("idFrom", options.idFrom());
         }
         return fieldMap;
     }

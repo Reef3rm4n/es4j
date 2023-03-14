@@ -1,5 +1,7 @@
 package io.vertx.eventx.launcher;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.reactiverse.contextual.logging.ContextualData;
@@ -14,14 +16,18 @@ import io.vertx.core.impl.cpu.CpuCoreSensor;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.eventx.Aggregate;
+import io.vertx.eventx.config.ConfigurationDeployer;
 import io.vertx.eventx.core.AggregateBridge;
 import io.vertx.eventx.objects.CommandHeaders;
 import io.vertx.eventx.common.CustomClassLoader;
+import io.vertx.eventx.task.TimerTaskDeployer;
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class EventxMain extends AbstractVerticle {
 
@@ -75,6 +81,7 @@ public class EventxMain extends AbstractVerticle {
     LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
     Uni.join().all(aggregatesDeployment).andFailFast()
       .flatMap(avoid -> deployBridges())
+      .flatMap(avoid -> deployTimers())
       .subscribe()
       .with(
         aVoid -> {
@@ -87,6 +94,12 @@ public class EventxMain extends AbstractVerticle {
           startPromise.fail(throwable);
         }
       );
+  }
+
+  private Uni<Void> deployTimers() {
+    final var injector = Injector.of(ModuleBuilder.create().install(MAIN_MODULES).build());
+    TimerTaskDeployer.INSTANCE.deploy(injector);
+    return ConfigurationDeployer.INSTANCE.deploy(injector).replaceWithVoid();
   }
 
   private Uni<Void> deployBridges() {

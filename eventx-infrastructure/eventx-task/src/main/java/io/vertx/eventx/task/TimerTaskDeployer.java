@@ -1,6 +1,5 @@
 package io.vertx.eventx.task;
 
-import io.vertx.eventx.sql.RepositoryHandler;
 import io.vertx.eventx.common.CustomClassLoader;
 import io.activej.inject.Injector;
 import io.smallrye.mutiny.Uni;
@@ -25,6 +24,10 @@ public class TimerTaskDeployer {
 
   List<TaskWrapper> taskWrappers;
   private Vertx vertx;
+
+  private TimerTaskDeployer() {}
+
+  public static final TimerTaskDeployer INSTANCE = new TimerTaskDeployer();
 
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));

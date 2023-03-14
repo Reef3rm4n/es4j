@@ -27,6 +27,10 @@ public class ConfigurationDeployer {
   public List<ConfigRetriever> listeners;
   public PgSubscriber pgSubscriber;
 
+  private ConfigurationDeployer() {
+  }
+
+  public static final ConfigurationDeployer INSTANCE = new ConfigurationDeployer();
 
   public Uni<Injector> deploy(Injector injector) {
     final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, injector.getInstance(RepositoryHandler.class));

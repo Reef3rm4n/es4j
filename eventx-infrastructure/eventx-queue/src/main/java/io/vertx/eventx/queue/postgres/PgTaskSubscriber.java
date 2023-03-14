@@ -4,9 +4,9 @@ import io.activej.inject.Injector;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.FixedDemandPacer;
 import io.vertx.eventx.queue.models.MessageState;
-import io.vertx.eventx.queue.models.TaskQueueConfiguration;
+import io.vertx.eventx.queue.models.QueueConfiguration;
 import io.vertx.eventx.queue.models.RawMessage;
-import io.vertx.eventx.queue.models.TaskProcessorManager;
+import io.vertx.eventx.queue.models.MessageProcessorManager;
 import io.vertx.eventx.queue.postgres.mappers.DeadLetterMapper;
 import io.vertx.eventx.queue.postgres.mappers.MessageQueueMapper;
 import io.vertx.eventx.queue.postgres.mappers.PgQueueLiquibase;
@@ -54,12 +54,12 @@ public class PgTaskSubscriber implements TaskSubscriber {
   }
 
   @Override
-  public Uni<Void> subscribe(TaskProcessorManager taskProcessorManager) {
+  public Uni<Void> subscribe(MessageProcessorManager messageProcessorManager) {
     final var pgChannel = pgSubscriber.channel("task_queue_ch");
     pgChannel.handler(payload -> {
           pgChannel.pause();
           LOGGER.info("Message available !");
-          poll(taskProcessorManager, null)
+          poll(messageProcessorManager, null)
             .subscribe()
             .with(
               item -> {
@@ -82,15 +82,15 @@ public class PgTaskSubscriber implements TaskSubscriber {
       .endHandler(() -> LOGGER.info("pg-channel subscription stopped"))
       .subscribeHandler(() -> LOGGER.info("subscribed to pg-channel"))
       .exceptionHandler(throwable -> LOGGER.error("Error in pg-subscription", throwable));
-    return PgQueueLiquibase.bootstrapQueue(messageQueue.repositoryHandler(), taskProcessorManager.taskQueueConfiguration())
+    return PgQueueLiquibase.bootstrapQueue(messageQueue.repositoryHandler(), messageProcessorManager.queueConfiguration())
       .flatMap(avoid -> pgSubscriber.connect());
   }
 
-  private Multi<MessageRecord> startPacedStream(TaskQueueConfiguration taskQueueConfiguration, List<MessageRecord> messageRecords) {
-    if (taskQueueConfiguration.concurrency() != null) {
+  private Multi<MessageRecord> startPacedStream(QueueConfiguration queueConfiguration, List<MessageRecord> messageRecords) {
+    if (queueConfiguration.concurrency() != null) {
       final var pacer = new FixedDemandPacer(
-        taskQueueConfiguration.concurrency(),
-        Duration.ofMillis(taskQueueConfiguration.throttleInMs())
+        queueConfiguration.concurrency(),
+        Duration.ofMillis(queueConfiguration.throttleInMs())
       );
       return Multi.createFrom().iterable(messageRecords)
         .paceDemand().using(pacer);
@@ -98,9 +98,9 @@ public class PgTaskSubscriber implements TaskSubscriber {
     return Multi.createFrom().iterable(messageRecords);
   }
 
-  private Uni<Void> poll(TaskProcessorManager taskManager, String verticleId) {
-    return pollBatch(taskManager.taskQueueConfiguration(), verticleId)
-      .onItem().transformToMulti(messageRecords -> startPacedStream(taskManager.taskQueueConfiguration(), messageRecords))
+  private Uni<Void> poll(MessageProcessorManager taskManager, String verticleId) {
+    return pollBatch(taskManager.queueConfiguration(), verticleId)
+      .onItem().transformToMulti(messageRecords -> startPacedStream(taskManager.queueConfiguration(), messageRecords))
       .onItem().transformToUniAndMerge(messageRecord -> taskManager.processMessage(parseRecord(messageRecord)))
       .collect().asList()
       .flatMap(rawMessages -> handleResults(rawMessages.stream().map(MessageRecord::from).toList()))
@@ -123,7 +123,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
     );
   }
 
-  private Uni<List<MessageRecord>> pollBatch(TaskQueueConfiguration configuration, String deploymentId) {
+  private Uni<List<MessageRecord>> pollBatch(QueueConfiguration configuration, String deploymentId) {
     return messageQueue.query(pollingStatement(configuration, deploymentId)).onFailure(NotFound.class)
       .recoverWithUni(
         () -> messageQueue.query(recoveryPollingStatement(configuration, deploymentId))
@@ -132,7 +132,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
   }
 
   private String pollingStatement(
-    final TaskQueueConfiguration configuration,
+    final QueueConfiguration configuration,
     String deploymentId
   ) {
     return "update task_queue set state = 'PROCESSING', verticle_id = '" + deploymentId + "' where message_id in (" +
@@ -146,7 +146,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
   }
 
   private String recoveryPollingStatement(
-    final TaskQueueConfiguration configuration,
+    final QueueConfiguration configuration,
     final String deploymentId
   ) {
     return "update task_queue set state = 'PROCESSING', verticle_id = '" + deploymentId + "' where message_id in (" +

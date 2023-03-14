@@ -20,7 +20,7 @@
 
   <dependencyManagement>
     <dependencies>
-      <!--      Vert.x Framework -->
+      <!--      Event.x Framework -->
       <dependency>
         <groupId>io.vertx.eventx</groupId>
         <artifactId>eventx</artifactId>
@@ -35,11 +35,6 @@
       <dependency>
         <groupId>io.vertx.eventx</groupId>
         <artifactId>eventx-postgres-storage</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.vertx.eventx</groupId>
-        <artifactId>eventx-config-storage</artifactId>
         <version>${project.version}</version>
       </dependency>
       <!--      -->

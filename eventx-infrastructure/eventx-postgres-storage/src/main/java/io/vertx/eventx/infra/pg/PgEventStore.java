@@ -15,6 +15,7 @@ import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.models.BaseRecord;
 import io.vertx.eventx.sql.models.QueryOptions;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -144,15 +145,12 @@ public class PgEventStore implements EventStore {
   }
 
   private <T extends Aggregate> EventRecordQuery eventJournalQuery(AggregateEventStream<T> aggregateEventStream) {
-    // todo make it so that stream starts from the last snapshot in the journal.
-    // select * from event_store where id >= (select max(id) from event_store where event_class = 'snapshot.class')
     return new EventRecordQuery(
       List.of(aggregateEventStream.aggregateId()),
       null,
       List.of(aggregateEventStream.aggregate().getName()),
       null,
       aggregateEventStream.eventVersionOffset(),
-      null,
       null,
       null,
       null,
@@ -165,10 +163,20 @@ public class PgEventStore implements EventStore {
         null,
         null,
         null,
-        aggregateEventStream.journalOffset(),
+        snapshotFrom(aggregateEventStream),
         aggregateEventStream.tenantId()
       )
     );
+  }
+
+  @NotNull
+  private static <T extends Aggregate> String snapshotFrom(AggregateEventStream<T> aggregateEventStream) {
+    if (!aggregateEventStream.startFrom().isEmpty()) {
+      final var stringBuilder   = new StringBuilder(",");
+      aggregateEventStream.startFrom().forEach(evc -> stringBuilder.append("'" + evc.getName() + "'"));
+      return " (select max(id) from event_journal where event_class in (" + aggregateEventStream.startFrom() + "))";
+    }
+   return null;
   }
 
   private EventRecordQuery eventJournalQuery(EventStream eventStream) {
@@ -180,7 +188,6 @@ public class PgEventStore implements EventStore {
       null,
       null,
       eventStream.offset(),
-      null,
       null,
       new QueryOptions(
         EventJournalMapper.ID,

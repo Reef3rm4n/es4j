@@ -1,7 +1,7 @@
 package io.vertx.eventx.queue;
 
 import io.smallrye.mutiny.Uni;
-import io.vertx.eventx.queue.models.TaskTransaction;
+import io.vertx.eventx.queue.models.QueueTransaction;
 
 import java.util.List;
 
@@ -13,8 +13,8 @@ import java.util.List;
  *
  * @param <T> The payload, queue entry type
  */
-public interface TaskProcessor<T> {
-  Uni<Void> process(T payload, TaskTransaction taskTransaction);
+public interface MessageProcessor<T> {
+  Uni<Void> process(T payload, QueueTransaction queueTransaction);
 
   default List<Class<Throwable>> fatalExceptions() {
     return List.of();

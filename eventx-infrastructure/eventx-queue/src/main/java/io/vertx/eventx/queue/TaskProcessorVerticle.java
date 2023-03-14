@@ -30,7 +30,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
   private TaskSubscriber subscriber;
   private Injector injector;
   private TransactionManager transactionManager;
-  private TaskQueueConfiguration taskConfiguration;
+  private QueueConfiguration taskConfiguration;
 
   public TaskProcessorVerticle(Collection<Module> modules) {
     this.modules = modules;
@@ -42,7 +42,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
     final JsonObject newConfiguration,
     final Collection<Module> modules
   ) {
-    if (CustomClassLoader.checkPresenceInModules(TaskProcessor.class, modules)) {
+    if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, modules)) {
       LOGGER.info("Deploying queue consumers ...");
       return vertx.deployVerticle(
         () -> new TaskProcessorVerticle(modules),
@@ -62,11 +62,11 @@ public class TaskProcessorVerticle extends AbstractVerticle {
 
   @Override
   public Uni<Void> asyncStart() {
-    this.taskConfiguration = config().getJsonObject("task-queue", JsonObject.mapFrom(new TaskQueueConfiguration())).mapTo(TaskQueueConfiguration.class);
+    this.taskConfiguration = config().getJsonObject("task-queue", JsonObject.mapFrom(new QueueConfiguration())).mapTo(QueueConfiguration.class);
     this.injector = bindModules(modules);
     this.transactionManager = getTransactionManager();
     this.subscriber = getSubscriber();
-    return subscriber.subscribe(new TaskProcessorManager(
+    return subscriber.subscribe(new MessageProcessorManager(
           taskConfiguration,
           bootstrapProcessors(this.deploymentID(), injector),
           transactionManager,
@@ -98,21 +98,21 @@ public class TaskProcessorVerticle extends AbstractVerticle {
     final var moduleBuilder = ModuleBuilder.create().install(modules);
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
-    moduleBuilder.bind(TaskQueueConfiguration.class).toInstance(taskConfiguration);
+    moduleBuilder.bind(QueueConfiguration.class).toInstance(taskConfiguration);
     return Injector.of(moduleBuilder.build());
   }
 
 
   public List<MessageProcessorWrapper> bootstrapProcessors(String deploymentId, Injector injector) {
-    final var singleProcessMessageConsumers = CustomClassLoader.loadFromInjector(injector, TaskProcessor.class);
-    final var queueMap = new HashMap<Class<?>, List<TaskProcessor>>();
+    final var singleProcessMessageConsumers = CustomClassLoader.loadFromInjector(injector, MessageProcessor.class);
+    final var queueMap = new HashMap<Class<?>, List<MessageProcessor>>();
     singleProcessMessageConsumers.forEach(
       impl -> {
         final var tClass = CustomClassLoader.getFirstGenericType(impl);
         if (queueMap.containsKey(tClass)) {
           queueMap.get(tClass).add(impl);
         } else {
-          final var param = new ArrayList<TaskProcessor>();
+          final var param = new ArrayList<MessageProcessor>();
           param.add(impl);
           queueMap.put(tClass, param);
         }
@@ -125,7 +125,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
           final var defaultProcessor = entry.getValue().stream().filter(p -> p.tenants() == null).findFirst().orElseThrow();
           final var customProcessors = entry.getValue().stream()
             .filter(p -> p.tenants() != null)
-            .collect(groupingBy(TaskProcessor::tenants));
+            .collect(groupingBy(MessageProcessor::tenants));
           final var queueWrapper = new MessageProcessorWrapper(
             deploymentId,
             defaultProcessor,
@@ -139,7 +139,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
       .toList();
   }
 
-  private static void validateProcessors(List<TaskProcessor> queues, Class<?> tClass) {
+  private static void validateProcessors(List<MessageProcessor> queues, Class<?> tClass) {
     if (queues.stream().filter(
       p -> p.tenants() == null
     ).toList().size() > 1) {
@@ -147,7 +147,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
     }
     queues.stream()
       .filter(p -> p.tenants() != null)
-      .collect(groupingBy(TaskProcessor::tenants))
+      .collect(groupingBy(MessageProcessor::tenants))
       .forEach((key, value) -> {
           if (value.size() > 1) {
             throw new IllegalStateException("More than one custom implementation for tenantId " + key + " queue -> " + tClass);
@@ -156,7 +156,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
       );
   }
 
-  public static <T> void logQueueConfiguration(final MessageProcessorWrapper<T> messageProcessorWrapper, TaskQueueConfiguration taskQueueConfiguration) {
+  public static <T> void logQueueConfiguration(final MessageProcessorWrapper<T> messageProcessorWrapper, QueueConfiguration queueConfiguration) {
     final var customProcessors = new JsonObject();
     messageProcessorWrapper.customProcessors()
       .forEach((key, value) -> key.forEach(k -> customProcessors.put(k, value.getClass().getName())));
@@ -164,7 +164,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
       .put("defaultProcessor", messageProcessorWrapper.defaultProcessor().getClass().getName())
       .put("customProcessors", customProcessors)
       .put("payloadClass", messageProcessorWrapper.payloadClass().getName())
-      .put("configuration", JsonObject.mapFrom(taskQueueConfiguration));
+      .put("configuration", JsonObject.mapFrom(queueConfiguration));
     LOGGER.info("Queue configured -> " + json.encodePrettily());
   }
 

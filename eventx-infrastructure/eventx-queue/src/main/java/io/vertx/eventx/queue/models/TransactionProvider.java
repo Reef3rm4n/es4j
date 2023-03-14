@@ -1,6 +1,6 @@
 package io.vertx.eventx.queue.models;
 
-public enum TransactionManagerImplementation {
+public enum TransactionProvider {
 
   VERTX_PG_CLIENT, JOOQ
 }

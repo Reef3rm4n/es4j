@@ -1,7 +1,7 @@
 package io.vertx.eventx.queue.postgres;
 
 import io.vertx.core.impl.logging.LoggerFactory;
-import io.vertx.eventx.queue.models.TaskQueueConfiguration;
+import io.vertx.eventx.queue.models.QueueConfiguration;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.eventx.sql.RepositoryHandler;
 
@@ -11,12 +11,12 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PgRefresher {
   public final AtomicLong timer = new AtomicLong();
   private final RepositoryHandler repositoryHandler;
-  private final TaskQueueConfiguration configuration;
+  private final QueueConfiguration configuration;
   private static final Logger logger = LoggerFactory.getLogger(PgRefresher.class);
 
   public PgRefresher(
     final RepositoryHandler repositoryHandler,
-    final TaskQueueConfiguration configuration
+    final QueueConfiguration configuration
   ) {
     this.repositoryHandler = repositoryHandler;
     this.configuration = configuration;
@@ -91,17 +91,17 @@ public class PgRefresher {
   }
 
 
-  private static String purgeIdempotency(TaskQueueConfiguration configuration) {
+  private static String purgeIdempotency(QueueConfiguration configuration) {
     return "delete from  task_queue_tx where inserted <= current_timestamp - interval '" + configuration.idempotencyNumberOfDays() + " days'";
   }
   // todo instead of purging should move to another database.
 
-  private static String recoveryUpdates(TaskQueueConfiguration configuration) {
+  private static String recoveryUpdates(QueueConfiguration configuration) {
     return "update task_queue set rec_version = version + 1, state = 'RECOVERY'  where " +
       " state = 'PROCESSING' and updated + interval '" + configuration.maxProcessingTimeInMinutes() + "minutes' <= current_timestamp;";
   }
 
-  private static String retryUpdates(TaskQueueConfiguration configuration) {
+  private static String retryUpdates(QueueConfiguration configuration) {
     return "update task_queue set rec_version = rec_version + 1  where " +
       " state = 'RETRY' and updated + interval '" + configuration.retryIntervalInSeconds() + "seconds' <= current_timestamp;";
   }

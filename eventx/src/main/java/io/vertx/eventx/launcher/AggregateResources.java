@@ -15,12 +15,13 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
+import io.vertx.eventx.EventProjection;
 import io.vertx.eventx.StateProjection;
 import io.vertx.eventx.common.CustomClassLoader;
-import io.vertx.eventx.config.ConfigurationDeployer;
 import io.vertx.eventx.config.ConfigurationHandler;
 import io.vertx.eventx.core.AggregateHeartbeat;
 import io.vertx.eventx.core.AggregateVerticle;
+import io.vertx.eventx.core.EventProjectionPoller;
 import io.vertx.eventx.core.StateProjectionPoller;
 import io.vertx.eventx.infrastructure.*;
 import io.vertx.eventx.infrastructure.proxies.AggregateEventBusClient;
@@ -42,8 +43,6 @@ public class AggregateResources<T extends Aggregate> {
   private final Vertx vertx;
   private final String deploymentID;
   private final ArrayList<Module> localModules;
-  private final TimerTaskDeployer timerTaskDeployer;
-  private final ConfigurationDeployer configurationDeployer;
   private ConfigRetriever deploymentConfiguration;
   private final Class<T> aggregateClass;
   private Infrastructure infrastructure;
@@ -57,13 +56,12 @@ public class AggregateResources<T extends Aggregate> {
     this.vertx = vertx;
     this.deploymentID = deploymentID;
     this.localModules = new ArrayList<>(MAIN_MODULES);
-    this.timerTaskDeployer = new TimerTaskDeployer();
-    this.configurationDeployer = new ConfigurationDeployer();
   }
 
 
   public void deploy(final Promise<Void> startPromise) {
-    injectBusHeardBeat();
+    injectBusHeartBeat();
+    injectProjectionPollers();
     injectProjectionPollers();
     final var moduleBuilder = ModuleBuilder.create().install(localModules);
     this.deploymentConfiguration = ConfigurationHandler.configure(
@@ -78,8 +76,6 @@ public class AggregateResources<T extends Aggregate> {
               return infrastructure(Injector.of(moduleBuilder.build()));
             }
           )
-          .call(configurationDeployer::deploy)
-          .invoke(timerTaskDeployer::deploy)
           .call(injector -> {
               final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules));
               return createChannel(vertx, aggregateClass, deploymentID)
@@ -110,7 +106,6 @@ public class AggregateResources<T extends Aggregate> {
     this.infrastructure = new Infrastructure(
       injector.getInstance(AggregateCache.class),
       injector.getInstance(EventStore.class),
-      injector.getInstance(SnapshotStore.class),
       injector.getInstance(OffsetStore.class)
     );
     return infrastructure.start().replaceWith(injector);
@@ -150,7 +145,31 @@ public class AggregateResources<T extends Aggregate> {
     );
   }
 
-  private void injectBusHeardBeat() {
+  private void injectEventPollers() {
+    MAIN_MODULES.add(
+      new AbstractModule() {
+        @Provides
+        @Inject
+        EventProjectionPoller eventPoller(
+          final List<EventProjection> eventProjections,
+          final EventStore eventStore,
+          final OffsetStore offsetStore
+        ) {
+          return new EventProjectionPoller(eventProjections,eventStore,offsetStore);
+        }
+
+        @Provides
+        @Inject
+        List<EventProjection> stateProjectionWrappers(Injector injector) {
+          return CustomClassLoader.loadFromInjector(injector, EventProjection.class).stream()
+            .filter(stateProjection -> CustomClassLoader.getFirstGenericType(stateProjection).isAssignableFrom(aggregateClass))
+            .toList();
+        }
+      }
+    );
+  }
+
+  private void injectBusHeartBeat() {
     localModules.add(
       new AbstractModule() {
         @Inject
@@ -164,8 +183,7 @@ public class AggregateResources<T extends Aggregate> {
 
   public Uni<Void> close() {
     deploymentConfiguration.close();
-    timerTaskDeployer.close();
-    return configurationDeployer.close().flatMap(avoid -> infrastructure.stop());
+    return infrastructure.stop();
   }
 
 }
