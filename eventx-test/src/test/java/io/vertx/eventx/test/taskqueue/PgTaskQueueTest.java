@@ -1,14 +1,14 @@
 package io.vertx.eventx.test.taskqueue;
 
 import io.vertx.eventx.VertxTestBootstrap;
+import io.vertx.eventx.queue.models.QueueTransaction;
+import io.vertx.eventx.queue.postgres.PgMessageProducer;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.queue.models.Message;
-import io.vertx.eventx.queue.models.TaskTransaction;
-import io.vertx.eventx.queue.postgres.PgTaskProducer;
 import io.vertx.eventx.queue.postgres.mappers.DeadLetterMapper;
 import io.vertx.eventx.queue.postgres.mappers.MessageQueueMapper;
 import io.vertx.eventx.queue.postgres.mappers.MessageTransactionMapper;
@@ -33,7 +33,7 @@ public class PgTaskQueueTest {
   public static final VertxTestBootstrap BOOTSTRAP = new VertxTestBootstrap()
     .setPostgres(false)
     .addLiquibaseRun("task-queue.xml", Map.of("schema", "postgres"))
-    .setConfigurationPath("config.json");
+    .setConfigurationPath("fakeaggregate.json");
 
   @BeforeAll
   static void prepare() throws Exception {
@@ -49,11 +49,11 @@ public class PgTaskQueueTest {
   @Test
   void test_pg_producer(Vertx vertx, VertxTestContext vertxTestContext) {
     // todo produce to the db queue and assert record has been written
-    final var producer = new PgTaskProducer(BOOTSTRAP.REPOSITORY_HANDLER);
+    final var producer = new PgMessageProducer(BOOTSTRAP.REPOSITORY_HANDLER);
     final var queue = new Repository<>(MessageQueueMapper.INSTANCE, BOOTSTRAP.REPOSITORY_HANDLER);
     final var fakeMessage = fakeMessage();
     BOOTSTRAP.REPOSITORY_HANDLER.pgPool().withTransaction(
-      sqlConnection -> producer.enqueue(fakeMessage, new TaskTransaction(sqlConnection))
+      sqlConnection -> producer.enqueue(fakeMessage, new QueueTransaction(sqlConnection))
     ).await().indefinitely();
     queue.selectByKey(new MessageRecordID(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
     vertxTestContext.completeNow();
@@ -61,11 +61,11 @@ public class PgTaskQueueTest {
 
   @Test
   void test_pg_subscriber(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var producer = new PgTaskProducer(BOOTSTRAP.REPOSITORY_HANDLER);
+    final var producer = new PgMessageProducer(BOOTSTRAP.REPOSITORY_HANDLER);
     final var queueTx = new Repository<>(MessageTransactionMapper.INSTANCE, BOOTSTRAP.REPOSITORY_HANDLER);
     final var fakeMessage = fakeMessage();
     BOOTSTRAP.REPOSITORY_HANDLER.pgPool().withTransaction(
-      sqlConnection -> producer.enqueue(fakeMessage, new TaskTransaction(sqlConnection))
+      sqlConnection -> producer.enqueue(fakeMessage, new QueueTransaction(sqlConnection))
     ).await().indefinitely();
     Thread.sleep(1000);
     queueTx.selectByKey(new MessageTransactionID(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
@@ -74,11 +74,11 @@ public class PgTaskQueueTest {
 
   @Test
   void test_refresh_retry_and_dead_letter_queue(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var producer = new PgTaskProducer(BOOTSTRAP.REPOSITORY_HANDLER);
+    final var producer = new PgMessageProducer(BOOTSTRAP.REPOSITORY_HANDLER);
     final var deadLetters = new Repository<>(DeadLetterMapper.INSTANCE, BOOTSTRAP.REPOSITORY_HANDLER);
     final var fakeMessage = fakeDeadMessage();
     BOOTSTRAP.REPOSITORY_HANDLER.pgPool().withTransaction(
-      sqlConnection -> producer.enqueue(fakeMessage, new TaskTransaction(sqlConnection))
+      sqlConnection -> producer.enqueue(fakeMessage, new QueueTransaction(sqlConnection))
     ).await().indefinitely();
     Thread.sleep(10000);
     deadLetters.selectByKey(new DeadLetterKey(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
@@ -87,11 +87,11 @@ public class PgTaskQueueTest {
 
   @Test
   void test_nack(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
-    final var producer = new PgTaskProducer(BOOTSTRAP.REPOSITORY_HANDLER);
+    final var producer = new PgMessageProducer(BOOTSTRAP.REPOSITORY_HANDLER);
     final var deadLetters = new Repository<>(DeadLetterMapper.INSTANCE, BOOTSTRAP.REPOSITORY_HANDLER);
     final var fakeMessage = fakeDeadMessage();
     BOOTSTRAP.REPOSITORY_HANDLER.pgPool().withTransaction(
-      sqlConnection -> producer.enqueue(fakeMessage, new TaskTransaction(sqlConnection))
+      sqlConnection -> producer.enqueue(fakeMessage, new QueueTransaction(sqlConnection))
     ).await().indefinitely();
     Thread.sleep(1000);
     final var actualQueue = new Repository<>(MessageQueueMapper.INSTANCE, BOOTSTRAP.REPOSITORY_HANDLER);

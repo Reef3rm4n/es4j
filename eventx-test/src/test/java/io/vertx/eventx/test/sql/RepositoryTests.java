@@ -27,7 +27,7 @@ public class RepositoryTests {
   public static final VertxTestBootstrap BOOTSTRAP = new VertxTestBootstrap()
     .setPostgres(true)
     .addLiquibaseRun("sql-test.xml", Map.of())
-    .setConfigurationPath("config.json");
+    .setConfigurationPath("fakeaggregate.json");
 
   private final Logger LOGGER = LoggerFactory.getLogger(RepositoryTests.class);
 

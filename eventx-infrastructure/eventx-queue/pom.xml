@@ -11,17 +11,6 @@
 
   <artifactId>eventx-queue</artifactId>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>io.vertx.eventx</groupId>
-        <artifactId>eventx-dependencies</artifactId>
-        <version>${project.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
@@ -36,11 +25,13 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>eventx</artifactId>
-      <version>${project.version}</version>
+      <groupId>org.reflections</groupId>
+      <artifactId>reflections</artifactId>
     </dependency>
-
+    <dependency>
+      <groupId>io.activej</groupId>
+      <artifactId>activej-inject</artifactId>
+    </dependency>
   </dependencies>
 
 

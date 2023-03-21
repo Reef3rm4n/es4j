@@ -2,6 +2,7 @@ package io.vertx.eventx.objects;
 
 
 import com.google.common.collect.EvictingQueue;
+import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
 
 import io.vertx.core.shareddata.Shareable;
@@ -13,21 +14,14 @@ public class AggregateState<T extends Aggregate> implements Shareable {
   private final Class<T> aggregateClass;
   private T state = null;
   private final EvictingQueue<String> knownCommands = EvictingQueue.create(100);
-  private Long snapshotOffset = null;
   private Long currentVersion = null;
 
-  public AggregateState(Class<T> aggregateClass) {
+  public AggregateState(
+    Class<T> aggregateClass
+  ) {
     this.aggregateClass = aggregateClass;
   }
 
-  public Long snapshotOffset() {
-    return snapshotOffset;
-  }
-
-  public AggregateState<T> setSnapshotOffset(Long snapshotOffset) {
-    this.snapshotOffset = snapshotOffset;
-    return this;
-  }
 
   public Class<T> aggregateClass() {
     return aggregateClass;
@@ -66,5 +60,21 @@ public class AggregateState<T extends Aggregate> implements Shareable {
       .filter(cmd -> !knownCommands.contains(cmd))
       .forEach(knownCommands::add);
     return this;
+  }
+
+  public JsonObject toJson() {
+    return new JsonObject()
+      .put("state", JsonObject.mapFrom(state))
+      .put("currentVersion", currentVersion)
+      .put("knownCommands", knownCommands.stream().toList());
+  }
+
+  public static <X extends Aggregate> AggregateState<X> fromJson(JsonObject jsonObject, Class<X> tClass) {
+    return new AggregateState<>(
+      tClass
+    )
+      .setCurrentVersion(jsonObject.getLong("currentVersion"))
+      .addKnownCommands(jsonObject.getJsonArray("knownCommands").stream().map(String::valueOf).toList())
+      .setState(jsonObject.getJsonObject("state").mapTo(tClass));
   }
 }

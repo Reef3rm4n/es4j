@@ -3,7 +3,7 @@ package io.vertx.eventx.infra.pg;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.infra.pg.mappers.EventJournalMapper;
+import io.vertx.eventx.infra.pg.mappers.EventStoreMapper;
 import io.vertx.eventx.infra.pg.mappers.JournalOffsetMapper;
 import io.vertx.eventx.infra.pg.models.*;
 import io.vertx.eventx.infrastructure.*;
@@ -30,22 +30,23 @@ public class PostgresInfrastructure extends EventxModule {
   ) {
     return new PgOffsetStore(repository);
   }
-  @Provides
-  @Inject
-  RepositoryHandler repositoryHandler(JsonObject configuration, Vertx vertx) {
-    return RepositoryHandler.leasePool(configuration, vertx);
-  }
 
   @Provides
   @Inject
   Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal(RepositoryHandler repositoryHandler) {
-    return new Repository<>(EventJournalMapper.INSTANCE, repositoryHandler);
+    return new Repository<>(EventStoreMapper.INSTANCE, repositoryHandler);
   }
 
   @Provides
   @Inject
   Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> journalOffset(RepositoryHandler repositoryHandler) {
     return new Repository<>(JournalOffsetMapper.INSTANCE, repositoryHandler);
+  }
+
+  @Provides
+  @Inject
+  RepositoryHandler repositoryHandler(Vertx vertx, JsonObject config) {
+    return RepositoryHandler.leasePool(config,vertx);
   }
 
 }

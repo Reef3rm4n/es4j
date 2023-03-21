@@ -16,9 +16,9 @@ public class OptionsFilter {
 
     public static void addOptionsQueryFiltersAndParams(QueryOptions options, StringJoiner queryFilters) {
         if (options.tenantId() != null) {
-            queryFilters.add(" tenantId = #{tenantId} ");
+            queryFilters.add(" tenant = #{tenant} ");
         } else {
-            queryFilters.add(" tenantId like '%' ");
+            queryFilters.add(" tenant like '%' ");
         }
         if (options.creationDateFrom() != null) {
             queryFilters.add(" creation_date >= #{creationDateFrom} ");

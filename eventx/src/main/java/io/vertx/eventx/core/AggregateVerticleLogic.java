@@ -10,6 +10,7 @@ import io.vertx.eventx.infrastructure.models.*;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.exceptions.UnknownCommand;
 import io.vertx.eventx.exceptions.UnknownEvent;
+import io.vertx.eventx.infrastructure.models.Event;
 import io.vertx.eventx.objects.*;
 import io.vertx.eventx.sql.exceptions.Conflict;
 import io.smallrye.mutiny.Uni;
@@ -72,7 +73,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   public Uni<JsonObject> loadAggregate(AggregatePlainKey aggregateRecordKey) {
     LOGGER.debug("Loading aggregate locally  -> " + aggregateRecordKey);
     return loadAggregate(aggregateRecordKey.aggregateId(), aggregateRecordKey.tenantId())
-      .map(JsonObject::mapFrom);
+      .map(AggregateState::toJson);
   }
 
   public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
@@ -81,12 +82,12 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     return loadAggregate(command.aggregateId(), command.headers().tenantId())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
         .onFailure(Conflict.class).recoverWithUni(
-          () -> playFromLastJournalOffset(aggregateState)
+          () -> playFromLastJournalOffset(command.aggregateId(), command.headers().tenantId(), aggregateState)
             .flatMap(reconstructedState -> processCommand(reconstructedState, command))
         )
         .onFailure().invoke(throwable -> logRejectedCommand(throwable, command))
       )
-      .map(JsonObject::mapFrom);
+      .map(AggregateState::toJson);
   }
 
   private T aggregateEvent(T aggregateState, final io.vertx.eventx.Event event) {
@@ -146,32 +147,41 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
     }
     if (state == null) {
-      return playFromLastJournalOffset(new AggregateState<>(aggregateClass));
+      return playFromLastJournalOffset(aggregateId, tenant, new AggregateState<>(aggregateClass));
     } else {
       return Uni.createFrom().item(state);
     }
   }
 
-  private Uni<AggregateState<T>> playFromLastJournalOffset(AggregateState<T> state) {
+  private Uni<AggregateState<T>> playFromLastJournalOffset(String aggregateId, String tenant, AggregateState<T> state) {
     LOGGER.debug("Playing from last journal offset");
-    return infrastructure.eventStore().stream(
-        streamInstruction(state),
-        infraEvent -> applyEvent(state, infraEvent)
-      )
-      .map(avoid -> cacheState(state));
+    return infrastructure.eventStore().fetch(streamInstruction(aggregateId, tenant, state))
+      .map(events -> {
+          events.forEach(ev -> applyEvent(state, ev));
+          return cacheState(state);
+        }
+      );
+//    return infrastructure.eventStore().stream(
+//        streamInstruction(aggregateId, tenant, state),
+//        infraEvent -> applyEvent(state, infraEvent)
+//      )
+//      .map(avoid -> cacheState(state));
   }
 
-  private AggregateEventStream<T> streamInstruction(AggregateState<T> state) {
-    final var snapshotEvents = new ArrayList<>(state.state().snapshotOn());
-    if (state.state().snapshotEvery().isPresent()) {
-      snapshotEvents.add(SnapshotEvent.class);
+  private AggregateEventStream<T> streamInstruction(String aggregateId, String tenant, AggregateState<T> state) {
+    List<Class<? extends io.vertx.eventx.Event>> snapshotEvents = null;
+    if (state.state() != null) {
+      snapshotEvents = new ArrayList<>(state.state().snapshotOn());
+      if (state.state().snapshotEvery().isPresent()) {
+        snapshotEvents.add(SnapshotEvent.class);
+      }
     }
     return new AggregateEventStream<>(
       state.aggregateClass(),
-      state.state().aggregateId(),
-      state.state().tenantID(),
+      aggregateId,
+      tenant,
       state.currentVersion(),
-      state.snapshotOffset(),
+      null,
       snapshotEvents
     );
   }
@@ -212,7 +222,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     } else {
       state.setState(JsonObject.mapFrom(((SnapshotEvent) parsedEvent).state()).mapTo(state.aggregateClass()));
     }
-    state.setSnapshotOffset(event.journalOffset());
   }
 
   private void applyEvent(final AggregateState<T> state, final Event event) {
@@ -225,29 +234,27 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     }
     final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
     state.setState(newState)
-      .setSnapshotOffset(isSnapshot ? event.journalOffset() : state.snapshotOffset())
       .addKnownCommand(event.commandId())
       .setCurrentVersion(event.eventVersion());
   }
 
   private List<Event> applyCommandBehaviour(final AggregateState<T> state, final Command finalCommand) {
-    final var currentVersion = state.currentVersion() == null ? 0 : state.currentVersion();
     final var events = applyCommandBehaviour(state.state(), finalCommand);
     if (LOGGER.isDebugEnabled()) {
       LOGGER.debug("Events created -> " + new JsonArray(events).encodePrettily());
     }
     final var array = events.toArray(new io.vertx.eventx.Event[0]);
-    final var resultingEvents = transformEvents(state, finalCommand, currentVersion, array);
+    final var resultingEvents = transformEvents(state, finalCommand, array);
     addOptionalSnapshot(state, finalCommand, resultingEvents);
     return resultingEvents;
   }
 
-  private ArrayList<Event> transformEvents(AggregateState<T> state, Command finalCommand, long currentVersion, io.vertx.eventx.Event[] array) {
+  private ArrayList<Event> transformEvents(AggregateState<T> state, Command finalCommand, io.vertx.eventx.Event[] array) {
+    final var currentVersion = state.currentVersion() == null ? 0 : state.currentVersion();
     return new ArrayList<>(IntStream.range(1, array.length + 1)
       .mapToObj(index -> {
           final var ev = array[index - 1];
           final var eventVersion = currentVersion + index;
-          state.setCurrentVersion(eventVersion);
           return new Event(
             aggregateClass.getName(),
             finalCommand.aggregateId(),
@@ -265,33 +272,34 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private void addOptionalSnapshot(AggregateState<T> state, Command finalCommand, ArrayList<Event> resultingEvents) {
-    state.state().snapshotEvery().ifPresent(
-      snapshotEvery -> {
-        final var snapshot = snapshotEvery <= Math.floorMod(state.currentVersion(), snapshotEvery);
-        if (snapshot) {
-          LOGGER.debug("Appending a snapshot to the stream");
-          state.setCurrentVersion(state.currentVersion() + 1);
-          resultingEvents.add(new Event(
-              aggregateClass.getName(),
-              finalCommand.aggregateId(),
-              SnapshotEvent.class.getName(),
-              state.currentVersion(),
-              JsonObject.mapFrom(new SnapshotEvent(
-                  JsonObject.mapFrom(state.state()).getMap(),
-                  state.knownCommands().stream().toList(),
-                  state.snapshotOffset(),
-                  state.currentVersion()
-                )
-              ),
-              finalCommand.headers().tenantId(),
-              finalCommand.headers().commandID(),
-              List.of("eventx-snapshot"),
-              state.state().schemaVersion()
-            )
-          );
+    if (state.state() != null) {
+      state.state().snapshotEvery().ifPresent(
+        snapshotEvery -> {
+          final var snapshot = snapshotEvery <= Math.floorMod(state.currentVersion(), snapshotEvery);
+          if (snapshot) {
+            LOGGER.debug("Appending a snapshot to the stream");
+            state.setCurrentVersion(state.currentVersion() + 1);
+            resultingEvents.add(new Event(
+                aggregateClass.getName(),
+                finalCommand.aggregateId(),
+                SnapshotEvent.class.getName(),
+                state.currentVersion(),
+                JsonObject.mapFrom(new SnapshotEvent(
+                    JsonObject.mapFrom(state.state()).getMap(),
+                    state.knownCommands().stream().toList(),
+                    state.currentVersion()
+                  )
+                ),
+                finalCommand.headers().tenantId(),
+                finalCommand.headers().commandID(),
+                List.of("eventx-snapshot"),
+                state.state().schemaVersion()
+              )
+            );
+          }
         }
-      }
-    );
+      );
+    }
   }
 
 
@@ -307,20 +315,27 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       state.knownCommands().stream().filter(txId -> txId.equals(command.headers().commandID()))
         .findAny()
         .ifPresent(duplicatedCommand -> {
-            throw new CommandRejected(new EventxError("Command was already processed", "commandId was marked as known by the aggregate", 400));
+            throw new CommandRejected(new EventxError(
+              "Command was already processed",
+              "commandId was marked as known by the aggregate",
+              400
+            )
+            );
           }
         );
     }
   }
 
   private AggregateState<T> cacheState(AggregateState<T> state) {
-    infrastructure.cache().put(
-      new AggregateKey<>(
-        aggregateClass,
-        state.state().aggregateId(),
-        state.state().tenantID()
-      ),
-      state);
+    if (state.state() != null) {
+      infrastructure.cache().put(
+        new AggregateKey<>(
+          aggregateClass,
+          state.state().aggregateId(),
+          state.state().tenantID()
+        ),
+        state);
+    }
     return state;
   }
 
@@ -347,11 +362,26 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       if (object instanceof Command command) {
         return command;
       } else {
-        throw new CommandRejected(new EventxError("Command is not an instance of AggregateCommand", JsonObject.mapFrom(object).encode(), 500));
+        throw new CommandRejected(new EventxError(
+          ErrorSource.LOGIC,
+          JsonObject.mapFrom(object).encode(),
+          "Command is not an instance of AggregateCommand",
+          "Unable to parse command " + commandType + jsonCommand.encodePrettily(),
+          "command.parser",
+          500
+        ));
       }
     } catch (Exception e) {
-      LOGGER.error("Unable to cast command", e);
-      throw new CommandRejected(new EventxError("Unable to cast class", e.getMessage(), 500));
+      LOGGER.error("Unable to cast command " + commandType + jsonCommand.encodePrettily(), e);
+      throw new CommandRejected(new EventxError(
+        ErrorSource.LOGIC,
+        this.getClass().getName(),
+        "Unable to parse command",
+        "Unable to parse command " + commandType + jsonCommand.encodePrettily(),
+        "command.parser",
+        500
+      )
+      );
     }
   }
 

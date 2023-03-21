@@ -1,8 +1,8 @@
 package io.vertx.eventx;
 
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.common.ErrorSource;
 import io.vertx.eventx.exceptions.UnknownEvent;
+import io.vertx.eventx.objects.ErrorSource;
 import io.vertx.eventx.objects.EventxError;
 
 public interface Aggregator<T extends Aggregate, E extends Event> {

@@ -7,17 +7,19 @@ import io.vertx.eventx.infrastructure.models.AggregateEventStream;
 import io.vertx.eventx.infrastructure.models.AppendInstruction;
 import io.vertx.eventx.infrastructure.models.Event;
 import io.vertx.eventx.infrastructure.models.EventStream;
-import io.vertx.eventx.infra.pg.mappers.EventJournalMapper;
+import io.vertx.eventx.infra.pg.mappers.EventStoreMapper;
 import io.vertx.eventx.infra.pg.models.EventRecord;
 import io.vertx.eventx.infra.pg.models.EventRecordKey;
 import io.vertx.eventx.infra.pg.models.EventRecordQuery;
 import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.Repository;
+import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.sql.models.BaseRecord;
 import io.vertx.eventx.sql.models.QueryOptions;
-import org.jetbrains.annotations.NotNull;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
 
 public class PgEventStore implements EventStore {
@@ -31,6 +33,7 @@ public class PgEventStore implements EventStore {
   @Override
   public <T extends Aggregate> Uni<List<Event>> fetch(AggregateEventStream<T> aggregateEventStream) {
     return eventJournal.query(eventJournalQuery(aggregateEventStream))
+      .onFailure(NotFound.class).recoverWithItem(new ArrayList<>())
       .map(eventRecords -> eventRecords.stream()
         .map(eventRecord -> new Event(
             eventRecord.aggregateClass(),
@@ -155,7 +158,7 @@ public class PgEventStore implements EventStore {
       null,
       null,
       new QueryOptions(
-        EventJournalMapper.EVENT_VERSION,
+        EventStoreMapper.EVENT_VERSION,
         false,
         null,
         null,
@@ -169,11 +172,10 @@ public class PgEventStore implements EventStore {
     );
   }
 
-  @NotNull
   private static <T extends Aggregate> String snapshotFrom(AggregateEventStream<T> aggregateEventStream) {
-    if (!aggregateEventStream.startFrom().isEmpty()) {
-      final var stringBuilder   = new StringBuilder(",");
-      aggregateEventStream.startFrom().forEach(evc -> stringBuilder.append("'" + evc.getName() + "'"));
+    if (aggregateEventStream.startFrom() != null && !aggregateEventStream.startFrom().isEmpty()) {
+      final var stringJoiner   = new StringJoiner(",");
+      aggregateEventStream.startFrom().forEach(evc -> stringJoiner.add("'" + evc.getName() + "'"));
       return " (select max(id) from event_journal where event_class in (" + aggregateEventStream.startFrom() + "))";
     }
    return null;
@@ -190,7 +192,7 @@ public class PgEventStore implements EventStore {
       eventStream.offset(),
       null,
       new QueryOptions(
-        EventJournalMapper.ID,
+        EventStoreMapper.ID,
         false,
         null,
         null,

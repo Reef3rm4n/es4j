@@ -1,7 +1,5 @@
 package io.vertx.eventx.launcher;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.reactiverse.contextual.logging.ContextualData;
@@ -16,24 +14,28 @@ import io.vertx.core.impl.cpu.CpuCoreSensor;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.config.ConfigurationDeployer;
 import io.vertx.eventx.core.AggregateBridge;
+import io.vertx.eventx.core.AggregateHeartbeat;
+import io.vertx.eventx.core.EventProjectionPoller;
+import io.vertx.eventx.core.StateProjectionPoller;
 import io.vertx.eventx.objects.CommandHeaders;
-import io.vertx.eventx.common.CustomClassLoader;
+
 import io.vertx.eventx.task.TimerTaskDeployer;
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 public class EventxMain extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
-  public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadComponents());
-  private List<AggregateResources<? extends Aggregate>> resources = new ArrayList<>();
+  public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadModules());
+  private static final List<AggregateResourcesAllocator<? extends Aggregate>> AGGREGATES = new ArrayList<>();
+  public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
+  public static  final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
+  public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
+  private TimerTaskDeployer timers;
 
   @Override
   public void start(final Promise<Void> startPromise) {
@@ -50,27 +52,32 @@ public class EventxMain extends AbstractVerticle {
   }
 
   private void addContextualData(DeliveryContext<Object> event) {
-    final var commandID = event.message().headers().get(CommandHeaders.COMMAND_ID);
-    final var tenantID = event.message().headers().get(CommandHeaders.TENANT_ID);
+    final var commandID = event.message().headers().get("COMMAND");
+    final var tenantID = event.message().headers().get("TENANT");
+    final var aggregate = event.message().headers().get("AGGREGATE");
     if (commandID != null) {
-      ContextualData.put(CommandHeaders.COMMAND_ID, commandID);
+      ContextualData.put("COMMAND", commandID);
     }
     if (tenantID != null) {
-      ContextualData.put(CommandHeaders.TENANT_ID, tenantID);
+      ContextualData.put("TENANT", tenantID);
+    }
+    if (aggregate != null) {
+      ContextualData.put("AGGREGATE", aggregate);
     }
     event.next();
   }
 
   private void startAggregateResources(final Promise<Void> startPromise) {
+    LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
     CustomClassLoader.getSubTypes(Aggregate.class).stream()
-      .map(aClass -> new AggregateResources<>(
+      .map(aClass -> new AggregateResourcesAllocator<>(
           aClass,
           vertx,
           context.deploymentID()
         )
       )
-      .forEach(resource -> resources.add(resource));
-    final var aggregatesDeployment = resources.stream()
+      .forEach(AGGREGATES::add);
+    final var aggregatesDeployment = AGGREGATES.stream()
       .map(resource -> {
           final var promise = Promise.<Void>promise();
           resource.deploy(promise);
@@ -78,10 +85,9 @@ public class EventxMain extends AbstractVerticle {
         }
       )
       .toList();
-    LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
     Uni.join().all(aggregatesDeployment).andFailFast()
       .flatMap(avoid -> deployBridges())
-      .flatMap(avoid -> deployTimers())
+      .invoke(avoid -> deployProjections())
       .subscribe()
       .with(
         aVoid -> {
@@ -96,10 +102,23 @@ public class EventxMain extends AbstractVerticle {
       );
   }
 
-  private Uni<Void> deployTimers() {
-    final var injector = Injector.of(ModuleBuilder.create().install(MAIN_MODULES).build());
-    TimerTaskDeployer.INSTANCE.deploy(injector);
-    return ConfigurationDeployer.INSTANCE.deploy(injector).replaceWithVoid();
+  private void deployProjections() {
+    this.timers = new TimerTaskDeployer(vertx);
+    STATE_PROJECTIONS.forEach(this::deployProjection);
+    EVENT_PROJECTIONS.forEach(this::deployProjection);
+    HEARTBEATS.forEach(this::deployHeartBeat);
+  }
+
+  private void deployHeartBeat(AggregateHeartbeat<? extends Aggregate> aggregateHeartbeat) {
+    timers.deploy(aggregateHeartbeat);
+  }
+
+  private void deployProjection(EventProjectionPoller eventProjectionPoller) {
+    timers.deploy(eventProjectionPoller);
+  }
+
+  private void deployProjection(StateProjectionPoller<? extends Aggregate> stateProjectionPoller) {
+    timers.deploy(stateProjectionPoller);
   }
 
   private Uni<Void> deployBridges() {
@@ -125,8 +144,8 @@ public class EventxMain extends AbstractVerticle {
 
 
   private Uni<Void> undeployComponent() {
-    return Multi.createFrom().iterable(resources)
-      .onItem().transformToUniAndMerge(AggregateResources::close)
+    return Multi.createFrom().iterable(AGGREGATES)
+      .onItem().transformToUniAndMerge(AggregateResourcesAllocator::close)
       .collect().asList()
       .replaceWithVoid();
   }

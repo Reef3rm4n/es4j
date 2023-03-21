@@ -20,11 +20,21 @@
     <module>eventx-http-bridge</module>
     <module>eventx-config-storage</module>
     <module>eventx-postgres-storage</module>
-      <module>eventx-cache</module>
     <module>eventx-http-client</module>
+    <module>eventx-eventbus-projections</module>
   </modules>
 
-
+  <dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>eventx-dependencies</artifactId>
+      <version>${project.version}</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>

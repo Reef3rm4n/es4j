@@ -1,12 +1,5 @@
 package io.vertx.eventx.queue.models;
 
-
-import com.fasterxml.jackson.annotation.JsonAutoDetect;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class QueueConfiguration {
 
   private Boolean bootstrapQueue = true;

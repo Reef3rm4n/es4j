@@ -10,6 +10,7 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.infrastructure.Bridge;
+import io.vertx.eventx.launcher.CustomClassLoader;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.List;
@@ -35,9 +36,9 @@ public class AggregateBridge extends AbstractVerticle {
   @Override
   public Uni<Void> asyncStart() {
    final var injector = startInjector();
-   this.bridges = io.vertx.eventx.common.CustomClassLoader.loadFromInjector(injector, Bridge.class);
+   this.bridges = CustomClassLoader.loadFromInjector(injector, Bridge.class);
     return Multi.createFrom().iterable(bridges)
-      .onItem().transformToUniAndMerge(Bridge::start)
+      .onItem().transformToUniAndMerge(bridge -> bridge.start(vertx,config()))
       .collect().asList()
       .replaceWithVoid();
   }

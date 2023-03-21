@@ -2,7 +2,7 @@ package io.vertx.eventx.objects;
 
 
 public record EventxError(
-  io.vertx.eventx.common.ErrorSource errorSource,
+  ErrorSource errorSource,
   String source,
   String cause,
   String hint,
@@ -12,6 +12,6 @@ public record EventxError(
 ) {
 
   public EventxError(String cause, String hint, Integer internalErrorCode) {
-    this(io.vertx.eventx.common.ErrorSource.UNKNOWN, null, cause, hint, String.valueOf(internalErrorCode), 500);
+    this(ErrorSource.UNKNOWN, null, cause, hint, String.valueOf(internalErrorCode), 500);
   }
 }

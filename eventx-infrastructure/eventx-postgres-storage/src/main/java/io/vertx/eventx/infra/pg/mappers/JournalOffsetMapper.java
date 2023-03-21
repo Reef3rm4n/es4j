@@ -15,7 +15,7 @@ public class JournalOffsetMapper implements RecordMapper<EventJournalOffSetKey, 
 
 
   public static final JournalOffsetMapper INSTANCE = new JournalOffsetMapper();
-  public static final String TABLE_NAME = "projection_offset";
+  public static final String TABLE_NAME = "offset_store";
   public static final String ID_OFFSET = "id_offset";
   public static final String EVENT_OFFSET = "event_offset";
   public static final String CONSUMER = "consumer";

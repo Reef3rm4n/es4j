@@ -35,6 +35,12 @@
     <dependency>
       <groupId>io.vertx.eventx</groupId>
       <artifactId>eventx</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>eventx-postgres-storage</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.smallrye.reactive</groupId>
@@ -51,6 +57,10 @@
       <artifactId>postgresql</artifactId>
       <version>${testcontainers.version}</version>
       <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.smallrye.reactive</groupId>
+      <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
     </dependency>
     <!---->
 

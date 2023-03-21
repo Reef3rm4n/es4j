@@ -5,8 +5,6 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.Command;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.eventx.objects.CommandHeaders;

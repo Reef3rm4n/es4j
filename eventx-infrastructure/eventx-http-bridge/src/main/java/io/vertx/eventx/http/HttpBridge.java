@@ -39,20 +39,21 @@ public class HttpBridge implements Bridge {
   private final List<HttpRoute> routes;
   private final List<HealthCheck> healthChecks;
   private HttpServer httpServer;
-  private final Vertx vertx;
+  private Vertx vertx;
+  private JsonObject configuration;
 
   public HttpBridge(
-    final Vertx vertx,
     final List<HttpRoute> routes,
     final List<HealthCheck> healthChecks
   ) {
-    this.vertx = vertx;
     this.routes = routes;
     this.healthChecks = healthChecks;
   }
 
   @Override
-  public Uni<Void> start() {
+  public Uni<Void> start(Vertx vertx, JsonObject configuration) {
+    this.vertx = vertx;
+    this.configuration = configuration;
     this.httpServer = httpServer();
     final var router = Router.router(vertx);
     this.healthChecks(router);

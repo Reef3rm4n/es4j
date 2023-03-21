@@ -1,12 +1,12 @@
 package io.vertx.eventx.test.taskqueue;
 
 import io.smallrye.mutiny.Uni;
-import io.vertx.eventx.queue.TaskProcessor;
-import io.vertx.eventx.queue.models.TaskTransaction;
+import io.vertx.eventx.queue.MessageProcessor;
+import io.vertx.eventx.queue.models.QueueTransaction;
 
-public class MockDeadPayloadProcessor implements TaskProcessor<MockDeadPayload> {
+public class MockDeadPayloadProcessor implements MessageProcessor<MockDeadPayload> {
   @Override
-  public Uni<Void> process(MockDeadPayload payload, TaskTransaction taskTransaction) {
+  public Uni<Void> process(MockDeadPayload payload, QueueTransaction queueTransaction) {
     return Uni.createFrom().failure(new RuntimeException("Mocking failure !"));
   }
 }

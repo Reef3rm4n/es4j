@@ -39,7 +39,7 @@ public class QueryGeneratorMapper<K extends RepositoryRecordKey, V extends Repos
 
     public QueryGeneratorMapper(RecordMapper<K, V, Q> mapper) {
         final var keys = new HashSet<>(mapper.keyColumns());
-        keys.add("tenantId");
+        keys.add("tenant");
         this.mapper = mapper;
         this.selectAllStatement = PostgresQueryGenerator.INSTANCE.selectAll(mapper.table());
         this.selectByKeyStatement = PostgresQueryGenerator.INSTANCE.selectByKey(new GenerateSelectByKeyStatement(mapper.table(), keys));

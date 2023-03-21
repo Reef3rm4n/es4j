@@ -4,6 +4,7 @@ import io.activej.inject.module.Module;
 import io.smallrye.mutiny.Multi;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.eventx.config.ConfigurationEntry;
+import io.vertx.eventx.launcher.EventxMain;
 import io.vertx.eventx.sql.misc.Constants;
 import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.RepositoryHandler;
@@ -14,12 +15,9 @@ import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.WebClient;
-import org.testcontainers.containers.KafkaContainer;
+import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.containers.RabbitMQContainer;
-import org.testcontainers.containers.SolrContainer;
-import org.testcontainers.containers.output.Slf4jLogConsumer;
-import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.containers.wait.strategy.Wait;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -28,30 +26,21 @@ import java.util.Map;
 
 
 public class VertxTestBootstrap {
-  public static final String POSTGRES_VERSION = "postgres:13.7";
-  public static final String SOLR_VERSION = "solr:latest";
-  public static final String KAFKA_VERSION = "confluentinc/cp-kafka";
-  public static final String RABBITMQ_VERSION = "rabbitmq";
+  private static Network network = Network.newNetwork();
+  public static final String POSTGRES_VERSION = "postgres:latest";
   private final Logger LOGGER = LoggerFactory.getLogger(VertxTestBootstrap.class);
   public PostgreSQLContainer<?> POSTGRES_CONTAINER;
-  public SolrContainer SOLR_CONTAINER;
-  public RabbitMQContainer RABBIT_CONTAINER;
-  public KafkaContainer KAFKA_CONTAINER;
-  public RabbitMQContainer RABBITMQ_CONTAINER;
   public static final Vertx VERTX = Vertx.vertx();
   public JsonObject CONFIGURATION = new JsonObject();
   public RepositoryHandler REPOSITORY_HANDLER;
   public WebClient WEB_CLIENT;
   public String configurationPath = System.getenv().getOrDefault("CONFIGURATION_FILE", "config.json");
-
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
   public Boolean rabbitmq = Boolean.parseBoolean(System.getenv().getOrDefault("RABBITMQ", "false"));
   public Boolean kafka = Boolean.parseBoolean(System.getenv().getOrDefault("KAFKA", "false"));
   public Boolean REMOTE_TEST = Boolean.parseBoolean(System.getenv().getOrDefault("REMOTE_TEST", "false"));
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
   public Integer HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
-
-
   public static final List<ConfigurationEntry> configurationEntries = new ArrayList<>();
 
   public static final List<String> collections = new ArrayList<>();
@@ -145,17 +134,6 @@ public class VertxTestBootstrap {
         .collect().asList()
         .await().indefinitely();
     }
-    if (Boolean.TRUE.equals(rabbitMQContainer())) {
-      RABBIT_CONTAINER = new RabbitMQContainer(DockerImageName.parse(RABBITMQ_VERSION));
-      RABBIT_CONTAINER.start();
-    }
-
-
-    if (Boolean.TRUE.equals(kafkaContainer())) {
-      KAFKA_CONTAINER = new KafkaContainer(DockerImageName.parse(KAFKA_VERSION));
-      KAFKA_CONTAINER.start();
-    }
-
 
     if (Boolean.TRUE.equals(remoteTest())) {
       WEB_CLIENT = WebClient.create(VERTX, new WebClientOptions()
@@ -192,7 +170,10 @@ public class VertxTestBootstrap {
   }
 
   public void deployPgContainer() {
-    POSTGRES_CONTAINER = new PostgreSQLContainer<>(POSTGRES_VERSION);
+
+    POSTGRES_CONTAINER = new PostgreSQLContainer<>(POSTGRES_VERSION)
+      .withNetwork(network)
+      .waitingFor(Wait.forListeningPort());
     POSTGRES_CONTAINER.start();
     CONFIGURATION.put(Constants.PG_HOST, POSTGRES_CONTAINER.getHost())
       .put(Constants.PG_PORT, POSTGRES_CONTAINER.getFirstMappedPort())
@@ -208,14 +189,6 @@ public class VertxTestBootstrap {
     if (Boolean.TRUE.equals(postgresContainer())) {
       LOGGER.info(POSTGRES_CONTAINER.getLogs());
       POSTGRES_CONTAINER.stop();
-    }
-    if (Boolean.TRUE.equals(kafkaContainer())) {
-      LOGGER.info(KAFKA_CONTAINER.getLogs());
-      KAFKA_CONTAINER.stop();
-    }
-    if (Boolean.TRUE.equals(rabbitMQContainer())) {
-      LOGGER.info(RABBITMQ_CONTAINER.getLogs());
-      RABBITMQ_CONTAINER.stop();
     }
   }
 

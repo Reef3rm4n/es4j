@@ -61,9 +61,8 @@
       <version>${commons-compress.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>eventx-http-bridge</artifactId>
-      <version>${project.version}</version>
+      <groupId>io.activej</groupId>
+      <artifactId>activej-inject</artifactId>
     </dependency>
   </dependencies>
 

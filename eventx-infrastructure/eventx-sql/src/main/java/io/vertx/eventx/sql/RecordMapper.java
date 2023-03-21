@@ -81,7 +81,7 @@ public interface RecordMapper<K extends RepositoryRecordKey, V extends Repositor
     default BaseRecord baseRecord(Row row) {
         return new BaseRecord(
             row.getString(TENANT),
-            row.getInteger(VERSION),
+            null, // todo fix by implementing a way to have versionless records
             row.getLocalDateTime(CREATION_DATE).toInstant(ZoneOffset.UTC),
             row.getLocalDateTime(LAST_UPDATE).toInstant(ZoneOffset.UTC)
         );

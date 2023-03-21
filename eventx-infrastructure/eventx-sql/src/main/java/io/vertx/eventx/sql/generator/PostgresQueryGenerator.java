@@ -31,7 +31,7 @@ public class PostgresQueryGenerator implements QueryGenerator {
         final var paramsJoiner = new StringJoiner(", ");
         generateInsertStatement.columns().forEach(columnsJoiner::add);
         generateInsertStatement.columns().forEach(c -> paramsJoiner.add("#{" + c + "}"));
-        return "insert into " + generateInsertStatement.table() + "(tenantId, " + columnsJoiner + ") values (#{tenantId}, " + paramsJoiner + ") returning *;";
+        return "insert into " + generateInsertStatement.table() + "(tenant, " + columnsJoiner + ") values (#{tenant}, " + paramsJoiner + ") returning *;";
     }
 
     @Override

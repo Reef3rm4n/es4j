@@ -9,7 +9,6 @@ import java.util.Map;
 public record SnapshotEvent(
   Map<String, Object> state,
   List<String> knownCommands,
-  Long snapshotOffset,
   Long currentVersion
 ) implements Event {
 

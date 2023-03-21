@@ -1,4 +1,4 @@
-package io.vertx.eventx.common;
+package io.vertx.eventx.objects;
 
 import io.vertx.core.json.JsonObject;
 

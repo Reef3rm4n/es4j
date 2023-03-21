@@ -5,9 +5,8 @@
   <modelVersion>4.0.0</modelVersion>
   <parent>
     <groupId>io.vertx.eventx</groupId>
-    <artifactId>eventx-framework</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
-    <relativePath>../../pom.xml</relativePath>
+    <artifactId>eventx-infrastructure</artifactId>
+    <version>${revision}</version>
   </parent>
 
   <artifactId>eventx-solace-bridge</artifactId>

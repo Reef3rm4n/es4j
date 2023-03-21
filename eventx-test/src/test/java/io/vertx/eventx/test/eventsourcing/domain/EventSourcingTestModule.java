@@ -2,6 +2,7 @@ package io.vertx.eventx.test.eventsourcing.domain;
 
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
+import io.vertx.eventx.objects.EventxModule;
 import io.vertx.eventx.test.eventsourcing.domain.behaviours.ChangeBehaviour;
 import io.vertx.eventx.test.eventsourcing.domain.behaviours.ChangedAggregator;
 import io.vertx.eventx.test.eventsourcing.domain.behaviours.CreateAggregator;

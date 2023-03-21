@@ -7,19 +7,19 @@
 
   <!--  Event consumers offset -->
   <changeSet id="consumers-offset-table" author="reeferman" context="vertx">
-    <createTable tableName="consumers_offset" schemaName="eventx">
+    <createTable tableName="offset_store" schemaName="eventx">
       <column type="text" name="consumer"/>
-      <column type="bigint" name="offset"/>
+      <column type="bigint" name="id_offset"/>
       <column type="bigint" name="event_offset"/>
       <!--  Repository Entity    -->
       <column type="text" name="tenant"/>
-      <column type="timestamp" name="creation_date" defaultValueComputed="current_timestamp"/>
-      <column type="timestamp" name="last_update" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
       <column type="int" name="version" defaultValue="0"/>
     </createTable>
   </changeSet>
   <changeSet id="consumer-offset-indexes" author="reeferman" context="vertx">
-    <addPrimaryKey tableName="consumers_offset" columnNames="consumer, tenant" schemaName="eventx"/>
+    <addPrimaryKey tableName="offset_store" columnNames="consumer, tenant" schemaName="eventx"/>
   </changeSet>
   <!--  -->
 </databaseChangeLog>

@@ -4,7 +4,6 @@ import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
-import io.vertx.eventx.Event;
 import io.vertx.eventx.EventProjection;
 import io.vertx.eventx.infrastructure.EventStore;
 import io.vertx.eventx.infrastructure.OffsetStore;
@@ -12,11 +11,11 @@ import io.vertx.eventx.infrastructure.misc.EventParser;
 import io.vertx.eventx.infrastructure.models.EventStream;
 import io.vertx.eventx.objects.JournalOffset;
 import io.vertx.eventx.objects.JournalOffsetKey;
+import io.vertx.eventx.objects.PolledEvent;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.task.LockLevel;
 import io.vertx.eventx.task.TimerTask;
 import io.vertx.eventx.task.TimerTaskConfiguration;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,8 +38,6 @@ public class EventProjectionPoller implements TimerTask {
     this.offsetStore = offsetStore;
   }
 
-
-  //
   @Override
   public Uni<Void> performTask() {
     return Multi.createFrom().iterable(eventProjections)
@@ -51,6 +48,8 @@ public class EventProjectionPoller implements TimerTask {
                 .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
             )
         )
+        .onFailure().invoke(throwable -> logger.error("Failure during projection update", throwable))
+        .onFailure().recoverWithNull()
       )
       .collect().asList()
       .replaceWithVoid();
@@ -87,9 +86,17 @@ public class EventProjectionPoller implements TimerTask {
   }
 
 
-  private List<Event> parseEvents(List<io.vertx.eventx.infrastructure.models.Event> events) {
+  private List<PolledEvent> parseEvents(List<io.vertx.eventx.infrastructure.models.Event> events) {
     return events.stream()
-      .map(event -> (Event) EventParser.getEvent(event.eventClass(), event.event()))
+      .map(event -> new PolledEvent(
+        event.aggregateClass(),
+        event.aggregateId(),
+        event.tenantId(),
+        event.journalOffset(),
+        event.eventVersion(),
+        EventParser.getEvent(event.eventClass(), event.event())
+        )
+      )
       .toList();
   }
 

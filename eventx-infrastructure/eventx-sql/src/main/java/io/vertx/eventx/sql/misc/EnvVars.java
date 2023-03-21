@@ -23,7 +23,7 @@ public class EnvVars {
     public static final Boolean TCP_NO_DELAY = Boolean.valueOf(System.getenv().getOrDefault("TCP_NO_DELAY", "true"));
     public static final Boolean LOG_ACTIVITY = Boolean.valueOf(System.getenv().getOrDefault("LOG_ACTIVITY", "false"));
     public static final Integer WEB_CLIENT_POOL_SIZE = Integer.parseInt(System.getenv().getOrDefault("WEB_CLIENT_POOL_SIZE", "10"));
-    public static final String PG_HOST = System.getenv().getOrDefault("PG_HOST", "localhost");
+    public static final String PG_HOST = System.getenv().getOrDefault("PG_HOST", "127.0.0.1");
     public static final String PG_DATABASE = System.getenv().getOrDefault("PG_DATABASE", "postgres");
     public static final String PG_USER = System.getenv().getOrDefault("PG_USER", "postgres");
     public static final String PG_PASSWORD = System.getenv().getOrDefault("PG_PASSWORD", "postgres");

@@ -3,6 +3,7 @@ package io.vertx.eventx;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.Shareable;
 import io.vertx.eventx.exceptions.UnknownEvent;
+import io.vertx.eventx.objects.ErrorSource;
 import io.vertx.eventx.objects.EventxError;
 
 import java.io.Serializable;
@@ -32,7 +33,7 @@ public interface Aggregate extends Shareable, Serializable {
 
   default Aggregate transformSnapshot(int schemaVersion, JsonObject snapshot) {
     throw new UnknownEvent(new EventxError(
-      io.vertx.eventx.common.ErrorSource.LOGIC,
+      ErrorSource.LOGIC,
       Aggregator.class.getName(),
       "missing schema version " + schemaVersion,
       "could not transform event",

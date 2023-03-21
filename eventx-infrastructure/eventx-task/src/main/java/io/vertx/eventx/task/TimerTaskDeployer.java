@@ -1,7 +1,5 @@
 package io.vertx.eventx.task;
 
-import io.vertx.eventx.common.CustomClassLoader;
-import io.activej.inject.Injector;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.NoStackTraceThrowable;
 import io.vertx.core.impl.logging.Logger;
@@ -12,7 +10,6 @@ import io.vertx.mutiny.core.shareddata.Lock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 
@@ -21,29 +18,20 @@ public class TimerTaskDeployer {
   protected static final Logger LOGGER = LoggerFactory.getLogger(TimerTaskDeployer.class);
 
   public static final Map<Class<?>, Long> timers = new HashMap<>();
+  private final Vertx vertx;
 
-  List<TaskWrapper> taskWrappers;
-  private Vertx vertx;
-
-  private TimerTaskDeployer() {}
-
-  public static final TimerTaskDeployer INSTANCE = new TimerTaskDeployer();
+  public TimerTaskDeployer(
+    Vertx vertx
+  ) {
+    this.vertx = vertx;
+  }
 
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
   }
-  public void deploy(final Injector injector) {
-    this.vertx = injector.getInstance(Vertx.class);
-    if (CustomClassLoader.checkPresenceInBinding(injector, TimerTask.class)) {
-      this.taskWrappers = CustomClassLoader.loadFromInjector(injector, TimerTask.class).stream()
-        .map(task -> {
-            LOGGER.info("Task found -> " + task.getClass().getName());
-            return new TaskWrapper(task, LoggerFactory.getLogger(task.getClass()));
-          }
-        )
-        .toList();
-      taskWrappers.forEach(taskWrapper -> triggerTask(taskWrapper, vertx, 10L));
-    }
+  public void deploy(TimerTask timerTask) {
+    final var wrapper = new TaskWrapper(timerTask, LoggerFactory.getLogger(timerTask.getClass()));
+    triggerTask(wrapper,vertx,10L);
   }
 
   public static void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Long throttle) {

@@ -37,15 +37,22 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.vertx.eventx</groupId>
-      <artifactId>eventx</artifactId>
-      <version>${project.version}</version>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>com.cronutils</groupId>
       <artifactId>cron-utils</artifactId>
       <version>9.2.0</version>
+    </dependency>
+    <dependency>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>eventx-queue</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.reflections</groupId>
+      <artifactId>reflections</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.activej</groupId>
+      <artifactId>activej-inject</artifactId>
     </dependency>
   </dependencies>
 

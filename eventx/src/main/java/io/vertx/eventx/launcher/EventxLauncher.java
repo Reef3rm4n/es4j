@@ -45,6 +45,7 @@ public class EventxLauncher extends Launcher {
       );
   }
 
+
   @Override
   public void afterStartingVertx(Vertx vertx) {
     PrometheusMeterRegistry registry = (PrometheusMeterRegistry) BackendRegistries.getDefaultNow();

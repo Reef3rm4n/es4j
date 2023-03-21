@@ -3,6 +3,11 @@
 package io.vertx.eventx.sql;
 
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.AsyncResult;
+import io.vertx.core.Future;
+import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
+import io.vertx.core.impl.CloseFuture;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonArray;
@@ -15,6 +20,11 @@ import io.vertx.eventx.sql.models.Query;
 import io.vertx.eventx.sql.models.RecordRepository;
 import io.vertx.eventx.sql.models.RepositoryRecord;
 import io.vertx.eventx.sql.models.RepositoryRecordKey;
+import io.vertx.pgclient.spi.PgDriver;
+import io.vertx.sqlclient.*;
+import io.vertx.sqlclient.impl.SqlClientInternal;
+import io.vertx.sqlclient.spi.ConnectionFactory;
+import io.vertx.sqlclient.spi.Driver;
 
 import java.util.List;
 import java.util.Map;
@@ -487,7 +497,45 @@ public final class Repository<K extends RepositoryRecordKey, V extends Repositor
   @Override
   public Uni<Void> stream(Consumer<V> handler, Q query) {
     final var tuple = queryGeneratorMapper.generateQuery(new GenerateQueryCommand<>(QueryStatementType.SELECT, query));
-    final var template = io.vertx.sqlclient.templates.impl.SqlTemplate.create(null, tuple.getItem1());
+    final var template = io.vertx.sqlclient.templates.impl.SqlTemplate.create(
+      new SqlClientInternal() {
+        @Override
+        public Driver driver() {
+         return PgDriver.INSTANCE;
+        }
+
+        @Override
+        public void group(Handler<SqlClient> handler) {
+
+        }
+
+        @Override
+        public io.vertx.sqlclient.Query<RowSet<Row>> query(String s) {
+          return null;
+        }
+
+        @Override
+        public PreparedQuery<RowSet<Row>> preparedQuery(String s) {
+          return null;
+        }
+
+        @Override
+        public PreparedQuery<RowSet<Row>> preparedQuery(String s, PrepareOptions prepareOptions) {
+          return null;
+        }
+
+        @Override
+        public void close(Handler<AsyncResult<Void>> handler) {
+
+        }
+
+        @Override
+        public Future<Void> close() {
+          return null;
+        }
+      },
+      tuple.getItem1()
+    );
     final var params = Tuple.newInstance(template.mapTuple(tuple.getItem2()));
     final var statement = template.getSql();
     return stream(Uni.createFrom().voidItem(), handler, statement, params);

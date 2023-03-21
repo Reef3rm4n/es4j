@@ -10,16 +10,16 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
-import io.vertx.eventx.common.ErrorSource;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.exceptions.NodeUnavailable;
 import io.vertx.eventx.exceptions.UnknownCommand;
 import io.vertx.eventx.objects.Action;
+import io.vertx.eventx.objects.AggregateState;
+import io.vertx.eventx.objects.ErrorSource;
 import io.vertx.eventx.objects.EventxError;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.eventbus.Message;
-import io.vertx.mutiny.core.eventbus.MessageConsumer;
 import io.vertx.eventx.Aggregate;
 import org.ishugaliy.allgood.consistent.hash.HashRing;
 import org.ishugaliy.allgood.consistent.hash.hasher.DefaultHasher;
@@ -52,32 +52,36 @@ public class AggregateBus {
   public static final Map<Class<? extends Aggregate>, HashRing<SimpleNode>> HASH_RING_MAP = new HashMap<>();
 
   // todo put a pipe in the channel that routes commands from the eventbus to the correct handler.
-  public static <T extends Aggregate> Uni<Void> createChannel(Vertx vertx, Class<T> entityClass, String deploymentID) {
-    return invokeConsumer(vertx, entityClass, deploymentID)
-      .flatMap(avoid -> broadcastConsumer(vertx, entityClass))
-      .flatMap(avoid -> commandBridge(vertx, entityClass)
+  public static <T extends Aggregate> Uni<Void> eventbusBridge(Vertx vertx, Class<T> aggregateClass, String deploymentID) {
+    HASH_RING_MAP.put(aggregateClass,startHashRing(aggregateClass));
+    return vertx.eventBus().<String>consumer(AddressResolver.invokeChannel(aggregateClass))
+      .handler(stringMessage -> broadcastActorAddress(vertx, aggregateClass, deploymentID))
+      .exceptionHandler(throwable -> handlerThrowable(throwable, aggregateClass))
+      .completionHandler()
+      .call(avoid -> vertx.eventBus().<JsonObject>consumer(AddressResolver.commandBridge(aggregateClass))
+        .exceptionHandler(throwable -> handlerThrowable(throwable, aggregateClass))
+        .handler(message -> request(
+            vertx,
+            aggregateClass,
+            message.body(),
+            Action.valueOf(Objects.requireNonNull(message.headers().get(ACTION), "Missing action headers, either COMMAND or LOAD"))
+          )
+        )
+        .completionHandler()
+      )
+      .call(avoid -> vertx.eventBus().<String>consumer(AddressResolver.broadcastChannel(aggregateClass))
+        .handler(objectMessage -> synchronizeChannel(objectMessage, aggregateClass))
+        .exceptionHandler(throwable -> handlerThrowable(throwable, aggregateClass))
         .completionHandler()
       );
   }
 
-  private static <T extends Aggregate> MessageConsumer<JsonObject> commandBridge(Vertx vertx, Class<T> entityClass) {
-    return vertx.eventBus().<JsonObject>consumer(AddressResolver.commandBridge(entityClass))
-      .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
-      .handler(message -> request(
-          vertx,
-          entityClass,
-          message.body(),
-          Action.valueOf(Objects.requireNonNull(message.headers().get(ACTION), "Missing action headers, either COMMAND or LOAD"))
-        )
-      );
-  }
 
-  private static <T extends Aggregate> Uni<Void> broadcastConsumer(Vertx vertx, Class<T> entityClass) {
-    return vertx.eventBus().<String>consumer(AddressResolver.broadcastChannel(entityClass))
-      .handler(objectMessage -> synchronizeChannel(objectMessage, entityClass))
-      .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
-      .completionHandler()
-      .flatMap(avoid -> Multi.createBy().repeating().supplier(() -> HASH_RING_MAP.get(entityClass).getNodes().isEmpty())
+  public static <T extends Aggregate> Uni<Void> waitForRegistration(String deploymentID, Class<T> entityClass) {
+    return Multi.createBy().repeating().supplier(() -> HASH_RING_MAP.get(entityClass).getNodes()
+        .stream().filter(node -> node.getKey().equals(commandConsumer(entityClass,deploymentID)))
+        .toList().isEmpty()
+      )
         .atMost(10).capDemandsTo(1).paceDemand()
         .using(new FixedDemandPacer(1, Duration.ofMillis(500)))
         .collect().last()
@@ -97,16 +101,7 @@ public class AggregateBus {
               return aBoolean;
             }
           )
-        )
       )
-      .replaceWithVoid();
-  }
-
-  private static <T extends Aggregate> Uni<Void> invokeConsumer(Vertx vertx, Class<T> entityClass, String deploymentID) {
-    return vertx.eventBus().<String>consumer(AddressResolver.invokeChannel(entityClass))
-      .handler(stringMessage -> broadcastActorAddress(vertx, entityClass, deploymentID))
-      .exceptionHandler(throwable -> handlerThrowable(throwable, entityClass))
-      .completionHandler()
       .replaceWithVoid();
   }
 
@@ -145,6 +140,7 @@ public class AggregateBus {
     String deploymentID,
     Consumer<Message<JsonObject>> consumer
   ) {
+
     return vertx.eventBus().<JsonObject>consumer(commandConsumer(entityClass, deploymentID))
       .handler(consumer)
       .exceptionHandler(throwable -> dropped(entityClass, throwable))
@@ -166,11 +162,16 @@ public class AggregateBus {
     }
   }
 
-  public static <T extends Aggregate> Uni<T> request(Vertx vertx, Class<T> entityClass, JsonObject payload, Action action) {
-    final var aggregateKey = new AggregatePlainKey(entityClass.getName(), Objects.requireNonNull(payload.getString("aggregateId")), payload.getJsonObject("headers").getString("tenantId", "default"));
-    final var address = AggregateBus.resolveActor(entityClass, aggregateKey);
+  public static <T extends Aggregate> Uni<AggregateState<T>> request(Vertx vertx, Class<T> aggregateClass, JsonObject payload, Action action) {
+    final var command = payload.getJsonObject("command");
+    final var aggregateKey = new AggregatePlainKey(
+      aggregateClass.getName(),
+      Objects.requireNonNull(command.getString("aggregateId")),
+      command.getJsonObject("headers").getString("tenantId", "default")
+    );
+    final var address = AggregateBus.resolveActor(aggregateClass, aggregateKey);
     if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Proxying command -> " + new JsonObject()
+      LOGGER.debug("Proxying "+action.name()+" -> " + new JsonObject()
         .put("key", aggregateKey)
         .put("address", address)
         .put("payload", payload)
@@ -182,17 +183,19 @@ public class AggregateBus {
         payload,
         new DeliveryOptions()
           .setLocalOnly(false)
-          .setSendTimeout(250)
+          .setSendTimeout(5000)
           .addHeader(ACTION, action.name())
       )
-      .onFailure(ReplyException.class).retry().atMost(3)
-      .map(response -> response.body().mapTo(entityClass))
+      //.onFailure(throwable -> checkError(throwable)).retry().atMost(3)
+      .map(response -> AggregateState.fromJson(response.body(),aggregateClass))
       .onFailure().transform(Unchecked.function(AggregateBus::transformError));
   }
 
+
+
   private static Throwable transformError(final Throwable throwable) {
     if (throwable instanceof ReplyException reply) {
-      LOGGER.error("Reply from handler -> ", reply);
+      LOGGER.error("Error reply from handler -> ", reply);
       if (reply.failureType() == RECIPIENT_FAILURE) {
         try {
           final var error = new JsonObject(reply.getLocalizedMessage()).mapTo(EventxError.class);

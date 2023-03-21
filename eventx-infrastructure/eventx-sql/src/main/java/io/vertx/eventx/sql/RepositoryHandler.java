@@ -3,11 +3,14 @@ package io.vertx.eventx.sql;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
+import io.smallrye.mutiny.vertx.UniHelper;
+import io.vertx.core.Future;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.sql.misc.SqlError;
+import io.vertx.mutiny.core.Promise;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.shareddata.Lock;
 import io.vertx.mutiny.pgclient.PgPool;
@@ -364,7 +367,7 @@ public record RepositoryHandler(
       if (b) {
         logger.debug("Recoverable failure handling type for" + tClass + " , repository will retry", pgException);
       } else {
-        logger.error("Unrecoverable failure for : " + tClass, pgException);
+        logger.error("Unrecoverable failure", pgException);
       }
       return b;
     }
@@ -416,7 +419,6 @@ public record RepositoryHandler(
                   sqlConnection.closeAndForget();
                 }
               )
-              .invoke(aStatement -> logger.debug("Row streamer injected type"))
               .invoke(
                 preparedStatement -> {
                   final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE));
@@ -480,7 +482,6 @@ public record RepositoryHandler(
                   sqlConnection.closeAndForget();
                 }
               )
-              .invoke(aStatement -> logger.debug("Row streamer injected type"))
               .invoke(
                 preparedStatement -> {
                   final var stream = preparedStatement.createStream(batchSize, arguments);
@@ -541,8 +542,7 @@ public record RepositoryHandler(
         )
       )
       .invoke(sqlConnection -> logger.debug("Row streamer obtained connection"))
-      .flatMap(
-        sqlConnection -> sqlConnection.begin()
+      .flatMap(sqlConnection -> sqlConnection.begin()
           .onFailure().call(throwable -> {
               logger.error("row streamer failed to start transaction", throwable);
               if (lock != null) {
@@ -578,123 +578,68 @@ public record RepositoryHandler(
             }
           )
           .invoke(transaction -> logger.debug("Row streamer started transaction"))
-          .flatMap(transaction -> sqlConnection.prepare(statement)
-            .onFailure().call(throwable -> {
-                logger.error("row streamer failed to start transaction", throwable);
-                if (lock != null) {
-                  return transaction.commit()
-                    .call(aVoid -> transaction.completion())
-                    .call(aVoid -> sqlConnection.close())
-                    .call(aVoid -> lock)
-                    .onItemOrFailure()
-                    .transform(Unchecked.function((item, throwable1) -> {
-                          throw new GenericFailure(new SqlError(
-                            "Connection timeout",
-                            "Row streamer could not obtain connection for type :" + statement,
-                            null,
-                            null
+          .flatMap(transaction -> {
+            final var promise = Promise.promise();
+              return sqlConnection.prepare(statement)
+                .onFailure().call(throwable -> {
+                    logger.error("row streamer failed to start transaction", throwable);
+                    if (lock != null) {
+                      return transaction.commit()
+                        .call(aVoid -> transaction.completion())
+                        .call(aVoid -> sqlConnection.close())
+                        .call(aVoid -> lock)
+                        .onItemOrFailure()
+                        .transform(Unchecked.function((item, throwable1) -> {
+                              throw new GenericFailure(new SqlError(
+                                "Connection timeout",
+                                "Row streamer could not obtain connection for statement :" + statement,
+                                null,
+                                null
+                              )
+                              );
+                            }
                           )
-                          );
+                        );
+                    } else {
+                      return transaction.commit()
+                        .call(aVoid -> transaction.completion())
+                        .call(aVoid -> sqlConnection.close())
+                        .onItemOrFailure()
+                        .call(Unchecked.function((item, throwable1) -> {
+                              throw new GenericFailure(new SqlError(
+                                "Connection timeout",
+                                "Row streamer could not obtain connection for type :" + statement,
+                                null,
+                                null
+                              )
+                              );
+                            }
+                          )
+                        );
+                    }
+                  }
+                )
+                .invoke(
+                  preparedStatement -> {
+                    final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE), arguments);
+                    stream.fetch(EnvVars.REPOSITORY_STREAM_BATCH_SIZE)
+                      .handler(row -> {
+                          logger.debug("Stream fetched " + row.toJson().encodePrettily());
+                          vConsumer.accept(rowMapper.map(row));
                         }
                       )
-                    );
-                } else {
-                  return transaction.commit()
-                    .call(aVoid -> transaction.completion())
-                    .call(aVoid -> sqlConnection.close())
-                    .onItemOrFailure()
-                    .call(Unchecked.function((item, throwable1) -> {
-                          throw new GenericFailure(new SqlError(
-                            "Connection timeout",
-                            "Row streamer could not obtain connection for type :" + statement,
-                            null,
-                            null
-                          )
-                          );
+                      .exceptionHandler(throwable -> logger.error("Exception during row streaming ", throwable))
+                      .endHandler(
+                        () -> {
+                          logger.info("Closing stream....");
+                          closeStream(stream, lock, transaction, preparedStatement, sqlConnection);
+                          promise.complete();
                         }
-                      )
-                    );
-                }
-              }
-            )
-            .invoke(aStatement -> logger.debug("Row streamer injected type"))
-            .invoke(
-              preparedStatement -> {
-                final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE), arguments);
-                stream.fetch(EnvVars.REPOSITORY_STREAM_BATCH_SIZE)
-                  .handler(row -> {
-                      logger.debug("Stream fetched " + row.toJson().encodePrettily());
-                      vConsumer.accept(rowMapper.map(row));
-                    }
-                  )
-                  .exceptionHandler(throwable -> logger.error("Exception during row streaming ", throwable))
-                  .endHandler(
-                    () -> {
-                      logger.info("Closing stream....");
-                      closeStream(stream, lock, transaction, preparedStatement, sqlConnection);
-                    }
-                  );
-              }
-            )
-          )
-      )
-      .replaceWithVoid();
-  }
-
-  public <V> Uni<Void> handleStreamProcessing(PgPool pgPool, Lock lock, String statement, RowMapper<V> rowMapper, Consumer<V> vConsumer, Tuple arguments) {
-    logger.debug("Handling stream query :" + statement);
-    return pgPool.getConnection()
-      .onFailure().transform(
-        Unchecked.function(throwable -> {
-            logger.error(rowMapper.getClass().getSimpleName() + " row streamer failed to obtain connection", throwable);
-            releaseLock(lock);
-            throw new GenericFailure(new SqlError(
-              "Connection timeout",
-              "Row streamer could not obtain connection for type :" + statement,
-              null,
-              null
-            )
-            );
-          }
-        )
-      )
-      .invoke(sqlConnection -> logger.debug("Row streamer obtained connection"))
-      .flatMap(
-        sqlConnection -> sqlConnection.begin()
-          .onFailure().invoke(throwable -> {
-            logger.error("row streamer failed to start transaction", throwable);
-            releaseLock(lock);
-            sqlConnection.closeAndForget();
-          })
-          .invoke(transaction -> logger.debug("Row streamer started transaction"))
-          .flatMap(
-            transaction -> sqlConnection.prepare(statement)
-              .onFailure().invoke(throwable -> {
-                  logger.error("row streamer failed to start transaction", throwable);
-                  releaseLock(lock);
-                  transaction.commitAndForget();
-                  transaction.completionAndForget();
-                  sqlConnection.closeAndForget();
-                }
-              )
-              .invoke(aStatement -> logger.debug("Row streamer injected type"))
-              .invoke(
-                preparedStatement -> {
-                  final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE), arguments);
-                  stream.handler(row -> {
-                        logger.debug("Stream fetched ->" + row.toJson().encodePrettily());
-                        vConsumer.accept(rowMapper.map(row));
-                      }
-                    )
-                    .exceptionHandler(throwable -> logger.error("Exception during row streaming ", throwable))
-                    .endHandler(
-                      () -> {
-                        logger.info("Closing stream....");
-                        closeStream(stream, lock, transaction, preparedStatement, sqlConnection);
-                      }
-                    );
-                }
-              )
+                      );
+                  }
+                )
+                .call(avoid -> promise.future());
+            }
           )
       )
       .replaceWithVoid();

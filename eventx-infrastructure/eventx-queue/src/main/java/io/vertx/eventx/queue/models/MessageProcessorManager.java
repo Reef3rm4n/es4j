@@ -4,11 +4,11 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.queue.exceptions.MessageProcessorException;
+import io.vertx.eventx.queue.exceptions.ConsumerException;
 import io.vertx.eventx.sql.exceptions.IntegrityContraintViolation;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.eventx.queue.MessageProcessor;
-import io.vertx.eventx.queue.TransactionManager;
+import io.vertx.eventx.queue.QueueTransactionManager;
 
 import java.util.List;
 
@@ -18,7 +18,7 @@ import static io.vertx.eventx.queue.models.MessageState.*;
 public record MessageProcessorManager(
   QueueConfiguration queueConfiguration,
   List<MessageProcessorWrapper> processorWrappers,
-  TransactionManager transactionManager,
+  QueueTransactionManager queueTransactionManager,
   Vertx vertx
 ) {
   private static final Logger LOGGER = LoggerFactory.getLogger(MessageProcessorManager.class);
@@ -27,18 +27,18 @@ public record MessageProcessorManager(
   public Uni<RawMessage> processMessage(RawMessage rawMessage) {
     final var processor = resolveProcessor(rawMessage);
     final var parsedMessage = parseMessage(rawMessage);
-    return transactionManager.transaction(
+    return queueTransactionManager.transaction(
         parsedMessage, (msg, taskTransaction) -> {
           try {
             if (processor.blockingProcessor()) {
               return vertx.executeBlocking(process(parsedMessage, processor, taskTransaction)
-                .onFailure().transform(MessageProcessorException::new)
+                .onFailure().transform(ConsumerException::new)
               );
             }
             return process(parsedMessage, processor, taskTransaction)
-              .onFailure().transform(MessageProcessorException::new);
+              .onFailure().transform(ConsumerException::new);
           } catch (Exception exception) {
-            throw new MessageProcessorException(exception);
+            throw new ConsumerException(exception);
           }
         }
       )
@@ -83,7 +83,7 @@ public record MessageProcessorManager(
         rawMessage.payload().mapTo(tClass)
       );
     } catch (ClassNotFoundException e) {
-      throw new MessageProcessorException(e);
+      throw new ConsumerException(e);
     }
   }
 

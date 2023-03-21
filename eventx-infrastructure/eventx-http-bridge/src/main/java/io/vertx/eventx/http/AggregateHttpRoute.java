@@ -4,7 +4,7 @@ import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
-import io.vertx.eventx.infrastructure.proxies.AggregateEventBusClient;
+import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
 import io.vertx.ext.bridge.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
@@ -18,7 +18,7 @@ public class AggregateHttpRoute implements HttpRoute {
   private final Class<? extends Aggregate> aggregateClass;
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateHttpRoute.class);
-  private final AggregateEventBusClient<? extends Aggregate> entityAggregateProxy;
+  private final AggregateEventBusPoxy<? extends Aggregate> entityAggregateProxy;
 
   public AggregateHttpRoute(
     Vertx vertx,
@@ -26,7 +26,7 @@ public class AggregateHttpRoute implements HttpRoute {
   ) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
-    this.entityAggregateProxy = new AggregateEventBusClient<>(vertx,aggregateClass);
+    this.entityAggregateProxy = new AggregateEventBusPoxy<>(vertx,aggregateClass);
   }
 
 

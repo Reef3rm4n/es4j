@@ -3,10 +3,15 @@ package io.vertx.eventx.core;
 
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
+import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.vertx.eventx.exceptions.EventxException;
+import io.vertx.eventx.infrastructure.AggregateCache;
+import io.vertx.eventx.infrastructure.EventStore;
 import io.vertx.eventx.infrastructure.Infrastructure;
+import io.vertx.eventx.infrastructure.OffsetStore;
 import io.vertx.eventx.infrastructure.bus.AggregateBus;
+import io.vertx.eventx.launcher.CustomClassLoader;
 import io.vertx.eventx.objects.*;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.mutiny.core.Vertx;
@@ -19,7 +24,7 @@ import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.impl.logging.Logger;
 import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.common.CustomClassLoader;
+import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -54,7 +59,12 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     final var injector = startInjector();
     this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
     this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
-    this.infrastructure = injector.getInstance(Infrastructure.class);
+    this.infrastructure = new Infrastructure(
+      injector.getInstance(AggregateCache.class),
+      injector.getInstance(EventStore.class),
+      injector.getInstance(OffsetStore.class)
+    );
+    vertx.eventBus().addInboundInterceptor(this::addContextualData);
     this.logic = new AggregateVerticleLogic<>(
       aggregateClass,
       aggregatorWrappers,
@@ -70,7 +80,9 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         LOGGER.info("Incoming command " + jsonMessage.body().encodePrettily());
         final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
           case LOAD -> logic.loadAggregate(jsonMessage.body().mapTo(AggregatePlainKey.class));
-          case COMMAND -> logic.process(jsonMessage.headers().get(CLASS_NAME), jsonMessage.body());
+          case COMMAND -> logic.process(jsonMessage.body().getString("commandClass")
+            , jsonMessage.body().getJsonObject("command")
+          );
         };
         responseUni.subscribe()
           .with(
@@ -85,7 +97,12 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
             }
           );
       }
-    );
+    )
+      .flatMap(avoid -> AggregateBus.waitForRegistration(deploymentID(),aggregateClass));
+  }
+  private void addContextualData(DeliveryContext<Object> event) {
+    ContextualData.put("AGGREGATE", aggregateClass.getSimpleName());
+    event.next();
   }
 
   private Injector startInjector() {
@@ -97,7 +114,8 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   public static <T extends Aggregate> List<BehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
     final var behaviours = CustomClassLoader.loadFromInjector(injector, Behaviour.class).stream()
-      .filter(behaviour -> parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem2().isAssignableFrom(entityAggregateClass))
+      .filter(behaviour ->
+        parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem1().isAssignableFrom(entityAggregateClass))
       .map(commandBehaviour -> {
           final var genericTypes = parseCommandBehaviourGenericTypes(commandBehaviour.getClass());
           return new BehaviourWrapper(commandBehaviour, entityAggregateClass, genericTypes.getItem2());
@@ -111,6 +129,9 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         .put("tenantId", behaviour.delegate().tenantID())
         .encodePrettily()
     ));
+    if (behaviours.isEmpty()) {
+      throw new IllegalStateException("Behaviours not found for aggregate " + entityAggregateClass);
+    }
     return behaviours;
   }
 
@@ -130,6 +151,9 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         .put("tenantId", eventBehaviour.delegate().tenantId())
         .encodePrettily()
     ));
+    if (aggregators.isEmpty()) {
+      throw new IllegalStateException("Aggregators not found for aggregate " + entityAggregateClass);
+    }
     return aggregators;
   }
 

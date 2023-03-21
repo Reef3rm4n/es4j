@@ -3,7 +3,6 @@ package io.vertx.eventx.config;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import io.smallrye.mutiny.vertx.UniHelper;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
 import io.vertx.core.impl.logging.Logger;
@@ -51,14 +50,14 @@ public class ConfigurationHandler {
             var stringConfig = configChange.getNewConfiguration().getString(
               configChange.getNewConfiguration()
                 .getMap().keySet().stream().findAny()
-                .orElseThrow(ConfigurationError::illegalState)
+                .orElseThrow()
             );
             config = parseConfiguration(stringConfig);
           } else {
             config = configChange.getNewConfiguration().getJsonObject(
               configChange.getNewConfiguration()
                 .getMap().keySet().stream().findAny()
-                .orElseThrow(ConfigurationError::illegalState)
+                .orElseThrow()
             );
           }
           configurationConsumer.accept(config);
@@ -78,7 +77,7 @@ public class ConfigurationHandler {
         .invoke(configurationConsumer)
         .subscribe()
         .with(
-          UniHelper.NOOP,
+          avoid -> LOGGER.info("Configuration consumed by -> " + configurationConsumer.getClass()),
           throwable -> LOGGER.error("Unable to read configuration ", throwable)
         );
       return retriever;
