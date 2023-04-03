@@ -17,6 +17,7 @@ import io.vertx.eventx.sql.models.BaseRecord;
 
 
 import java.util.List;
+import java.util.function.Consumer;
 
 public class PgMessageProducer implements MessageProducer {
   private final Repository<MessageRecordID, MessageRecord, MessageRecordQuery> queue;
@@ -43,6 +44,26 @@ public class PgMessageProducer implements MessageProducer {
     );
     return queue.insert(queueEntry, (SqlConnection) queueTransaction.connection()).replaceWithVoid()
       .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntry));
+  }
+
+  public <T> Uni<Void> enqueue(List<Message<T>> entries) {
+    final var queueEntries = entries.stream().map(
+      message -> new MessageRecord(
+        message.messageId(),
+        message.scheduled(),
+        message.expiration(),
+        message.priority(),
+        0,
+        MessageState.CREATED,
+        message.payload().getClass().getName(),
+        JsonObject.mapFrom(message.payload()),
+        null,
+        null,
+        BaseRecord.newRecord(message.tenant())
+      )
+    ).toList();
+    return queue.insertBatch(queueEntries).replaceWithVoid()
+      .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntries));
   }
 
   public <T> Uni<Void> enqueue(List<Message<T>> entries, QueueTransaction queueTransaction) {
@@ -94,6 +115,21 @@ public class PgMessageProducer implements MessageProducer {
           entry.payload().mapTo(tClass)
         )).toList()
       );
+  }
+  public <T> Uni<Void> stream(MessageRecordQuery query, Class<T> tClass, Consumer<Message<T>> messageConsumer) {
+    return queue.stream(entry -> {
+        final var msg = new Message<>(
+          entry.id(),
+          entry.baseRecord().tenantId(),
+          entry.scheduled(),
+          entry.expiration(),
+          entry.priority(),
+          entry.payload().mapTo(tClass)
+        );
+        messageConsumer.accept(msg);
+      },
+      query
+    );
   }
 
 }

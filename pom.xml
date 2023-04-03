@@ -15,6 +15,7 @@
     <module>eventx-dependencies</module>
     <module>eventx-infrastructure</module>
     <module>eventx-stack</module>
+    <module>eventx-infrastructure/eventx-auth</module>
   </modules>
 
 

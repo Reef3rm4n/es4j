@@ -2,9 +2,9 @@ package io.vertx.eventx.test.reflection;
 
 
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
-import io.vertx.eventx.test.eventsourcing.domain.behaviours.ChangeBehaviour;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import io.vertx.eventx.test.eventsourcing.behaviours.ChangeBehaviour;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;

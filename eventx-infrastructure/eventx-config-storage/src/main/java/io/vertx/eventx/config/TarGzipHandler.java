@@ -9,6 +9,7 @@
 package io.vertx.eventx.config;
 
 
+import io.vertx.eventx.config.exceptions.ConfigStoreException;
 import org.apache.commons.compress.archivers.ArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;

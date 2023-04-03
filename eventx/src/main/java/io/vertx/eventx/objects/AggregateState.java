@@ -16,6 +16,8 @@ public class AggregateState<T extends Aggregate> implements Shareable {
   private final EvictingQueue<String> knownCommands = EvictingQueue.create(100);
   private Long currentVersion = null;
 
+  private Long currentJournalOffset = null;
+
   public AggregateState(
     Class<T> aggregateClass
   ) {
@@ -76,5 +78,14 @@ public class AggregateState<T extends Aggregate> implements Shareable {
       .setCurrentVersion(jsonObject.getLong("currentVersion"))
       .addKnownCommands(jsonObject.getJsonArray("knownCommands").stream().map(String::valueOf).toList())
       .setState(jsonObject.getJsonObject("state").mapTo(tClass));
+  }
+
+  public Long currentJournalOffset() {
+    return currentJournalOffset;
+  }
+
+  public AggregateState<T> setCurrentJournalOffset(Long currentJournalOffset) {
+    this.currentJournalOffset = currentJournalOffset;
+    return this;
   }
 }

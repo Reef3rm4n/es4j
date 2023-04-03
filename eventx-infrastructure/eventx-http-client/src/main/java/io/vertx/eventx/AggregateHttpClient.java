@@ -2,8 +2,8 @@ package io.vertx.eventx;
 
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
@@ -94,7 +94,7 @@ public class AggregateHttpClient<T extends Aggregate> {
       return t.mapTo(aggregateClass);
     }
     final var error = response.bodyAsJsonObject().mapTo(EventxError.class);
-    logger.error(error);
+    logger.error(response.bodyAsJsonObject().encodePrettily());
     throw new CommandRejected(error);
   }
 
@@ -102,7 +102,7 @@ public class AggregateHttpClient<T extends Aggregate> {
     if (response.statusCode() == 404) {
       logger.error(response.bodyAsString());
       final var error = response.bodyAsJsonObject().mapTo(EventxError.class);
-      logger.error(error);
+      logger.error(response.bodyAsJsonObject().encodePrettily());
       throw new CommandRejected(error);
     }
   }

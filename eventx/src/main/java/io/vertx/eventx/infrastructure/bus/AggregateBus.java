@@ -6,8 +6,8 @@ import io.smallrye.mutiny.subscription.FixedDemandPacer;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.eventbus.ReplyException;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
@@ -53,7 +53,7 @@ public class AggregateBus {
 
   // todo put a pipe in the channel that routes commands from the eventbus to the correct handler.
   public static <T extends Aggregate> Uni<Void> eventbusBridge(Vertx vertx, Class<T> aggregateClass, String deploymentID) {
-    HASH_RING_MAP.put(aggregateClass,startHashRing(aggregateClass));
+    HASH_RING_MAP.put(aggregateClass, startHashRing(aggregateClass));
     return vertx.eventBus().<String>consumer(AddressResolver.invokeChannel(aggregateClass))
       .handler(stringMessage -> broadcastActorAddress(vertx, aggregateClass, deploymentID))
       .exceptionHandler(throwable -> handlerThrowable(throwable, aggregateClass))
@@ -79,28 +79,28 @@ public class AggregateBus {
 
   public static <T extends Aggregate> Uni<Void> waitForRegistration(String deploymentID, Class<T> entityClass) {
     return Multi.createBy().repeating().supplier(() -> HASH_RING_MAP.get(entityClass).getNodes()
-        .stream().filter(node -> node.getKey().equals(commandConsumer(entityClass,deploymentID)))
+        .stream().filter(node -> node.getKey().equals(commandConsumer(entityClass, deploymentID)))
         .toList().isEmpty()
       )
-        .atMost(10).capDemandsTo(1).paceDemand()
-        .using(new FixedDemandPacer(1, Duration.ofMillis(500)))
-        .collect().last()
-        .map(Unchecked.function(
-            aBoolean -> {
-              if (Boolean.TRUE.equals(aBoolean)) {
-                throw new NodeUnavailable(new EventxError(
-                  null,
-                  "Hash ring synchronizer was still empty after 10 seconds, there's no entity deployed in the platform",
-                  null,
-                  null,
-                  null,
-                  null
-                )
-                );
-              }
-              return aBoolean;
+      .atMost(10).capDemandsTo(1).paceDemand()
+      .using(new FixedDemandPacer(1, Duration.ofMillis(500)))
+      .collect().last()
+      .map(Unchecked.function(
+          aBoolean -> {
+            if (Boolean.TRUE.equals(aBoolean)) {
+              throw new NodeUnavailable(new EventxError(
+                null,
+                "Hash ring synchronizer was still empty after 10 seconds",
+                null,
+                null,
+                null,
+                null
+              )
+              );
             }
-          )
+            return aBoolean;
+          }
+        )
       )
       .replaceWithVoid();
   }
@@ -170,14 +170,12 @@ public class AggregateBus {
       command.getJsonObject("headers").getString("tenantId", "default")
     );
     final var address = AggregateBus.resolveActor(aggregateClass, aggregateKey);
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Proxying "+action.name()+" -> " + new JsonObject()
-        .put("key", aggregateKey)
-        .put("address", address)
-        .put("payload", payload)
-        .encodePrettily()
-      );
-    }
+    LOGGER.debug("Proxying " + action.name() + " -> " + new JsonObject()
+      .put("key", aggregateKey)
+      .put("address", address)
+      .put("payload", payload)
+      .encodePrettily()
+    );
     return vertx.eventBus().<JsonObject>request(
         address,
         payload,
@@ -187,10 +185,9 @@ public class AggregateBus {
           .addHeader(ACTION, action.name())
       )
       //.onFailure(throwable -> checkError(throwable)).retry().atMost(3)
-      .map(response -> AggregateState.fromJson(response.body(),aggregateClass))
+      .map(response -> AggregateState.fromJson(response.body(), aggregateClass))
       .onFailure().transform(Unchecked.function(AggregateBus::transformError));
   }
-
 
 
   private static Throwable transformError(final Throwable throwable) {

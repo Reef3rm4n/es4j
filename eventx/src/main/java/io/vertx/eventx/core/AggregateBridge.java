@@ -6,15 +6,17 @@ import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.infrastructure.Bridge;
-import io.vertx.eventx.launcher.CustomClassLoader;
+import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.List;
 import java.util.UUID;
+
+import static io.vertx.eventx.launcher.EventxMain.*;
 
 public class AggregateBridge extends AbstractVerticle {
 
@@ -26,7 +28,6 @@ public class AggregateBridge extends AbstractVerticle {
     this.moduleBuilder = moduleBuilder;
   }
 
-
   private Injector startInjector() {
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
@@ -35,10 +36,10 @@ public class AggregateBridge extends AbstractVerticle {
 
   @Override
   public Uni<Void> asyncStart() {
-   final var injector = startInjector();
-   this.bridges = CustomClassLoader.loadFromInjector(injector, Bridge.class);
+    final var injector = startInjector();
+    this.bridges = CustomClassLoader.loadFromInjector(injector, Bridge.class);
     return Multi.createFrom().iterable(bridges)
-      .onItem().transformToUniAndMerge(bridge -> bridge.start(vertx,config()))
+      .onItem().transformToUniAndMerge(bridge -> bridge.start(vertx, config(), AGGREGATE_CLASSES))
       .collect().asList()
       .replaceWithVoid();
   }
@@ -50,13 +51,6 @@ public class AggregateBridge extends AbstractVerticle {
       .onItem().transformToUniAndMerge(Bridge::close)
       .collect().asList()
       .replaceWithVoid();
-  }
-
-  String deploymentId = UUID.randomUUID().toString();
-
-  @Override
-  public String deploymentID() {
-    return deploymentId;
   }
 
 }

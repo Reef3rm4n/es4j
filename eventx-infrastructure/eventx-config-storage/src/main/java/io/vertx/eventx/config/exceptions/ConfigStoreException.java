@@ -1,4 +1,4 @@
-package io.vertx.eventx.config;
+package io.vertx.eventx.config.exceptions;
 
 import io.vertx.core.json.JsonObject;
 

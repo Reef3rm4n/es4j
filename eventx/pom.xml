@@ -48,12 +48,6 @@
       <artifactId>vertx-service-proxy</artifactId>
     </dependency>
     <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-codegen</artifactId>
-      <classifier>processor</classifier>
-      <scope>provided</scope>
-    </dependency>
-    <dependency>
       <groupId>io.vertx.eventx</groupId>
       <artifactId>eventx-queue</artifactId>
       <version>${project.version}</version>

@@ -2,8 +2,8 @@ package io.vertx.eventx.task;
 
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.NoStackTraceThrowable;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.shareddata.Lock;
 

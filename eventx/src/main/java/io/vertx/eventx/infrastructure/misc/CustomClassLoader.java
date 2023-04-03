@@ -1,12 +1,12 @@
-package io.vertx.eventx.launcher;
+package io.vertx.eventx.infrastructure.misc;
 
 
 import io.activej.inject.Injector;
 import io.activej.inject.Key;
 import io.activej.inject.binding.Binding;
 import io.activej.inject.module.Module;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.eventx.objects.EventxModule;
 import org.reflections.Reflections;
 
@@ -23,38 +23,13 @@ public class CustomClassLoader {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(CustomClassLoader.class);
 
-  public static final String PACKAGE_NAME = System.getenv().getOrDefault("PACKAGE_NAME", "io.vertx");
-  public static final Reflections REFLECTIONS = new Reflections(PACKAGE_NAME);
-
-  public static <T> List<T> loadImplementations(Class<T> tClass, Reflections reflections) {
-    return reflections.getSubTypesOf(tClass).stream()
-      .map(CustomClassLoader::instantiate)
-      .map(foundCLass -> {
-        LOGGER.debug("Custom class loader for " + tClass.getSimpleName() + " found the following implementation -> " + foundCLass.getClass().getSimpleName());
-        return (T) foundCLass;
-      })
-      .toList();
-  }
+  public static final String PACKAGE_NAME = System.getenv().getOrDefault("PACKAGE_NAME", "io.vertx.eventx");
+  public static final Reflections REFLECTIONS = new Reflections("io.vertx.eventx");
+  public static final Reflections REFLECTIONS_EXTERNAL = new Reflections(PACKAGE_NAME);
 
   public static <T> List<Class<? extends T>> getSubTypes(Class<T> tClass) {
-    return REFLECTIONS.getSubTypesOf(tClass).stream().toList();
+    return REFLECTIONS_EXTERNAL.getSubTypesOf(tClass).stream().toList();
   }
-
-  public static <T> List<T> loadImplementations(Class<T> tClass) {
-    return REFLECTIONS.getSubTypesOf(tClass).stream()
-      .map(CustomClassLoader::instantiate)
-      .map(foundCLass -> {
-        LOGGER.debug("Custom class loader for " + tClass.getSimpleName() + " found the following implementation -> " + foundCLass.getClass().getSimpleName());
-        return (T) foundCLass;
-      })
-      .toList();
-  }
-
-  public static <R> Boolean exists(Class<R> tClass) {
-    LOGGER.info("Looking for implementations of -> " + tClass.getName());
-    return !REFLECTIONS.getSubTypesOf(tClass).isEmpty();
-  }
-
 
   public static Collection<Module> loadModules() {
     return REFLECTIONS.getSubTypesOf(EventxModule.class).stream()

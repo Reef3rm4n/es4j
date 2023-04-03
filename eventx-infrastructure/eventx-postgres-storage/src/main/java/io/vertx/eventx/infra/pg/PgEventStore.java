@@ -173,10 +173,10 @@ public class PgEventStore implements EventStore {
   }
 
   private static <T extends Aggregate> String snapshotFrom(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.startFrom() != null && !aggregateEventStream.startFrom().isEmpty()) {
-      final var stringJoiner   = new StringJoiner(",");
-      aggregateEventStream.startFrom().forEach(evc -> stringJoiner.add("'" + evc.getName() + "'"));
-      return " (select max(id) from event_journal where event_class in (" + aggregateEventStream.startFrom() + "))";
+    if (aggregateEventStream.startFrom() != null) {
+      // todo add journal offset so that id index helps in the speed of the query
+      return " (select max(id) from event_journal where " +
+        " event_class in (" + aggregateEventStream.startFrom().getName() + "))";
     }
    return null;
   }

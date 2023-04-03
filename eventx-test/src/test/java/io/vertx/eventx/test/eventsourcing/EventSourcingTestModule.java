@@ -1,12 +1,12 @@
-package io.vertx.eventx.test.eventsourcing.domain;
+package io.vertx.eventx.test.eventsourcing;
 
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
 import io.vertx.eventx.objects.EventxModule;
-import io.vertx.eventx.test.eventsourcing.domain.behaviours.ChangeBehaviour;
-import io.vertx.eventx.test.eventsourcing.domain.behaviours.ChangedAggregator;
-import io.vertx.eventx.test.eventsourcing.domain.behaviours.CreateAggregator;
-import io.vertx.eventx.test.eventsourcing.domain.behaviours.CreateBehaviour;
+import io.vertx.eventx.test.eventsourcing.behaviours.ChangeBehaviour;
+import io.vertx.eventx.test.eventsourcing.behaviours.ChangedAggregator;
+import io.vertx.eventx.test.eventsourcing.behaviours.CreateAggregator;
+import io.vertx.eventx.test.eventsourcing.behaviours.CreateBehaviour;
 
 public class EventSourcingTestModule extends EventxModule {
 

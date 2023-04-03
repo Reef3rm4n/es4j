@@ -11,15 +11,15 @@ import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.core.AggregateBridge;
 import io.vertx.eventx.core.AggregateHeartbeat;
 import io.vertx.eventx.core.EventProjectionPoller;
 import io.vertx.eventx.core.StateProjectionPoller;
-import io.vertx.eventx.objects.CommandHeaders;
 
+import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.task.TimerTaskDeployer;
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
@@ -31,11 +31,12 @@ public class EventxMain extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
   public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadModules());
-  private static final List<AggregateResourcesAllocator<? extends Aggregate>> AGGREGATES = new ArrayList<>();
+  private static final List<AggregateLauncher<? extends Aggregate>> AGGREGATES = new ArrayList<>();
   public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
   public static  final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
   public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
   private TimerTaskDeployer timers;
+  public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = CustomClassLoader.getSubTypes(Aggregate.class);
 
   @Override
   public void start(final Promise<Void> startPromise) {
@@ -69,8 +70,8 @@ public class EventxMain extends AbstractVerticle {
 
   private void startAggregateResources(final Promise<Void> startPromise) {
     LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
-    CustomClassLoader.getSubTypes(Aggregate.class).stream()
-      .map(aClass -> new AggregateResourcesAllocator<>(
+    AGGREGATE_CLASSES.stream()
+      .map(aClass -> new AggregateLauncher<>(
           aClass,
           vertx,
           context.deploymentID()
@@ -145,7 +146,7 @@ public class EventxMain extends AbstractVerticle {
 
   private Uni<Void> undeployComponent() {
     return Multi.createFrom().iterable(AGGREGATES)
-      .onItem().transformToUniAndMerge(AggregateResourcesAllocator::close)
+      .onItem().transformToUniAndMerge(AggregateLauncher::close)
       .collect().asList()
       .replaceWithVoid();
   }

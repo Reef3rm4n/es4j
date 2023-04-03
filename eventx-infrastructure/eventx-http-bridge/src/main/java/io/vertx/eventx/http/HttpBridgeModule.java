@@ -3,9 +3,8 @@ package io.vertx.eventx.http;
 import io.activej.inject.Injector;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
-import io.vertx.eventx.launcher.CustomClassLoader;
+import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.objects.EventxModule;
-import io.vertx.mutiny.core.Vertx;
 
 import java.util.List;
 

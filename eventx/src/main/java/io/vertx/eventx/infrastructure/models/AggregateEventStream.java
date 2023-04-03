@@ -12,6 +12,6 @@ public record AggregateEventStream<T extends Aggregate>(
   String tenantId,
   Long eventVersionOffset,
   Long journalOffset,
-  List<Class<? extends Event>> startFrom
+  Class<? extends Event> startFrom
 ) {
 }

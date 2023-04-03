@@ -1,8 +1,8 @@
 package io.vertx.eventx.queue.postgres;
 
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.eventx.queue.models.QueueConfiguration;
-import io.vertx.core.impl.logging.Logger;
 import io.vertx.eventx.sql.RepositoryHandler;
 
 import java.util.concurrent.atomic.AtomicLong;

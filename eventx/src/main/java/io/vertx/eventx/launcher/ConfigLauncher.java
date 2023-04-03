@@ -1,23 +1,20 @@
 package io.vertx.eventx.launcher;
 
 import io.activej.inject.Injector;
-import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.vertx.UniHelper;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.config.ConfigurationHandler;
-import io.vertx.eventx.config.DBConfig;
-import io.vertx.eventx.config.FSConfig;
-import io.vertx.eventx.config.FsConfigCache;
+import io.vertx.eventx.config.*;
 import io.vertx.eventx.config.orm.ConfigurationKey;
 import io.vertx.eventx.config.orm.ConfigurationQuery;
 import io.vertx.eventx.config.orm.ConfigurationRecord;
 import io.vertx.eventx.config.orm.ConfigurationRecordMapper;
+import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.RepositoryHandler;
+import io.vertx.eventx.sql.models.QueryOptions;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Promise;
 import io.vertx.mutiny.core.Vertx;
@@ -26,75 +23,80 @@ import io.vertx.mutiny.pgclient.pubsub.PgSubscriber;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 public class ConfigLauncher {
 
-
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfigLauncher.class);
-  public List<ConfigRetriever> listeners;
-  public PgSubscriber pgSubscriber;
+  public static final List<ConfigRetriever> CONFIG_RETRIEVERS = new ArrayList<>();
+  public static PgSubscriber PG_SUBSCRIBER;
 
   private ConfigLauncher() {
   }
 
-  public static final ConfigLauncher INSTANCE = new ConfigLauncher();
-
-  public Uni<Void> deploy(Injector injector) {
+  public static Uni<Void> deploy(Injector injector) {
     final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, injector.getInstance(RepositoryHandler.class));
     final var fsConfigs = CustomClassLoader.loadFromInjector(injector, FSConfig.class);
+    final var configUni = new ArrayList<Uni<Void>>();
     if (!fsConfigs.isEmpty()) {
       LOGGER.info("File-System configuration detected");
-      return fsConfigurations(injector.getInstance(Vertx.class), fsConfigs);
+      configUni.add(fsConfigurations(injector.getInstance(Vertx.class), fsConfigs));
     }
     if (CustomClassLoader.checkPresence(injector, DBConfig.class)) {
       LOGGER.info("Database configuration detected");
-      return dbConfigurations(injector, injector.getInstance(RepositoryHandler.class), repository)
-        .replaceWithVoid();
+      configUni.add(dbConfigurations(injector.getInstance(RepositoryHandler.class), repository));
+    }
+    if (!configUni.isEmpty()) {
+      return Uni.join().all(configUni).andFailFast().replaceWithVoid();
     }
     return Uni.createFrom().voidItem();
   }
 
-  private Uni<Void> fsConfigurations(Vertx vertx, List<FSConfig> fsConfigs) {
+  private static Uni<Void> fsConfigurations(Vertx vertx, List<FSConfig> fsConfigs) {
     final var promiseMap = fsConfigs.stream().map(cfg -> Map.entry(cfg.name(), Promise.promise()))
-      .collect(Collectors.toMap(Map.Entry::getKey,Map.Entry::getValue));
-    this.listeners = fsConfigs.stream().map(
-      cfg -> ConfigurationHandler.configure(vertx, cfg.name(),
-        kubeConfigChange -> {
-          try {
-            LOGGER.info("Adding " + cfg.name() + " to cache");
-            FsConfigCache.put(cfg.name(), kubeConfigChange);
-            final var promise = promiseMap.get(cfg.name());
-            if (promise != null) {
-              promise.complete();
+      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    CONFIG_RETRIEVERS.addAll(
+      fsConfigs.stream()
+        .map(fileConfiguration -> ConfigurationHandler.configure(
+            vertx,
+            fileConfiguration.name(),
+            newConfiguration -> {
+              try {
+                LOGGER.info("Adding " + fileConfiguration.name() + " to cache");
+                FsConfigCache.put(fileConfiguration.name(), newConfiguration);
+                final var promise = promiseMap.get(fileConfiguration.name());
+                if (promise != null) {
+                  promise.complete();
+                }
+              } catch (Exception e) {
+                LOGGER.error("unable to consume configuration", e);
+                final var promise = promiseMap.get(fileConfiguration.name());
+                if (promise != null) {
+                  promise.complete();
+                }
+              }
             }
-          } catch (Exception e) {
-            LOGGER.error("unable to consume configuration", e);
-            final var promise = promiseMap.get(cfg.name());
-            if (promise != null) {
-              promise.complete();
-            }
-          }
-        }
-      )
-    ).toList();
+          )
+        )
+        .toList()
+    );
     return Uni.join().all(promiseMap.values().stream().map(Promise::future).toList())
       .andFailFast().invoke(avoid -> promiseMap.clear())
       .replaceWithVoid();
   }
 
-  private Uni<Injector> dbConfigurations(Injector injector, RepositoryHandler repositoryHandler, Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
-    this.pgSubscriber = PgSubscriber.subscriber(repositoryHandler.vertx(),
+  private static Uni<Void> dbConfigurations(RepositoryHandler repositoryHandler, Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
+    PG_SUBSCRIBER = PgSubscriber.subscriber(repositoryHandler.vertx(),
       RepositoryHandler.connectionOptions(repositoryHandler.configuration())
     );
-    pgSubscriber.reconnectPolicy(integer -> 0L);
-    final var pgChannel = pgSubscriber.channel("configuration_channel");
+    PG_SUBSCRIBER.reconnectPolicy(integer -> 0L);
+    final var pgChannel = PG_SUBSCRIBER.channel("configuration_channel");
     pgChannel.handler(id -> {
           final ConfigurationKey key = configurationKey(id);
           LOGGER.info("Updating configuration -> " + key);
           repository.selectByKey(key)
-            .onItemOrFailure().transform((item, failure) -> handleMessage(repository, key, item, failure))
+            .onItemOrFailure().transform((item, failure) -> handleMessage(key, item, failure))
             .subscribe()
             .with(
               item -> LOGGER.info("Configuration updated -> " + key),
@@ -102,51 +104,76 @@ public class ConfigLauncher {
             );
         }
       )
-      .endHandler(() -> subscriptionStopped(pgSubscriber))
+      .endHandler(() -> subscriptionStopped(PG_SUBSCRIBER))
       .subscribeHandler(ConfigLauncher::handleSubscription)
       .exceptionHandler(ConfigLauncher::handleSubscriberError);
     return liquibase(repositoryHandler)
-      .call(avoid -> warmCaches(repositoryHandler, repository))
-      .call(avoid -> pgSubscriber.connect())
-      .replaceWith(injector);
+      .call(avoid -> warmCaches(repository))
+      .call(avoid -> PG_SUBSCRIBER.connect())
+      .replaceWithVoid();
   }
 
-  private static Object handleMessage(final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository, final ConfigurationKey key, final ConfigurationRecord item, final Throwable failure) {
-    if (failure != null) {
-      LOGGER.info("Deleting configuration from cache -> " + key);
-      return repository.repositoryHandler().vertx()
-        .sharedData().getLocalMap(ConfigurationRecord.class.getName())
-        .remove(key);
-    } else {
-      LOGGER.info("Loading new configuration into cache -> " + key);
-      return repository.repositoryHandler().vertx()
-        .sharedData().getLocalMap(ConfigurationRecord.class.getName())
-        .put(key, mapData(item));
+  private static Object handleMessage(final ConfigurationKey key, final ConfigurationRecord updatedConfig, final Throwable failure) {
+    final var currentCachedEntry = DbConfigCache.get(parseKey(updatedConfig));
+    // if updated config active
+    ConfigurationEntry currentConfigState = null;
+    if (currentCachedEntry != null) {
+      currentConfigState = mapData(currentCachedEntry, updatedConfig.tClass());
     }
+    // this means that config was no longer in  the db.
+    if (failure != null) {
+      if (currentConfigState != null && currentConfigState.revision().equals(updatedConfig.revision())) {
+        LOGGER.info("Deleting configuration -> " + key);
+        DbConfigCache.delete(parseKey(key));
+      }
+    } else {
+      if (updatedConfig.active()) {
+        LOGGER.info("Loading configuration -> " + key);
+        DbConfigCache.put(parseKey(key), updatedConfig.data());
+      } else if (currentConfigState != null && currentConfigState.revision().equals(updatedConfig.revision())) {
+        LOGGER.info("Deactivating configuration -> " + key);
+        DbConfigCache.delete(parseKey(key));
+      }
+    }
+    return updatedConfig;
   }
 
+  private static String parseKey(ConfigurationKey key) {
+    return new StringJoiner("::")
+      .add(key.name())
+      .add(key.tenantId())
+      .add(key.tClass())
+      .toString();
+  }
+
+  public static String parseKey(ConfigurationRecord record) {
+    return new StringJoiner("::")
+      .add(record.name())
+      .add(record.baseRecord().tenantId())
+      .add(record.tClass())
+      .toString();
+  }
 
   private static ConfigurationKey configurationKey(final String id) {
     LOGGER.info("Parsing configuration channel message -> " + id);
-    final var splittedId = id.split("::");
-    final var name = splittedId[0];
-    final var tClass = splittedId[1];
-    final var tenant = splittedId[2];
-    return new ConfigurationKey(name, tClass, tenant);
+    final var splitId = id.split("::");
+    final var name = splitId[0];
+    final var tClass = splitId[1];
+    final var tenant = splitId[2];
+    final var revision = Integer.parseInt(splitId[3]);
+    return new ConfigurationKey(name, tClass, revision, tenant);
   }
 
-  private static Uni<Void> warmCaches(final RepositoryHandler repositoryHandler, final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
+  private static Uni<Void> warmCaches(final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
     return repository.stream(configurationRecord -> {
-        final var cache = repositoryHandler.vertx().sharedData().<ConfigurationKey, Object>getLocalMap(ConfigurationRecord.class.getName());
-        final var key = new ConfigurationKey(configurationRecord.name(), configurationRecord.tClass(), configurationRecord.baseRecord().tenantId());
-        LOGGER.info("Loading configuration into cache -> " + key);
-        cache.put(key, mapData(configurationRecord));
+        final var key = new ConfigurationKey(configurationRecord.name(), configurationRecord.tClass(), configurationRecord.revision(), configurationRecord.baseRecord().tenantId());
+        handleMessage(key, configurationRecord, null);
       }
       ,
       new ConfigurationQuery(
         null,
         null,
-        null
+        QueryOptions.simple()
       )
     );
   }
@@ -169,22 +196,31 @@ public class ConfigLauncher {
 
   private static void subscriptionStopped(final PgSubscriber pgSubscriber) {
     LOGGER.info("Pg subscription dropped");
-//    pgSubscriber.connectAndForget();
   }
 
-  private static Object mapData(final ConfigurationRecord item) {
+  private static ConfigurationEntry mapData(final ConfigurationRecord item) {
     try {
-      return item.data().mapTo(Class.forName(item.tClass()));
+      return (ConfigurationEntry) item.data().mapTo(Class.forName(item.tClass()));
     } catch (ClassNotFoundException e) {
       LOGGER.error("Unable to cast configuration using class for name");
       throw new IllegalArgumentException(e);
     }
   }
 
-  public Uni<Void> close() {
-    if (listeners != null && !listeners.isEmpty()) {
-      listeners.forEach(ConfigRetriever::close);
+  private static ConfigurationEntry mapData(final JsonObject item, final String tClass) {
+    try {
+      return (ConfigurationEntry) item.mapTo(Class.forName(tClass));
+    } catch (ClassNotFoundException e) {
+      LOGGER.error("Unable to cast configuration using class for name");
+      throw new IllegalArgumentException(e);
     }
-    return pgSubscriber.close();
+  }
+
+  public static Uni<Void> close() {
+    if (!CONFIG_RETRIEVERS.isEmpty()) {
+      CONFIG_RETRIEVERS.forEach(ConfigRetriever::close);
+      return PG_SUBSCRIBER.close();
+    }
+    return Uni.createFrom().voidItem();
   }
 }

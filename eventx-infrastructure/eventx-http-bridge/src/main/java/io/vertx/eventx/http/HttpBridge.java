@@ -5,8 +5,9 @@ import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import io.vertx.eventx.Aggregate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
@@ -51,7 +52,7 @@ public class HttpBridge implements Bridge {
   }
 
   @Override
-  public Uni<Void> start(Vertx vertx, JsonObject configuration) {
+  public Uni<Void> start(Vertx vertx, JsonObject configuration, List<Class<? extends Aggregate>> aggregateClasses) {
     this.vertx = vertx;
     this.configuration = configuration;
     this.httpServer = httpServer();
@@ -81,7 +82,7 @@ public class HttpBridge implements Bridge {
 
   @Override
   public Uni<Void> close() {
-    return httpServer().close();
+    return httpServer.close();
   }
 
   private HttpServer httpServer() {

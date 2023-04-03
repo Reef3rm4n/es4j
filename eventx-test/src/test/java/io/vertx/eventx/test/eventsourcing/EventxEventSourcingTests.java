@@ -1,10 +1,10 @@
-package io.vertx.eventx.test.eventsourcing.domain;
+package io.vertx.eventx.test.eventsourcing;
 
 import io.vertx.eventx.VertxTestBootstrap;
 import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
 import io.vertx.eventx.objects.CommandHeaders;
-import io.vertx.eventx.test.eventsourcing.domain.commands.ChangeData;
-import io.vertx.eventx.test.eventsourcing.domain.commands.CreateData;
+import io.vertx.eventx.test.eventsourcing.commands.ChangeData;
+import io.vertx.eventx.test.eventsourcing.commands.CreateData;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
 import io.vertx.mutiny.core.Vertx;
@@ -46,7 +46,7 @@ public class EventxEventSourcingTests {
   }
 
   @Test
-  void test_projection(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_snapshotting(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
     final var proxy = new AggregateEventBusPoxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();

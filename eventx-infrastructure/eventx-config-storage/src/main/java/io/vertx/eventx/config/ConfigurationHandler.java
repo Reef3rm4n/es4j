@@ -5,16 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import io.vertx.config.ConfigRetrieverOptions;
 import io.vertx.config.ConfigStoreOptions;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
-import io.vertx.core.json.JsonArray;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
-
-import java.util.List;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static io.vertx.eventx.config.Constants.KUBERNETES;
 import static io.vertx.eventx.config.Constants.KUBERNETES_NAMESPACE;
@@ -95,18 +91,6 @@ public class ConfigurationHandler {
       LOGGER.error("Unable to parse yaml", jsonProcessingException);
       throw new IllegalArgumentException(jsonProcessingException);
     }
-  }
-
-  public static List<TenantBasedConfiguration> extractTenantConfiguration(final JsonObject jsonConfig) {
-    LOGGER.info("Extracting tenant based configuration from -> " + jsonConfig.encodePrettily());
-    final var mathingKeys = jsonConfig.getMap().keySet().stream().filter(key -> key.contains("::")).collect(Collectors.toSet());
-    LOGGER.info("Tenants found in configuration file -> " + mathingKeys);
-    final var tenantConfigurations = mathingKeys.stream()
-      .map(tenant -> new TenantBasedConfiguration(tenant, jsonConfig.getJsonObject(tenant))
-      )
-      .toList();
-    LOGGER.info("Tenant configurations -> " + new JsonArray(tenantConfigurations).encodePrettily());
-    return tenantConfigurations;
   }
 
 }

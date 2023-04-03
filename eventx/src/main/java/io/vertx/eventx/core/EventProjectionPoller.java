@@ -2,8 +2,6 @@ package io.vertx.eventx.core;
 
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
 import io.vertx.eventx.EventProjection;
 import io.vertx.eventx.infrastructure.EventStore;
 import io.vertx.eventx.infrastructure.OffsetStore;
@@ -16,6 +14,8 @@ import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.task.LockLevel;
 import io.vertx.eventx.task.TimerTask;
 import io.vertx.eventx.task.TimerTaskConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -44,8 +44,10 @@ public class EventProjectionPoller implements TimerTask {
       .onItem().transformToUniAndMerge(eventProjection -> offsetStore.get(new JournalOffsetKey(eventProjection.getClass().getName(), eventProjection.tenantID()))
         .flatMap(journalOffset -> eventStore.fetch(streamStatement(eventProjection, journalOffset))
             .flatMap(
-              events -> eventProjection.apply(parseEvents(events))
-                .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
+              events -> {
+                return eventProjection.apply(parseEvents(events))
+                  .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)));
+              }
             )
         )
         .onFailure().invoke(throwable -> logger.error("Failure during projection update", throwable))

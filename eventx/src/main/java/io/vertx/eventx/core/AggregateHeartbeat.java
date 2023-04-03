@@ -1,8 +1,8 @@
 package io.vertx.eventx.core;
 
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.eventx.infrastructure.bus.AggregateBus;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.eventx.Aggregate;

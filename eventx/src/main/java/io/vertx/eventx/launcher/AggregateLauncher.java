@@ -8,18 +8,16 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.EventProjection;
 import io.vertx.eventx.StateProjection;
 import io.vertx.eventx.config.ConfigurationHandler;
-import io.vertx.eventx.core.AggregateHeartbeat;
-import io.vertx.eventx.core.AggregateVerticle;
-import io.vertx.eventx.core.EventProjectionPoller;
-import io.vertx.eventx.core.StateProjectionPoller;
+import io.vertx.eventx.core.*;
 import io.vertx.eventx.infrastructure.*;
+import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
 import io.vertx.eventx.objects.StateProjectionWrapper;
 import io.vertx.mutiny.config.ConfigRetriever;
@@ -31,9 +29,9 @@ import java.util.function.Supplier;
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.eventbusBridge;
 import static io.vertx.eventx.launcher.EventxMain.*;
 
-public class AggregateResourcesAllocator<T extends Aggregate> {
+public class AggregateLauncher<T extends Aggregate> {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateResourcesAllocator.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateLauncher.class);
   private final Vertx vertx;
   private final String deploymentID;
   private final ArrayList<Module> localModules;
@@ -41,7 +39,7 @@ public class AggregateResourcesAllocator<T extends Aggregate> {
   private final Class<T> aggregateClass;
   private Infrastructure infrastructure;
 
-  public AggregateResourcesAllocator(
+  public AggregateLauncher(
     Class<T> aggregateClass,
     Vertx vertx,
     String deploymentID
@@ -70,7 +68,7 @@ public class AggregateResourcesAllocator<T extends Aggregate> {
           .call(injector -> {
             addPersistentProjections(injector);
             addHeartBeat();
-              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules));
+              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules), deploymentID);
               return eventbusBridge(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
                       .setConfig(newConfiguration)
@@ -78,7 +76,8 @@ public class AggregateResourcesAllocator<T extends Aggregate> {
                     )
                     .replaceWithVoid()
                 )
-                .call(avoid -> ConfigLauncher.INSTANCE.deploy(injector));
+                .call(avoid -> ConfigLauncher.deploy(injector))
+                .invoke(avoid -> CronTaskLauncher.deploy(injector));
             }
           )
           .subscribe()
@@ -134,11 +133,18 @@ public class AggregateResourcesAllocator<T extends Aggregate> {
   }
 
   public Uni<Void> close() {
+    final var closeUnis = new ArrayList<Uni<Void>>();
+    if (!ConfigLauncher.CONFIG_RETRIEVERS.isEmpty()) {
+      closeUnis.add(ConfigLauncher.close());
+    }
     if (deploymentConfiguration != null) {
       deploymentConfiguration.close();
     }
     if (infrastructure != null) {
-      return infrastructure.stop();
+      closeUnis.add(infrastructure.stop());
+    }
+    if (!closeUnis.isEmpty()) {
+      return Uni.join().all(closeUnis).andFailFast().replaceWithVoid();
     }
     return Uni.createFrom().voidItem();
   }

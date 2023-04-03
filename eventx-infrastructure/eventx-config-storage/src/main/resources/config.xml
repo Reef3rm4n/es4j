@@ -11,6 +11,9 @@
     <createTable tableName="configuration" schemaName="${schema}">
       <column type="text" name="name"/>
       <column type="text" name="class"/>
+      <column type="text" name="description"/>
+      <column type="int" name="revision"/>
+      <column type="boolean" name="active"/>
       <column type="jsonb" name="data"/>
       <!--  Repository Entity    -->
       <column type="bigint" name="id" defaultValueSequenceNext="configuration_seq"/>
@@ -21,7 +24,7 @@
     </createTable>
   </changeSet>
   <changeSet id="configuration-index" author="reeferman" context="vertx">
-    <addPrimaryKey tableName="configuration" columnNames="name, class, tenant" schemaName="${schema}"/>
+    <addPrimaryKey tableName="configuration" columnNames="name, class, revision, tenant" schemaName="${schema}"/>
     <createIndex tableName="configuration" indexName="configuration-index" schemaName="${schema}">
       <column name="name"/>
       <column name="class"/>

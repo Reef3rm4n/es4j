@@ -1,7 +1,7 @@
 package io.vertx.eventx.test.hashing;
 
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.eventx.consistenthashing.Consistent;
 import io.vertx.eventx.consistenthashing.config.Config;
 import io.vertx.eventx.consistenthashing.exceptions.EmptyHashRingException;

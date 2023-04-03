@@ -3,10 +3,8 @@ package io.vertx.eventx.sql;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
-import io.smallrye.mutiny.vertx.UniHelper;
-import io.vertx.core.Future;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.sql.misc.SqlError;
@@ -424,9 +422,7 @@ public record RepositoryHandler(
                   final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE));
                   stream.fetch(EnvVars.REPOSITORY_STREAM_BATCH_SIZE)
                     .handler(row -> {
-                        if (logger.isDebugEnabled()) {
-                          logger.debug("Stream fetched " + row.toJson().encodePrettily());
-                        }
+                        logger.debug("Stream fetched " + row.toJson().encodePrettily());
                         vConsumer.accept(rowMapper.map(row));
                       }
                     )
@@ -543,104 +539,104 @@ public record RepositoryHandler(
       )
       .invoke(sqlConnection -> logger.debug("Row streamer obtained connection"))
       .flatMap(sqlConnection -> sqlConnection.begin()
-          .onFailure().call(throwable -> {
-              logger.error("row streamer failed to start transaction", throwable);
-              if (lock != null) {
-                return sqlConnection.close()
-                  .call(aVoid -> lock)
-                  .onItemOrFailure()
-                  .call(Unchecked.function((item, throwable1) -> {
-                        throw new GenericFailure(
-                          new SqlError(
-                            "Unable to obtain connection",
-                            "Row streamer could not obtain connection for type :" + statement,
-                            "Row streamer could not obtain connection for type :" + statement,
-                            null
-                          )
-                        );
-                      }
-                    )
-                  );
-              } else {
-                return sqlConnection.close()
-                  .onItemOrFailure()
-                  .call(Unchecked.function((item, throwable1) -> {
-                        throw new GenericFailure(new SqlError(
-                          "Connection timeout",
+        .onFailure().call(throwable -> {
+            logger.error("row streamer failed to start transaction", throwable);
+            if (lock != null) {
+              return sqlConnection.close()
+                .call(aVoid -> lock)
+                .onItemOrFailure()
+                .call(Unchecked.function((item, throwable1) -> {
+                      throw new GenericFailure(
+                        new SqlError(
+                          "Unable to obtain connection",
                           "Row streamer could not obtain connection for type :" + statement,
-                          null,
-                          null)
-                        );
-                      }
-                    )
-                  );
-              }
-            }
-          )
-          .invoke(transaction -> logger.debug("Row streamer started transaction"))
-          .flatMap(transaction -> {
-            final var promise = Promise.promise();
-              return sqlConnection.prepare(statement)
-                .onFailure().call(throwable -> {
-                    logger.error("row streamer failed to start transaction", throwable);
-                    if (lock != null) {
-                      return transaction.commit()
-                        .call(aVoid -> transaction.completion())
-                        .call(aVoid -> sqlConnection.close())
-                        .call(aVoid -> lock)
-                        .onItemOrFailure()
-                        .transform(Unchecked.function((item, throwable1) -> {
-                              throw new GenericFailure(new SqlError(
-                                "Connection timeout",
-                                "Row streamer could not obtain connection for statement :" + statement,
-                                null,
-                                null
-                              )
-                              );
-                            }
-                          )
-                        );
-                    } else {
-                      return transaction.commit()
-                        .call(aVoid -> transaction.completion())
-                        .call(aVoid -> sqlConnection.close())
-                        .onItemOrFailure()
-                        .call(Unchecked.function((item, throwable1) -> {
-                              throw new GenericFailure(new SqlError(
-                                "Connection timeout",
-                                "Row streamer could not obtain connection for type :" + statement,
-                                null,
-                                null
-                              )
-                              );
-                            }
-                          )
-                        );
+                          "Row streamer could not obtain connection for type :" + statement,
+                          null
+                        )
+                      );
                     }
-                  }
-                )
-                .invoke(
-                  preparedStatement -> {
-                    final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE), arguments);
-                    stream.fetch(EnvVars.REPOSITORY_STREAM_BATCH_SIZE)
-                      .handler(row -> {
-                          logger.debug("Stream fetched " + row.toJson().encodePrettily());
-                          vConsumer.accept(rowMapper.map(row));
-                        }
-                      )
-                      .exceptionHandler(throwable -> logger.error("Exception during row streaming ", throwable))
-                      .endHandler(
-                        () -> {
-                          logger.info("Closing stream....");
-                          closeStream(stream, lock, transaction, preparedStatement, sqlConnection);
-                          promise.complete();
-                        }
+                  )
+                );
+            } else {
+              return sqlConnection.close()
+                .onItemOrFailure()
+                .call(Unchecked.function((item, throwable1) -> {
+                      throw new GenericFailure(new SqlError(
+                        "Connection timeout",
+                        "Row streamer could not obtain connection for type :" + statement,
+                        null,
+                        null)
+                      );
+                    }
+                  )
+                );
+            }
+          }
+        )
+        .invoke(transaction -> logger.debug("Row streamer started transaction"))
+        .flatMap(transaction -> {
+            final var promise = Promise.promise();
+            return sqlConnection.prepare(statement)
+              .onFailure().call(throwable -> {
+                  logger.error("row streamer failed to start transaction", throwable);
+                  if (lock != null) {
+                    return transaction.commit()
+                      .call(aVoid -> transaction.completion())
+                      .call(aVoid -> sqlConnection.close())
+                      .call(aVoid -> lock)
+                      .onItemOrFailure()
+                      .transform(Unchecked.function((item, throwable1) -> {
+                            throw new GenericFailure(new SqlError(
+                              "Connection timeout",
+                              "Row streamer could not obtain connection for statement :" + statement,
+                              null,
+                              null
+                            )
+                            );
+                          }
+                        )
+                      );
+                  } else {
+                    return transaction.commit()
+                      .call(aVoid -> transaction.completion())
+                      .call(aVoid -> sqlConnection.close())
+                      .onItemOrFailure()
+                      .call(Unchecked.function((item, throwable1) -> {
+                            throw new GenericFailure(new SqlError(
+                              "Connection timeout",
+                              "Row streamer could not obtain connection for type :" + statement,
+                              null,
+                              null
+                            )
+                            );
+                          }
+                        )
                       );
                   }
-                )
-                .call(avoid -> promise.future());
-            }
-          )
+                }
+              )
+              .invoke(
+                preparedStatement -> {
+                  final var stream = preparedStatement.createStream(configuration.getInteger("repositoryStreamBatchSize", EnvVars.REPOSITORY_STREAM_BATCH_SIZE), arguments);
+                  stream.fetch(EnvVars.REPOSITORY_STREAM_BATCH_SIZE)
+                    .handler(row -> {
+                        logger.debug("Stream fetched " + row.toJson().encodePrettily());
+                        vConsumer.accept(rowMapper.map(row));
+                      }
+                    )
+                    .exceptionHandler(throwable -> logger.error("Exception during row streaming ", throwable))
+                    .endHandler(
+                      () -> {
+                        logger.info("Closing stream....");
+                        closeStream(stream, lock, transaction, preparedStatement, sqlConnection);
+                        promise.complete();
+                      }
+                    );
+                }
+              )
+              .call(avoid -> promise.future());
+          }
+        )
       )
       .replaceWithVoid();
   }

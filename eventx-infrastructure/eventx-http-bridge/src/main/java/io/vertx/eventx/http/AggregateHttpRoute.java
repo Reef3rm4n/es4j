@@ -1,7 +1,7 @@
 package io.vertx.eventx.http;
 
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
@@ -21,8 +21,8 @@ public class AggregateHttpRoute implements HttpRoute {
   private final AggregateEventBusPoxy<? extends Aggregate> entityAggregateProxy;
 
   public AggregateHttpRoute(
-    Vertx vertx,
-    Class<? extends Aggregate> aggregateClass
+    final Vertx vertx,
+    final Class<? extends Aggregate> aggregateClass
   ) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;

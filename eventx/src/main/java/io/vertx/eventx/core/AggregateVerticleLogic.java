@@ -14,12 +14,14 @@ import io.vertx.eventx.infrastructure.models.Event;
 import io.vertx.eventx.objects.*;
 import io.vertx.eventx.sql.exceptions.Conflict;
 import io.smallrye.mutiny.Uni;
-import io.vertx.core.impl.logging.Logger;
-import io.vertx.core.impl.logging.LoggerFactory;
+import io.vertx.ext.auth.authorization.RoleBasedAuthorization;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class AggregateVerticleLogic<T extends Aggregate> {
@@ -77,7 +79,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
-    LOGGER.debug("Processing " + commandClass + " -> " + jsonCommand.encodePrettily());
     final var command = parseCommand(commandClass, jsonCommand);
     return loadAggregate(command.aggregateId(), command.headers().tenantId())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
@@ -93,12 +94,14 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   private T aggregateEvent(T aggregateState, final io.vertx.eventx.Event event) {
     io.vertx.eventx.Event finalEvent = event;
     final var aggregator = Objects.requireNonNullElse(customAggregator(event), defaultAggregator(event));
+    LOGGER.debug("Applying aggregator {} current schema version {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().currentSchemaVersion());
     if (aggregator.delegate().currentSchemaVersion() != event.schemaVersion()) {
-      LOGGER.info("Parsing event -> " + aggregator.delegate().getClass().getSimpleName());
+      LOGGER.debug("Event schema version mismatch, migrating event schema {} ", event);
       finalEvent = aggregator.delegate().transformFrom(event.schemaVersion(), JsonObject.mapFrom(event));
     }
-    LOGGER.info("Applying behaviour -> " + aggregator.delegate().getClass().getSimpleName());
-    return (T) aggregator.delegate().apply(aggregateState, finalEvent);
+    final var newAggregateState = (T) aggregator.delegate().apply(aggregateState, finalEvent);
+    LOGGER.debug("State after aggregation {}", newAggregateState);
+    return newAggregateState;
   }
 
   private AggregatorWrapper defaultAggregator(io.vertx.eventx.Event event) {
@@ -119,9 +122,12 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private List<io.vertx.eventx.Event> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
-    LOGGER.info("Applying command behaviour -> " + behaviour.getClass().getSimpleName());
-    return behaviour.process(aggregateState, command);
+    LOGGER.debug("Applying {} to {} ", behaviour.getClass().getSimpleName(), JsonObject.mapFrom(command));
+    final var events = behaviour.process(aggregateState, command);
+    LOGGER.debug("Events created {}", new JsonArray(events).encodePrettily());
+    return events;
   }
+
 
   private BehaviourWrapper defaultBehaviour(Command command) {
     return behaviours.stream()
@@ -141,7 +147,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private Uni<AggregateState<T>> loadAggregate(String aggregateId, String tenant) {
-    LOGGER.debug("Loading aggregateId[" + aggregateId + "::" + tenant + "]");
+    LOGGER.debug("Loading aggregate[{}::{}]", aggregateId, tenant);
     AggregateState<T> state = null;
     if (infrastructure.cache() != null) {
       state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
@@ -154,35 +160,24 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private Uni<AggregateState<T>> playFromLastJournalOffset(String aggregateId, String tenant, AggregateState<T> state) {
-    LOGGER.debug("Playing from last journal offset");
-    return infrastructure.eventStore().fetch(streamInstruction(aggregateId, tenant, state))
+    final var instruction = streamInstruction(aggregateId, tenant, state);
+    LOGGER.debug("Playing stream {}", instruction);
+    return infrastructure.eventStore().fetch(instruction)
       .map(events -> {
           events.forEach(ev -> applyEvent(state, ev));
           return cacheState(state);
         }
       );
-//    return infrastructure.eventStore().stream(
-//        streamInstruction(aggregateId, tenant, state),
-//        infraEvent -> applyEvent(state, infraEvent)
-//      )
-//      .map(avoid -> cacheState(state));
   }
 
   private AggregateEventStream<T> streamInstruction(String aggregateId, String tenant, AggregateState<T> state) {
-    List<Class<? extends io.vertx.eventx.Event>> snapshotEvents = null;
-    if (state.state() != null) {
-      snapshotEvents = new ArrayList<>(state.state().snapshotOn());
-      if (state.state().snapshotEvery().isPresent()) {
-        snapshotEvents.add(SnapshotEvent.class);
-      }
-    }
     return new AggregateEventStream<>(
       state.aggregateClass(),
       aggregateId,
       tenant,
       state.currentVersion(),
-      null,
-      snapshotEvents
+      state.currentJournalOffset(),
+      SnapshotEvent.class
     );
   }
 
@@ -190,7 +185,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     events.stream()
       .sorted(Comparator.comparingLong(Event::eventVersion))
       .forEachOrdered(event -> {
-          LOGGER.info("Aggregating event -> " + event.eventClass());
+          LOGGER.info("Aggregating event {}", event.eventClass());
           final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
           final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
           if (isSnapshot) {
@@ -208,55 +203,60 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private void applyEvent(AggregateState<T> state, Event event, io.vertx.eventx.Event parsedEvent) {
     final var newState = aggregateEvent(state.state(), parsedEvent);
-    LOGGER.info("New aggregate state -> " + newState);
     if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
+      LOGGER.debug("Acknowledging commandId {}", event.commandId());
       state.knownCommands().add(event.commandId());
     }
     state.setState(newState);
   }
 
   private void applySnapshot(AggregateState<T> state, Event event, io.vertx.eventx.Event parsedEvent) {
-    LOGGER.debug("Applying snapshot " + JsonObject.mapFrom(event).encodePrettily());
+    LOGGER.debug("Applying snapshot {}", JsonObject.mapFrom(event).encodePrettily());
     if (parsedEvent.schemaVersion() != state.state().schemaVersion()) {
+      LOGGER.debug("Aggregate schema version mismatch, migrating schema from {} to {}", parsedEvent.schemaVersion(), state.state().schemaVersion());
       state.setState(state.aggregateClass().cast(state.state().transformSnapshot(parsedEvent.schemaVersion(), event.event())));
     } else {
+      LOGGER.debug("Applying snapshot ", parsedEvent.schemaVersion(), state.state().schemaVersion());
       state.setState(JsonObject.mapFrom(((SnapshotEvent) parsedEvent).state()).mapTo(state.aggregateClass()));
     }
   }
 
   private void applyEvent(final AggregateState<T> state, final Event event) {
-    LOGGER.info("Aggregating event -> " + event.eventClass());
+    LOGGER.info("Aggregating event {} ", event.eventClass());
     final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
-    final var newState = aggregateEvent(state.state(), parsedEvent);
-    LOGGER.info("New aggregate state -> " + newState);
-    if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
-      state.knownCommands().add(event.commandId());
+    if (parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class)) {
+      final var snapshot = (SnapshotEvent) parsedEvent;
+      state.knownCommands().clear();
+      state.setState(JsonObject.mapFrom(snapshot.state()).mapTo(state.aggregateClass()))
+        .addKnownCommands(snapshot.knownCommands())
+        .setCurrentVersion(event.eventVersion())
+        .setCurrentJournalOffset(event.journalOffset());
+    } else {
+      final var newState = aggregateEvent(state.state(), parsedEvent);
+      LOGGER.debug("State after aggregation {} ", JsonObject.mapFrom(newState).encodePrettily());
+      state.setState(newState)
+        .addKnownCommand(event.commandId())
+        .setCurrentJournalOffset(event.journalOffset())
+        .setCurrentVersion(event.eventVersion());
     }
-    final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
-    state.setState(newState)
-      .addKnownCommand(event.commandId())
-      .setCurrentVersion(event.eventVersion());
   }
 
   private List<Event> applyCommandBehaviour(final AggregateState<T> state, final Command finalCommand) {
     final var events = applyCommandBehaviour(state.state(), finalCommand);
-    if (LOGGER.isDebugEnabled()) {
-      LOGGER.debug("Events created -> " + new JsonArray(events).encodePrettily());
-    }
     final var array = events.toArray(new io.vertx.eventx.Event[0]);
     final var resultingEvents = transformEvents(state, finalCommand, array);
     addOptionalSnapshot(state, finalCommand, resultingEvents);
     return resultingEvents;
   }
 
-  private ArrayList<Event> transformEvents(AggregateState<T> state, Command finalCommand, io.vertx.eventx.Event[] array) {
+  public static <X extends Aggregate> ArrayList<Event> transformEvents(AggregateState<X> state, Command finalCommand, io.vertx.eventx.Event[] array) {
     final var currentVersion = state.currentVersion() == null ? 0 : state.currentVersion();
     return new ArrayList<>(IntStream.range(1, array.length + 1)
       .mapToObj(index -> {
           final var ev = array[index - 1];
           final var eventVersion = currentVersion + index;
           return new Event(
-            aggregateClass.getName(),
+            state.aggregateClass().getName(),
             finalCommand.aggregateId(),
             ev.getClass().getName(),
             eventVersion,

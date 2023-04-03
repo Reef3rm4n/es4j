@@ -1,4 +1,4 @@
-package io.vertx.eventx.test.eventsourcing.domain.events;
+package io.vertx.eventx.test.eventsourcing.events;
 
 import io.vertx.eventx.Event;
 

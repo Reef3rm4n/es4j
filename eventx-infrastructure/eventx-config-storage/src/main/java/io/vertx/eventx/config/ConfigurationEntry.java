@@ -8,4 +8,13 @@ public interface ConfigurationEntry extends Shareable {
     return "default";
   }
   String name();
+
+  default Integer revision() {
+    return 0;
+  }
+
+  String description();
+  default Boolean active() {
+    return true;
+  }
 }

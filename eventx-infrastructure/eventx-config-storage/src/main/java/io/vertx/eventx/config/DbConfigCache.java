@@ -6,9 +6,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 
-public class FsConfigCache {
-  private static final Logger LOGGER = LoggerFactory.getLogger(FsConfigCache.class);
-  public static final Cache<String, JsonObject> FS_CONFIG_CACHE = Caffeine.newBuilder()
+public class DbConfigCache {
+  private static final Logger LOGGER = LoggerFactory.getLogger(DbConfigCache.class);
+  public static final Cache<String, JsonObject> DB_CONFIGURATIONS = Caffeine.newBuilder()
 //    .executor(cmd -> context.runOnContext(cmd))
 //    .recordStats()
     .initialCapacity(500)
@@ -17,11 +17,14 @@ public class FsConfigCache {
     .build();
 
   public static JsonObject get(String key) {
-   return FS_CONFIG_CACHE.getIfPresent(key);
+   return DB_CONFIGURATIONS.getIfPresent(key);
   }
 
   public static void put(String key, JsonObject value) {
-    FS_CONFIG_CACHE.put(key, value);
+    DB_CONFIGURATIONS.put(key, value);
   }
 
+  public static void delete(String parseKey) {
+    DB_CONFIGURATIONS.invalidate(parseKey);
+  }
 }
