@@ -1,4 +1,4 @@
-package io.vertx.eventx.infrastructure.proxies;
+package io.vertx.eventx.infrastructure.proxy;
 
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Uni;

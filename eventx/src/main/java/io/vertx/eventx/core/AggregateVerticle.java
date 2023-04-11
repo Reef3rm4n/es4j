@@ -72,7 +72,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       aggregateClass,
       aggregatorWrappers,
       behaviourWrappers,
-      aggregateConfiguration,
       infrastructure
     );
     return AggregateBus.registerCommandConsumer(
@@ -80,7 +79,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         aggregateClass,
         deploymentID,
         jsonMessage -> {
-          LOGGER.info("Incoming command " + jsonMessage.body().encodePrettily());
+          LOGGER.debug("Incoming command {}", jsonMessage.body().encodePrettily());
           final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
             case LOAD -> logic.loadAggregate(jsonMessage.body().mapTo(AggregatePlainKey.class));
             case COMMAND -> logic.process(jsonMessage.body().getString("commandClass")
@@ -94,7 +93,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
                 if (throwable instanceof EventxException vertxServiceException) {
                   jsonMessage.fail(vertxServiceException.error().externalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
                 } else {
-                  LOGGER.error("Unexpected exception raised -> " + jsonMessage.body(), throwable);
+                  LOGGER.error("Unexpected exception raised on {} ", jsonMessage.body(), throwable);
                   jsonMessage.fail(500, JsonObject.mapFrom(new EventxError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
                 }
               }
@@ -172,7 +171,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     final var genericInterface = genericInterfaces[0];
     if (genericInterface instanceof ParameterizedType parameterizedType) {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
-      LOGGER.info(behaviour.getName() + " generic types -> " + Arrays.stream(genericTypes).map(Type::getTypeName).toList());
       final Class<? extends Aggregate> entityClass;
       Class<?> eventClass;
       try {
@@ -197,7 +195,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     final var genericInterface = genericInterfaces[0];
     if (genericInterface instanceof ParameterizedType parameterizedType) {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
-      LOGGER.info(behaviour.getName() + " generic types -> " + Arrays.stream(genericTypes).map(Type::getTypeName).toList());
       final Class<? extends Aggregate> entityClass;
       Class<? extends Command> commandClass;
       try {
@@ -215,10 +212,8 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   @Override
   public Uni<Void> asyncStop() {
-    LOGGER.info("Stopping " + aggregateClass.getSimpleName());
-    AggregateBus.killActor(vertx, aggregateClass, this.deploymentID());
-    LOGGER.info("[deploymentIDs:" + vertx.deploymentIDs() + "]");
-    LOGGER.info("[contextID:" + context.deploymentID() + "]");
+    LOGGER.info("Stopping {} {}", aggregateClass.getSimpleName(), deploymentID);
+    AggregateBus.stop(vertx, aggregateClass, deploymentID);
     return infrastructure.stop();
   }
 

@@ -58,7 +58,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
     final var pgChannel = pgSubscriber.channel("task_queue_ch");
     pgChannel.handler(payload -> {
           pgChannel.pause();
-          LOGGER.info("Message available !");
+          LOGGER.info("Message available {}", payload);
           poll(messageProcessorManager, null)
             .subscribe()
             .with(
@@ -70,9 +70,9 @@ public class PgTaskSubscriber implements TaskSubscriber {
                 if (throwable instanceof NoStackTraceThrowable illegalStateException) {
                   LOGGER.info(illegalStateException.getMessage());
                 } else if (throwable instanceof NotFound) {
-                  LOGGER.info("Queue is empty !");
+                  LOGGER.info("Queue empty");
                 } else {
-                  LOGGER.error("Subscriber dropping exception", throwable);
+                  LOGGER.error("PgSubscriber dropped exception", throwable);
                 }
                 pgChannel.resume();
               }
@@ -218,19 +218,10 @@ public class PgTaskSubscriber implements TaskSubscriber {
 
 
   private MessageRecordQuery messageDropQuery(Map.Entry<String, List<MessageRecord>> entry) {
-    return new MessageRecordQuery(
-      entry.getValue().stream().map(MessageRecord::id).toList(),
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-      QueryOptions.simple(entry.getKey())
-    );
+    return MessageRecordQueryBuilder.builder()
+      .ids(entry.getValue().stream().map(MessageRecord::id).toList())
+      .options(QueryOptions.simple(entry.getKey()))
+      .build();
   }
 
 }

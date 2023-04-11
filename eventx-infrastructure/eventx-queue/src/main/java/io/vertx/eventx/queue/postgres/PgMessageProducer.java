@@ -1,6 +1,5 @@
 package io.vertx.eventx.queue.postgres;
 
-import io.vertx.eventx.sql.exceptions.ConnectionFailure;
 import io.vertx.mutiny.sqlclient.SqlConnection;
 import io.vertx.eventx.queue.models.*;
 import io.vertx.eventx.queue.postgres.mappers.MessageQueueMapper;
@@ -9,7 +8,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.queue.postgres.models.MessageRecord;
 import io.vertx.eventx.queue.postgres.models.MessageRecordID;
 import io.vertx.eventx.queue.postgres.models.MessageRecordQuery;
-import io.vertx.eventx.queue.misc.FileSystemFallBack;
 import io.vertx.eventx.queue.MessageProducer;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.RepositoryHandler;
@@ -21,11 +19,9 @@ import java.util.function.Consumer;
 
 public class PgMessageProducer implements MessageProducer {
   private final Repository<MessageRecordID, MessageRecord, MessageRecordQuery> queue;
-  private final FileSystemFallBack fallback;
 
   public PgMessageProducer(RepositoryHandler repositoryHandler) {
     this.queue = new Repository<>(MessageQueueMapper.INSTANCE, repositoryHandler);
-    this.fallback = new FileSystemFallBack(queue);
   }
 
   public <T> Uni<Void> enqueue(Message<T> message, QueueTransaction queueTransaction) {
@@ -42,8 +38,7 @@ public class PgMessageProducer implements MessageProducer {
       null,
       BaseRecord.newRecord(message.tenant())
     );
-    return queue.insert(queueEntry, (SqlConnection) queueTransaction.connection()).replaceWithVoid()
-      .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntry));
+    return queue.insert(queueEntry, (SqlConnection) queueTransaction.connection()).replaceWithVoid();
   }
 
   public <T> Uni<Void> enqueue(List<Message<T>> entries) {
@@ -62,8 +57,7 @@ public class PgMessageProducer implements MessageProducer {
         BaseRecord.newRecord(message.tenant())
       )
     ).toList();
-    return queue.insertBatch(queueEntries).replaceWithVoid()
-      .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntries));
+    return queue.insertBatch(queueEntries).replaceWithVoid();
   }
 
   public <T> Uni<Void> enqueue(List<Message<T>> entries, QueueTransaction queueTransaction) {
@@ -82,8 +76,7 @@ public class PgMessageProducer implements MessageProducer {
         BaseRecord.newRecord(message.tenant())
       )
     ).toList();
-    return queue.insertBatch(queueEntries, (SqlConnection) queueTransaction.connection()).replaceWithVoid()
-      .onFailure(ConnectionFailure.class).recoverWithUni(() -> fallback.load(queueEntries));
+    return queue.insertBatch(queueEntries, (SqlConnection) queueTransaction.connection()).replaceWithVoid();
   }
 
   public Uni<Void> cancel(MessageID messageID) {

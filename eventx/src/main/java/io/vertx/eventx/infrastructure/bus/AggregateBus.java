@@ -117,7 +117,7 @@ public class AggregateBus {
     );
   }
 
-  public static <T extends Aggregate> void killActor(Vertx vertx, Class<T> entityClass, String deploymentID) {
+  public static <T extends Aggregate> void stop(Vertx vertx, Class<T> entityClass, String deploymentID) {
     vertx.eventBus().publish(
       AddressResolver.broadcastChannel(entityClass),
       commandConsumer(entityClass, deploymentID),
@@ -149,16 +149,16 @@ public class AggregateBus {
   }
 
   private static void dropped(Class<?> entityClass, final Throwable throwable) {
-    LOGGER.error("[-- " + entityClass.getSimpleName() + " had to drop the following exception --]", throwable);
+    LOGGER.error("[-- {} Channel had to drop the following exception --]", entityClass.getSimpleName(), throwable);
   }
 
   private static void addNode(final String actorAddress, HashRing<SimpleNode> hashRing) {
     final var simpleNode = SimpleNode.of(actorAddress);
     if (!hashRing.contains(simpleNode)) {
-      LOGGER.info("Adding actor to hash-ring [address:" + actorAddress + "]");
+      LOGGER.debug("Adding {} to {} hash-ring", hashRing.getName(), actorAddress);
       hashRing.add(simpleNode);
     } else {
-      LOGGER.info("Actor already in hash-ring [address:" + actorAddress + "]");
+      LOGGER.debug("{} already present in hash-ring {}", actorAddress, hashRing.getName());
     }
   }
 
@@ -170,7 +170,7 @@ public class AggregateBus {
       command.getJsonObject("headers").getString("tenantId", "default")
     );
     final var address = AggregateBus.resolveActor(aggregateClass, aggregateKey);
-    LOGGER.debug("Proxying " + action.name() + " -> " + new JsonObject()
+    LOGGER.debug("Proxying {} {}", action.name(), new JsonObject()
       .put("key", aggregateKey)
       .put("address", address)
       .put("payload", payload)
@@ -192,13 +192,13 @@ public class AggregateBus {
 
   private static Throwable transformError(final Throwable throwable) {
     if (throwable instanceof ReplyException reply) {
-      LOGGER.error("Error reply from handler -> ", reply);
+      LOGGER.error("Handler raised error", reply);
       if (reply.failureType() == RECIPIENT_FAILURE) {
         try {
           final var error = new JsonObject(reply.getLocalizedMessage()).mapTo(EventxError.class);
           return new CommandRejected(error);
         } catch (IllegalArgumentException illegalArgument) {
-          LOGGER.error("Unable to parse rejectCommand -> ", illegalArgument);
+          LOGGER.error("Unable to parse command", illegalArgument);
           return new CommandRejected(new EventxError(
             throwable.getMessage(),
             null,
@@ -218,7 +218,7 @@ public class AggregateBus {
         );
       }
     } else {
-      LOGGER.error("Unknown exception from handler -> ", throwable);
+      LOGGER.error("Unknown exception from handler", throwable);
       return new CommandRejected(new EventxError(throwable.getMessage(), null, 500));
     }
   }
@@ -232,23 +232,28 @@ public class AggregateBus {
   }
 
   private static void handlerThrowable(final Throwable throwable, Class<?> entityClass) {
-    LOGGER.error("[-- Channel for entity " + entityClass.getSimpleName() + " had to drop the following exception --]", throwable);
+    LOGGER.error("[-- Channel for entity {} had to drop the following exception --]", entityClass.getSimpleName(), throwable);
   }
 
   private static void removeActor(final String handler, HashRing<SimpleNode> hashRing) {
     final var simpleNode = SimpleNode.of(handler);
     if (hashRing.contains(simpleNode)) {
-      LOGGER.info("Removing actor form hash-ring [address: " + handler + "]");
+      LOGGER.info("Removing {} form hash-ring {}", handler, hashRing.getName());
       hashRing.remove(simpleNode);
     } else {
-      LOGGER.info("Actor not present in hash-ring [address: " + handler + "]");
+      LOGGER.info("{} not present in hash-ring {}", handler, hashRing.getName());
     }
   }
 
   private static void synchronizeChannel(Message<String> objectMessage, Class<? extends Aggregate> entityClass) {
-    LOGGER.debug("Synchronizing " + entityClass.getSimpleName() + " Channel " + new JsonObject()
-      .put("action", objectMessage.headers().get(Actions.ACTION.name()))
-      .put("body", objectMessage.body()).encodePrettily());
+    LOGGER.debug(
+      "Synchronizing {} {}",
+      entityClass.getSimpleName(),
+      new JsonObject()
+        .put("action", objectMessage.headers().get(Actions.ACTION.name()))
+        .put("body", objectMessage.body())
+        .encodePrettily()
+    );
     HASH_RING_MAP.computeIfAbsent(entityClass, (aClass) -> HASH_RING_MAP.put(aClass, startHashRing(aClass)));
     switch (Actions.valueOf(objectMessage.headers().get(Actions.ACTION.name()))) {
       case ADD -> addNode(objectMessage.body(), HASH_RING_MAP.get(entityClass));

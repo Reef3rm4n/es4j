@@ -1,5 +1,6 @@
 package io.vertx.eventx.queue.postgres.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.eventx.queue.models.MessageState;
 import io.vertx.eventx.queue.models.RawMessage;
 import io.vertx.core.json.JsonObject;
@@ -9,6 +10,7 @@ import io.vertx.eventx.sql.models.RepositoryRecord;
 import java.time.Instant;
 import java.util.Map;
 
+@RecordBuilder
 public record MessageRecord(
   String id,
   Instant scheduled,

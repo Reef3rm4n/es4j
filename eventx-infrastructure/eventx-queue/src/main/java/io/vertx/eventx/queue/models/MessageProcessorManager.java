@@ -22,8 +22,6 @@ public record MessageProcessorManager(
   Vertx vertx
 ) {
   private static final Logger LOGGER = LoggerFactory.getLogger(MessageProcessorManager.class);
-
-  // todo add circuit-breakers to processors.
   public Uni<RawMessage> processMessage(RawMessage rawMessage) {
     final var processor = resolveProcessor(rawMessage);
     final var parsedMessage = parseMessage(rawMessage);
@@ -44,14 +42,9 @@ public record MessageProcessorManager(
       )
       .onItemOrFailure().transform(
         (avoid, throwable) -> {
-          if (throwable != null) {
-            if (throwable instanceof IntegrityContraintViolation) {
-              return rawMessage.withState(PROCESSED);
-            } else {
-              return retryableFailure(queueConfiguration, rawMessage, throwable, processor);
-            }
+          if (throwable != null && !(throwable instanceof IntegrityContraintViolation)) {
+            return retryableFailure(queueConfiguration, rawMessage, throwable, processor);
           } else {
-            LOGGER.info(processor.getClass().getName() + " has correctly processed the message -> " + rawMessage.id());
             return rawMessage.withState(PROCESSED);
           }
         }
@@ -83,6 +76,7 @@ public record MessageProcessorManager(
         rawMessage.payload().mapTo(tClass)
       );
     } catch (ClassNotFoundException e) {
+      LOGGER.error("Unable to parse message {}" ,JsonObject.mapFrom(rawMessage), e);
       throw new ConsumerException(e);
     }
   }
@@ -90,13 +84,13 @@ public record MessageProcessorManager(
   private <T> RawMessage retryableFailure(QueueConfiguration configuration, RawMessage messageRecord, Throwable throwable, MessageProcessor<T> processor) {
     MessageState failureState;
     if (processor.fatalExceptions().stream().anyMatch(f -> f.isAssignableFrom(throwable.getClass()))) {
-      LOGGER.error("Fatal failure in processor" + processor.getClass().getName() + ", ccp will drop message -> " + messageRecord.id(), throwable.getCause());
+      LOGGER.error("Fatal failure for message {} in processor {}", JsonObject.mapFrom(messageRecord).encodePrettily(), processor.getClass().getName(), throwable.getCause());
       failureState = FATAL_FAILURE;
     } else if (configuration.maxRetry() != null && messageRecord.retryCounter() + 1 > configuration.maxRetry()) {
-      LOGGER.error("Retries exhausted for message -> " + messageRecord.id(), throwable.getCause());
+      LOGGER.error("Retries exhausted for message {}  in processor {}", JsonObject.mapFrom(messageRecord).encodePrettily(), processor.getClass().getName(), throwable.getCause());
       failureState = RETRIES_EXHAUSTED;
     } else {
-      LOGGER.error("Failure in processor" + processor.getClass().getName() + ",  ccp will requeue message for retry -> " + messageRecord.id(), throwable.getCause());
+      LOGGER.error("Failure for message {} in processor {}", processor.getClass().getName(), JsonObject.mapFrom(messageRecord).encodePrettily(), throwable.getCause());
       failureState = RETRY;
     }
     return new RawMessage(
@@ -113,20 +107,4 @@ public record MessageProcessorManager(
     );
   }
 
-
-  private <T> RawMessage circuitBreakerOpen(RawMessage messageRecord, MessageProcessor<T> processor) {
-    LOGGER.error("Circuit-Breaker open for task processor " + processor.getClass().getName() + ", re-queueing message for retry -> " + messageRecord.id());
-    return new RawMessage(
-      messageRecord.id(),
-      messageRecord.scheduled(),
-      messageRecord.expiration(),
-      messageRecord.priority(),
-      messageRecord.retryCounter(),
-      RETRY,
-      messageRecord.payloadClass(),
-      messageRecord.payload(),
-      new JsonObject().put(processor.getClass().getName(), "circuit breaker open"),
-      messageRecord.tenant()
-    );
-  }
 }

@@ -87,21 +87,20 @@ public class CustomClassLoader {
   public static <T> Class<?> getSecondGenericType(T object) {
     Type[] genericInterfaces = object.getClass().getGenericInterfaces();
     if (genericInterfaces.length > 1) {
-      throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + object.getClass().getName());
+      throw new IllegalArgumentException("Behaviour " + object.getClass().getName() + " implements more than one interface");
     } else if (genericInterfaces.length == 0) {
-      throw new IllegalArgumentException("Validators should implement CommandValidator interface -> " + object.getClass().getName());
+      throw new IllegalArgumentException("Behaviour " + object.getClass().getName() + " should implement one interface");
     }
     final var genericInterface = genericInterfaces[1];
     if (genericInterface instanceof ParameterizedType parameterizedType) {
       Type[] genericTypes = parameterizedType.getActualTypeArguments();
-//      LOGGER.debug(object.getClass().getName() + " generic types -> " + Arrays.stream(genericTypes).map(Type::getTypeName).toList());
       try {
         return Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
-        throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
+        throw new IllegalArgumentException("Unable to get generic type", e);
       }
     } else {
-      throw new IllegalArgumentException("Invalid genericInterface -> " + genericInterface.getClass());
+      throw new IllegalArgumentException("Invalid generic interface" + genericInterface.getClass());
     }
   }
 
@@ -118,7 +117,7 @@ public class CustomClassLoader {
       try {
         return (Class<? extends I>) Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
-        throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
+        throw new IllegalArgumentException("Unable to get generic types ", e);
       }
     } else {
       throw new IllegalArgumentException("Invalid genericInterface -> " + genericInterface.getClass());
@@ -129,7 +128,7 @@ public class CustomClassLoader {
     try {
       return tClass.getDeclaredConstructor().newInstance();
     } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-      LOGGER.error("Unable to instantiate class -> " + tClass.getName(), e);
+      LOGGER.error("Unable to instantiate  {} ", tClass.getName(), e);
       throw new IllegalArgumentException(e);
     }
   }
@@ -148,14 +147,14 @@ public class CustomClassLoader {
 
 
   public static <T> boolean checkPresenceInBinding(Injector injector, Class<T> tClass) {
-    LOGGER.debug("Looking for -> " + tClass.getName());
+    LOGGER.debug("Looking for {} in injector ", tClass.getName());
     final var matches = injector.getBindings().entrySet().stream()
       .filter(
         key -> checkPresenceInBinding(tClass, key)
       )
       .map(Map.Entry::getKey)
       .toList();
-    LOGGER.debug("Found " + tClass + " bindings -> " + matches.stream().map(Key::getRawType).toList());
+    LOGGER.debug("Found {} in injector", matches.stream().map(Key::getRawType).toList());
     return !matches.isEmpty();
   }
 

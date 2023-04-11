@@ -10,11 +10,13 @@ package io.vertx.eventx.objects;
 
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import io.soabase.recordbuilder.core.RecordBuilder;
 
 import java.time.Instant;
 
 
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
+@RecordBuilder
 public record PublicQueryOptions(
    boolean desc,
    Instant creationDateFrom,

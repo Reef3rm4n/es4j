@@ -3,11 +3,13 @@ package io.vertx.eventx.objects;
 
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import io.soabase.recordbuilder.core.RecordBuilder;
 
 import java.io.Serializable;
 import java.util.UUID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
+@RecordBuilder
 public record CommandHeaders(
   String commandID,
   String tenantId,

@@ -1,11 +1,12 @@
 package io.vertx.eventx.objects;
 
+
 import io.soabase.recordbuilder.core.RecordBuilder;
-import io.vertx.core.json.JsonObject;
+
+import java.util.Map;
 
 @RecordBuilder
-public record Command(
-  String commandType,
-  JsonObject command
+public record ScheduledCommand(
+  Map<String, Object> command
 ) {
 }

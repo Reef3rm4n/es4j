@@ -50,7 +50,6 @@ public class TaskProcessorVerticle extends AbstractVerticle {
     final Collection<Module> modules
   ) {
     if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, modules)) {
-      LOGGER.info("Deploying queue consumers ...");
       return vertx.deployVerticle(
         () -> new TaskProcessorVerticle(modules),
         new DeploymentOptions()
@@ -58,7 +57,6 @@ public class TaskProcessorVerticle extends AbstractVerticle {
           .setConfig(newConfiguration)
       ).replaceWithVoid();
     }
-    LOGGER.info("Skipping task-queue, no implementations found in modules");
     return Uni.createFrom().voidItem();
   }
 
@@ -76,7 +74,7 @@ public class TaskProcessorVerticle extends AbstractVerticle {
     return subscriber.subscribe(new MessageProcessorManager(
           taskConfiguration,
           bootstrapProcessors(this.deploymentID(), injector),
-        queueTransactionManager,
+          queueTransactionManager,
           vertx
         )
       )
@@ -167,10 +165,10 @@ public class TaskProcessorVerticle extends AbstractVerticle {
       .forEach((key, value) -> key.forEach(k -> customProcessors.put(k, value.getClass().getName())));
     final var json = new JsonObject()
       .put("defaultProcessor", messageProcessorWrapper.defaultProcessor().getClass().getName())
-      .put("customProcessors", customProcessors)
+      .put("customProcessors", customProcessors.encodePrettily())
       .put("payloadClass", messageProcessorWrapper.payloadClass().getName())
-      .put("configuration", JsonObject.mapFrom(queueConfiguration));
-    LOGGER.info("Queue configured -> " + json.encodePrettily());
+      .put("configuration", JsonObject.mapFrom(queueConfiguration).encodePrettily());
+    LOGGER.info("Queue configuration {} ", json.encodePrettily());
   }
 
 }

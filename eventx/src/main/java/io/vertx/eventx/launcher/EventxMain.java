@@ -26,6 +26,7 @@ import io.vertx.mutiny.core.eventbus.DeliveryContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class EventxMain extends AbstractVerticle {
 
@@ -33,14 +34,16 @@ public class EventxMain extends AbstractVerticle {
   public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadModules());
   private static final List<AggregateLauncher<? extends Aggregate>> AGGREGATES = new ArrayList<>();
   public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
-  public static  final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
+  public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
   public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
   private TimerTaskDeployer timers;
+
+  private CronTaskLauncher cronTaskLauncher;
   public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = CustomClassLoader.getSubTypes(Aggregate.class);
 
   @Override
   public void start(final Promise<Void> startPromise) {
-    LOGGER.info(" ---- Starting " + this.getClass().getSimpleName() + " ----");
+    LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
     Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x] Infrastructure had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
     addEventBusInterceptors();
@@ -93,10 +96,10 @@ public class EventxMain extends AbstractVerticle {
       .with(
         aVoid -> {
           startPromise.complete();
-          LOGGER.info("---------------------------------- Event.x Main Started -----------------------------------");
+          LOGGER.info(" ----  {}::{} Started  ---- ", this.getClass().getName(), context.deploymentID());
         }
         , throwable -> {
-          LOGGER.error("---------------------- Error starting Event.x ------------------------------------------", throwable);
+          LOGGER.error(" ----  {}::{} Stopped  ---- ", this.getClass().getName(), context.deploymentID(), throwable);
           vertx.closeAndForget();
           startPromise.fail(throwable);
         }
@@ -105,21 +108,14 @@ public class EventxMain extends AbstractVerticle {
 
   private void deployProjections() {
     this.timers = new TimerTaskDeployer(vertx);
-    STATE_PROJECTIONS.forEach(this::deployProjection);
-    EVENT_PROJECTIONS.forEach(this::deployProjection);
+
+    cronTaskLauncher.kickstart(null, Stream.concat(STATE_PROJECTIONS.stream(), EVENT_PROJECTIONS.stream()).toList());
+
     HEARTBEATS.forEach(this::deployHeartBeat);
   }
 
   private void deployHeartBeat(AggregateHeartbeat<? extends Aggregate> aggregateHeartbeat) {
     timers.deploy(aggregateHeartbeat);
-  }
-
-  private void deployProjection(EventProjectionPoller eventProjectionPoller) {
-    timers.deploy(eventProjectionPoller);
-  }
-
-  private void deployProjection(StateProjectionPoller<? extends Aggregate> stateProjectionPoller) {
-    timers.deploy(stateProjectionPoller);
   }
 
   private Uni<Void> deployBridges() {
@@ -137,7 +133,7 @@ public class EventxMain extends AbstractVerticle {
 
   @Override
   public void stop(final Promise<Void> stopPromise) {
-    LOGGER.warn("Stopping Event.x Main deploymentID " + context.deploymentID());
+    LOGGER.warn(" ---- Stopping  {}::{}  ---- ", this.getClass().getName(), context.deploymentID());
     undeployComponent()
       .subscribe()
       .with(avoid -> stopPromise.complete(), stopPromise::fail);

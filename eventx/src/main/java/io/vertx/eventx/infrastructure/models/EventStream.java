@@ -1,10 +1,11 @@
 package io.vertx.eventx.infrastructure.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Event;
 
 import java.util.List;
-
+@RecordBuilder
 public record EventStream(
   List<Class<? extends Aggregate>> aggregates,
   List<Class<? extends Event>> events,

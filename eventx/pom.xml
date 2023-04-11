@@ -57,6 +57,10 @@
       <artifactId>eventx-task</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+      <groupId>io.soabase.record-builder</groupId>
+      <artifactId>record-builder-processor</artifactId>
+    </dependency>
 
     <!--    Logging Dependencies -->
     <dependency>

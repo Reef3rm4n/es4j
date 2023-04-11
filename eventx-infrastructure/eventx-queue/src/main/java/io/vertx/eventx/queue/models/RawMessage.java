@@ -1,9 +1,11 @@
 package io.vertx.eventx.queue.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.core.json.JsonObject;
 
 import java.time.Instant;
 
+@RecordBuilder
 public record RawMessage(
   String id,
   Instant scheduled,

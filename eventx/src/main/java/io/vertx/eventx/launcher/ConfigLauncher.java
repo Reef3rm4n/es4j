@@ -35,7 +35,7 @@ public class ConfigLauncher {
   private ConfigLauncher() {
   }
 
-  public static Uni<Void> deploy(Injector injector) {
+  public static Uni<Void> addConfigurations(Injector injector) {
     final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, injector.getInstance(RepositoryHandler.class));
     final var fsConfigs = CustomClassLoader.loadFromInjector(injector, FSConfig.class);
     final var configUni = new ArrayList<Uni<Void>>();
@@ -63,14 +63,14 @@ public class ConfigLauncher {
             fileConfiguration.name(),
             newConfiguration -> {
               try {
-                LOGGER.info("Adding " + fileConfiguration.name() + " to cache");
+                LOGGER.info("Adding {} configuration to cache {}", fileConfiguration.name(), newConfiguration);
                 FsConfigCache.put(fileConfiguration.name(), newConfiguration);
                 final var promise = promiseMap.get(fileConfiguration.name());
                 if (promise != null) {
                   promise.complete();
                 }
               } catch (Exception e) {
-                LOGGER.error("unable to consume configuration", e);
+                LOGGER.error("Unable to consume file {} {}", fileConfiguration.name(), newConfiguration, e);
                 final var promise = promiseMap.get(fileConfiguration.name());
                 if (promise != null) {
                   promise.complete();
@@ -94,13 +94,13 @@ public class ConfigLauncher {
     final var pgChannel = PG_SUBSCRIBER.channel("configuration_channel");
     pgChannel.handler(id -> {
           final ConfigurationKey key = configurationKey(id);
-          LOGGER.info("Updating configuration -> " + key);
+          LOGGER.info("Updating configuration {} ", JsonObject.mapFrom(key).encodePrettily());
           repository.selectByKey(key)
             .onItemOrFailure().transform((item, failure) -> handleMessage(key, item, failure))
             .subscribe()
             .with(
-              item -> LOGGER.info("Configuration updated -> " + key),
-              throwable -> LOGGER.error("Unable to synchronize configuration -> " + key, throwable)
+              item -> LOGGER.info("Configuration updated {} ", JsonObject.mapFrom(key).encodePrettily()),
+              throwable -> LOGGER.error("Unable to synchronize configuration {} ", JsonObject.mapFrom(key).encodePrettily(), throwable)
             );
         }
       )
@@ -123,15 +123,15 @@ public class ConfigLauncher {
     // this means that config was no longer in  the db.
     if (failure != null) {
       if (currentConfigState != null && currentConfigState.revision().equals(updatedConfig.revision())) {
-        LOGGER.info("Deleting configuration -> " + key);
+        LOGGER.info("Deleting configuration {}", JsonObject.mapFrom(key).encodePrettily());
         DbConfigCache.delete(parseKey(key));
       }
     } else {
       if (updatedConfig.active()) {
-        LOGGER.info("Loading configuration -> " + key);
+        LOGGER.info("Loading configuration {}", JsonObject.mapFrom(key).encodePrettily());
         DbConfigCache.put(parseKey(key), updatedConfig.data());
       } else if (currentConfigState != null && currentConfigState.revision().equals(updatedConfig.revision())) {
-        LOGGER.info("Deactivating configuration -> " + key);
+        LOGGER.info("Deactivating configuration {} ", JsonObject.mapFrom(key));
         DbConfigCache.delete(parseKey(key));
       }
     }
@@ -155,7 +155,7 @@ public class ConfigLauncher {
   }
 
   private static ConfigurationKey configurationKey(final String id) {
-    LOGGER.info("Parsing configuration channel message -> " + id);
+    LOGGER.info("Parsing channel message {}", id);
     final var splitId = id.split("::");
     final var name = splitId[0];
     final var tClass = splitId[1];

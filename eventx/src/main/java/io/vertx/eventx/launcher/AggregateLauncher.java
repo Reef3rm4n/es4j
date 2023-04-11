@@ -18,7 +18,7 @@ import io.vertx.eventx.config.ConfigurationHandler;
 import io.vertx.eventx.core.*;
 import io.vertx.eventx.infrastructure.*;
 import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
-import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
+import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.eventx.objects.StateProjectionWrapper;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
@@ -57,7 +57,7 @@ public class AggregateLauncher<T extends Aggregate> {
       vertx,
       aggregateClass.getSimpleName().toLowerCase(),
       newConfiguration -> {
-        LOGGER.info("---------------------------------- Starting Event.x Aggregate " + aggregateClass.getSimpleName() + "-----------------------------------" + newConfiguration.encodePrettily());
+        LOGGER.info(" --- Event.x starting aggregate {} ---", aggregateClass.getSimpleName());
         close()
           .flatMap(avoid -> {
               moduleBuilder.bind(Vertx.class).toInstance(vertx);
@@ -66,8 +66,8 @@ public class AggregateLauncher<T extends Aggregate> {
             }
           )
           .call(injector -> {
-            addPersistentProjections(injector);
-            addHeartBeat();
+              addPersistentProjections(injector);
+              addHeartBeat();
               final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules), deploymentID);
               return eventbusBridge(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
@@ -76,18 +76,18 @@ public class AggregateLauncher<T extends Aggregate> {
                     )
                     .replaceWithVoid()
                 )
-                .call(avoid -> ConfigLauncher.deploy(injector))
-                .invoke(avoid -> CronTaskLauncher.deploy(injector));
+                .call(avoid -> ConfigLauncher.addConfigurations(injector))
+                .invoke(avoid -> CronTaskLauncher.addProjections(injector));
             }
           )
           .subscribe()
           .with(
             aVoid -> {
               startPromise.complete();
-              LOGGER.info("---------------------------------- Event.x started aggregate " + aggregateClass.getSimpleName() + " -----------------------------------");
+              LOGGER.info(" --- Event.x aggregate {} started ---", aggregateClass.getSimpleName());
             }
             , throwable -> {
-              LOGGER.error("---------------------- Error deploying Event.x aggregate " + aggregateClass.getSimpleName() + " ---------------------------------------", throwable);
+              LOGGER.error(" --- Error starting aggregate {} --- ", aggregateClass.getSimpleName(), throwable);
               startPromise.fail(throwable);
             }
           );
@@ -111,17 +111,18 @@ public class AggregateLauncher<T extends Aggregate> {
 
   private void addPersistentProjections(Injector injector) {
     STATE_PROJECTIONS.add(new StateProjectionPoller<>(
-      CustomClassLoader.loadFromInjector(injector, StateProjection.class).stream()
-        .filter(stateProjection -> CustomClassLoader.getFirstGenericType(stateProjection).isAssignableFrom(aggregateClass))
-        .map(stateProjection -> new StateProjectionWrapper<T>(
-          stateProjection,
-          aggregateClass
-        ))
-        .toList(),
-      new AggregateEventBusPoxy<>(vertx, aggregateClass),
-      infrastructure.eventStore(),
-      infrastructure.offsetStore()
-    )
+        aggregateClass,
+        CustomClassLoader.loadFromInjector(injector, StateProjection.class).stream()
+          .filter(stateProjection -> CustomClassLoader.getFirstGenericType(stateProjection).isAssignableFrom(aggregateClass))
+          .map(stateProjection -> new StateProjectionWrapper<T>(
+            stateProjection,
+            aggregateClass
+          ))
+          .toList(),
+        new AggregateEventBusPoxy<>(vertx, aggregateClass),
+        infrastructure.eventStore(),
+        infrastructure.offsetStore()
+      )
     );
     EVENT_PROJECTIONS.add(
       new EventProjectionPoller(CustomClassLoader.loadFromInjector(injector, EventProjection.class).stream()

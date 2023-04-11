@@ -1,7 +1,7 @@
 package io.vertx.eventx.test.eventsourcing;
 
 import io.vertx.eventx.VertxTestBootstrap;
-import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
+import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.eventx.objects.CommandHeaders;
 import io.vertx.eventx.test.eventsourcing.commands.ChangeData;
 import io.vertx.eventx.test.eventsourcing.commands.CreateData;

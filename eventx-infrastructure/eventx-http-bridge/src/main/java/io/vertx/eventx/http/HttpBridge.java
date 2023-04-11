@@ -63,7 +63,6 @@ public class HttpBridge implements Bridge {
     openApiRoute(router);
     router.route().handler(BodyHandler.create());
     router.route().handler(routingContext -> {
-        ContextualData.put("verticle-type", HttpBridge.class.getSimpleName());
         if (routingContext.request().getHeader(CommandHeaders.COMMAND_ID) != null) {
           ContextualData.put(CommandHeaders.COMMAND_ID, routingContext.request().getHeader(CommandHeaders.COMMAND_ID));
         }
@@ -74,9 +73,9 @@ public class HttpBridge implements Bridge {
     router.route().failureHandler(this::failureHandler);
     return httpServer.requestHandler(router)
       .invalidRequestHandler(this::handleInvalidRequest)
-      .exceptionHandler(throwable -> LOGGER.error("HTTP Server error", throwable))
+      .exceptionHandler(throwable -> LOGGER.error("HTTP Server dropped exception", throwable))
       .listen(HTTP_PORT)
-      .invoke(httpServer1 -> LOGGER.info(this.getClass().getSimpleName() + " started in port -> " + httpServer1.actualPort()))
+      .invoke(httpServer1 -> LOGGER.info("HTTP Server listening on port {}", httpServer1.actualPort()))
       .replaceWithVoid();
   }
 

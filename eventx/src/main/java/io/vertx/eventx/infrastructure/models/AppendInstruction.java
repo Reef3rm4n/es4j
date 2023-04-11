@@ -1,9 +1,10 @@
 package io.vertx.eventx.infrastructure.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.eventx.Aggregate;
 
 import java.util.List;
-
+@RecordBuilder
 public record AppendInstruction<T extends Aggregate>(
   Class<T> aggregate,
   String aggregateId,

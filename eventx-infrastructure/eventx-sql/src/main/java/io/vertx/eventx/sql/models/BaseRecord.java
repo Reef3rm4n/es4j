@@ -1,5 +1,7 @@
 package io.vertx.eventx.sql.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
@@ -10,6 +12,8 @@ import java.util.Objects;
 import static io.vertx.eventx.sql.misc.Constants.*;
 
 
+
+@RecordBuilder
 public record BaseRecord(
     String tenantId,
     Integer version,

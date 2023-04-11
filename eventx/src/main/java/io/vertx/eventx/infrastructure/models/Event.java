@@ -1,10 +1,12 @@
 package io.vertx.eventx.infrastructure.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.core.json.JsonObject;
 
 import java.util.List;
 import java.util.Objects;
 
+@RecordBuilder
 public record Event(
   Long journalOffset,
   String aggregateClass,

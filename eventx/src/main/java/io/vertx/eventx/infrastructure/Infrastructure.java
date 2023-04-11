@@ -1,6 +1,7 @@
 package io.vertx.eventx.infrastructure;
 
 import io.smallrye.mutiny.Uni;
+import io.vertx.eventx.queue.MessageProducer;
 
 public record Infrastructure(
   AggregateCache cache,

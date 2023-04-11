@@ -29,7 +29,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   private final List<AggregatorWrapper> aggregators;
   private final Infrastructure infrastructure;
   private static final Logger LOGGER = LoggerFactory.getLogger(AggregateVerticleLogic.class);
-  private final AggregateConfiguration configuration;
   private final Class<T> aggregateClass;
   private final Map<String, String> commandClassMap = new HashMap<>();
 
@@ -37,14 +36,12 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     final Class<T> aggregateClass,
     final List<AggregatorWrapper> aggregators,
     final List<BehaviourWrapper> behaviours,
-    final AggregateConfiguration configuration,
     final Infrastructure infrastructure
   ) {
     this.infrastructure = infrastructure;
     this.aggregateClass = aggregateClass;
     this.aggregators = aggregators;
     this.behaviours = behaviours;
-    this.configuration = configuration;
     if (behaviours.isEmpty()) {
       throw new IllegalStateException("Empty behaviours");
     }
@@ -73,13 +70,28 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   public Uni<JsonObject> loadAggregate(AggregatePlainKey aggregateRecordKey) {
-    LOGGER.debug("Loading aggregate locally  -> " + aggregateRecordKey);
     return loadAggregate(aggregateRecordKey.aggregateId(), aggregateRecordKey.tenantId())
       .map(AggregateState::toJson);
   }
 
   public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
     final var command = parseCommand(commandClass, jsonCommand);
+    if (Objects.nonNull(command.options().schedule())) {
+      return infrastructure.queue().schedule(command);
+    }
+    if (Objects.nonNull(command.options().cron())) {
+      return infrastructure.queue().scheduleAt(command);
+    }
+    if (command.options().simulate()) {
+      return loadAggregate(command.aggregateId(), command.headers().tenantId())
+        .map(aggregateState -> {
+            checkCommandId(aggregateState, command);
+            final var events = applyCommandBehaviour(aggregateState, command);
+            aggregateEvents(aggregateState, events);
+            return aggregateState.toJson();
+          }
+        );
+    }
     return loadAggregate(command.aggregateId(), command.headers().tenantId())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
         .onFailure(Conflict.class).recoverWithUni(
@@ -94,9 +106,9 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   private T aggregateEvent(T aggregateState, final io.vertx.eventx.Event event) {
     io.vertx.eventx.Event finalEvent = event;
     final var aggregator = Objects.requireNonNullElse(customAggregator(event), defaultAggregator(event));
-    LOGGER.debug("Applying aggregator {} current schema version {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().currentSchemaVersion());
+    LOGGER.debug("Applying {} schema version {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().currentSchemaVersion());
     if (aggregator.delegate().currentSchemaVersion() != event.schemaVersion()) {
-      LOGGER.debug("Event schema version mismatch, migrating event schema {} ", event);
+      LOGGER.debug("Schema version mismatch, migrating event {} {} ", event.getClass().getName(), JsonObject.mapFrom(event).encodePrettily());
       finalEvent = aggregator.delegate().transformFrom(event.schemaVersion(), JsonObject.mapFrom(event));
     }
     final var newAggregateState = (T) aggregator.delegate().apply(aggregateState, finalEvent);
@@ -122,9 +134,9 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private List<io.vertx.eventx.Event> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
-    LOGGER.debug("Applying {} to {} ", behaviour.getClass().getSimpleName(), JsonObject.mapFrom(command));
+    LOGGER.debug("Applying {} behaviour for command {} ", behaviour.delegate().getClass().getSimpleName(), JsonObject.mapFrom(command));
     final var events = behaviour.process(aggregateState, command);
-    LOGGER.debug("Events created {}", new JsonArray(events).encodePrettily());
+    LOGGER.debug("{} behaviour produced {}", behaviour.delegate().getClass().getSimpleName(), new JsonArray(events).encodePrettily());
     return events;
   }
 
@@ -137,7 +149,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       .orElseThrow(() -> UnknownCommand.unknown(command.getClass()));
   }
 
-  @Nullable
   private BehaviourWrapper customBehaviour(Command command) {
     return behaviours.stream()
       .filter(behaviour -> !Objects.equals(behaviour.delegate().tenantID(), "default"))
@@ -147,7 +158,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private Uni<AggregateState<T>> loadAggregate(String aggregateId, String tenant) {
-    LOGGER.debug("Loading aggregate[{}::{}]", aggregateId, tenant);
     AggregateState<T> state = null;
     if (infrastructure.cache() != null) {
       state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
@@ -161,7 +171,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private Uni<AggregateState<T>> playFromLastJournalOffset(String aggregateId, String tenant, AggregateState<T> state) {
     final var instruction = streamInstruction(aggregateId, tenant, state);
-    LOGGER.debug("Playing stream {}", instruction);
+    LOGGER.debug("Playing aggregate stream with instruction {}", JsonObject.mapFrom(instruction).encodePrettily());
     return infrastructure.eventStore().fetch(instruction)
       .map(events -> {
           events.forEach(ev -> applyEvent(state, ev));
@@ -185,10 +195,10 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     events.stream()
       .sorted(Comparator.comparingLong(Event::eventVersion))
       .forEachOrdered(event -> {
-          LOGGER.info("Aggregating event {}", event.eventClass());
           final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
           final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
           if (isSnapshot) {
+            LOGGER.debug("Aggregating snapshot {}", event.event().encodePrettily());
             applySnapshot(state, event, parsedEvent);
           } else {
             applyEvent(state, event, parsedEvent);
@@ -204,7 +214,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   private void applyEvent(AggregateState<T> state, Event event, io.vertx.eventx.Event parsedEvent) {
     final var newState = aggregateEvent(state.state(), parsedEvent);
     if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
-      LOGGER.debug("Acknowledging commandId {}", event.commandId());
+      LOGGER.debug("Acknowledging command {}", event.commandId());
       state.knownCommands().add(event.commandId());
     }
     state.setState(newState);
@@ -216,7 +226,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       LOGGER.debug("Aggregate schema version mismatch, migrating schema from {} to {}", parsedEvent.schemaVersion(), state.state().schemaVersion());
       state.setState(state.aggregateClass().cast(state.state().transformSnapshot(parsedEvent.schemaVersion(), event.event())));
     } else {
-      LOGGER.debug("Applying snapshot ", parsedEvent.schemaVersion(), state.state().schemaVersion());
+      LOGGER.debug("Applying snapshot with schema version {} to aggregate with schema version {}", parsedEvent.schemaVersion(), state.state().schemaVersion());
       state.setState(JsonObject.mapFrom(((SnapshotEvent) parsedEvent).state()).mapTo(state.aggregateClass()));
     }
   }
@@ -277,25 +287,25 @@ public class AggregateVerticleLogic<T extends Aggregate> {
         snapshotEvery -> {
           final var snapshot = snapshotEvery <= Math.floorMod(state.currentVersion(), snapshotEvery);
           if (snapshot) {
-            LOGGER.debug("Appending a snapshot to the stream");
             state.setCurrentVersion(state.currentVersion() + 1);
-            resultingEvents.add(new Event(
-                aggregateClass.getName(),
-                finalCommand.aggregateId(),
-                SnapshotEvent.class.getName(),
-                state.currentVersion(),
-                JsonObject.mapFrom(new SnapshotEvent(
-                    JsonObject.mapFrom(state.state()).getMap(),
-                    state.knownCommands().stream().toList(),
-                    state.currentVersion()
-                  )
-                ),
-                finalCommand.headers().tenantId(),
-                finalCommand.headers().commandID(),
-                List.of("eventx-snapshot"),
-                state.state().schemaVersion()
-              )
+            final var snapshotEvent = new SnapshotEvent(
+              JsonObject.mapFrom(state.state()).getMap(),
+              state.knownCommands().stream().toList(),
+              state.currentVersion()
             );
+            LOGGER.debug("Appending a snapshot {}", JsonObject.mapFrom(snapshotEvent).encodePrettily());
+            resultingEvents.add(new Event(
+              aggregateClass.getName(),
+              finalCommand.aggregateId(),
+              SnapshotEvent.class.getName(),
+              state.currentVersion(),
+              JsonObject.mapFrom(
+                snapshotEvent),
+              finalCommand.headers().tenantId(),
+              finalCommand.headers().commandID(),
+              null,
+              state.state().schemaVersion()
+            ));
           }
         }
       );
@@ -317,7 +327,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
         .ifPresent(duplicatedCommand -> {
             throw new CommandRejected(new EventxError(
               "Command was already processed",
-              "commandId was marked as known by the aggregate",
+              "Command was already processed by aggregate",
               400
             )
             );
@@ -351,7 +361,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private void logRejectedCommand(final Throwable throwable, final Command command) {
-    LOGGER.error("Command rejected " + JsonObject.mapFrom(command).encodePrettily(), throwable);
+    LOGGER.error("{} command rejected {}", command.getClass().getName(), JsonObject.mapFrom(command).encodePrettily(), throwable);
   }
 
 
@@ -372,7 +382,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
         ));
       }
     } catch (Exception e) {
-      LOGGER.error("Unable to cast command " + commandType + jsonCommand.encodePrettily(), e);
+      LOGGER.error("Error casting to {} {}", commandType, jsonCommand.encodePrettily(), e);
       throw new CommandRejected(new EventxError(
         ErrorSource.LOGIC,
         this.getClass().getName(),

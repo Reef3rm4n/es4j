@@ -2,8 +2,11 @@ package io.vertx.eventx.task;
 
 
 
+import io.soabase.recordbuilder.core.RecordBuilder;
+
 import java.util.List;
 
+@RecordBuilder
 public record TimerTaskConfiguration(
   LockLevel lockLevel,
   Long throttleInMs,

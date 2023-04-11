@@ -1,42 +1,45 @@
 package io.vertx.eventx.core;
 
+import com.cronutils.model.CronType;
+import com.cronutils.model.definition.CronDefinitionBuilder;
+import com.cronutils.parser.CronParser;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.eventx.queue.models.QueueTransaction;
+import io.vertx.eventx.task.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.eventx.infrastructure.EventStore;
 import io.vertx.eventx.infrastructure.OffsetStore;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.eventx.infrastructure.models.EventStream;
-import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
+import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.eventx.objects.JournalOffsetKey;
 import io.vertx.eventx.objects.StateProjectionWrapper;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.sql.exceptions.NotFound;
-import io.vertx.eventx.task.LockLevel;
-import io.vertx.eventx.task.TimerTask;
-import io.vertx.eventx.task.TimerTaskConfiguration;
 
 import java.util.List;
 
 import static java.util.stream.Collectors.groupingBy;
 
-public class StateProjectionPoller<T extends Aggregate> implements TimerTask {
+public class StateProjectionPoller<T extends Aggregate> implements CronTask {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(StateProjectionPoller.class);
   private final List<StateProjectionWrapper<T>> stateProjectionWrappers;
   private final AggregateEventBusPoxy<T> proxy;
   private final EventStore eventStore;
   private final OffsetStore offsetStore;
-  Class<T> aggregateClass;
+  private final Class<T> aggregateClass;
 
   public StateProjectionPoller(
-    List<StateProjectionWrapper<T>> stateProjectionWrappers,
-    AggregateEventBusPoxy<T> proxy,
-    EventStore eventStore,
-    OffsetStore offsetStore
+    final Class<T> aggregateClass,
+    final List<StateProjectionWrapper<T>> stateProjectionWrappers,
+    final AggregateEventBusPoxy<T> proxy,
+    final EventStore eventStore,
+    final OffsetStore offsetStore
   ) {
+    this.aggregateClass = aggregateClass;
     this.stateProjectionWrappers = stateProjectionWrappers;
     this.proxy = proxy;
     this.eventStore = eventStore;
@@ -44,7 +47,7 @@ public class StateProjectionPoller<T extends Aggregate> implements TimerTask {
   }
 
   @Override
-  public Uni<Void> performTask() {
+  public Uni<Void> performTask(QueueTransaction transaction) {
     return offsetStore.get(new JournalOffsetKey(proxy.aggregateClass.getName(), "default"))
       .flatMap(journalOffset -> eventStore.fetch(new EventStream(
               List.of(aggregateClass),
@@ -74,15 +77,13 @@ public class StateProjectionPoller<T extends Aggregate> implements TimerTask {
       );
   }
 
+
   @Override
-  public TimerTaskConfiguration configuration() {
-    return new TimerTaskConfiguration(
-      LockLevel.CLUSTER_WIDE,
-      100_000L,
-      100_000L,
-      10L,
-      10L,
-      List.of(NotFound.class)
-    );
+  public CronTaskConfiguration configuration() {
+    return CronTaskConfigurationBuilder.builder()
+      .cron(new CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX)).parse("*/5 * * * *"))
+      .priority(0)
+      .build();
   }
+
 }

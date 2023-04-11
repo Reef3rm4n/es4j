@@ -1,5 +1,6 @@
 package io.vertx.eventx.queue.postgres.models;
 
+import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.queue.models.MessageState;
 import io.vertx.eventx.sql.models.BaseRecord;
@@ -8,6 +9,7 @@ import io.vertx.eventx.sql.models.RepositoryRecord;
 import java.time.Instant;
 import java.util.Map;
 
+@RecordBuilder
 public record DeadLetterRecord(
   String id,
   Instant scheduled,

@@ -37,7 +37,7 @@ public class AggregateHeartbeat<T extends Aggregate> implements TimerTask {
   @Override
   public TimerTaskConfiguration configuration() {
     return new TimerTaskConfiguration(
-      LockLevel.LOCAL,
+      LockLevel.NONE,
       2500L,
       2500L,
       1L,

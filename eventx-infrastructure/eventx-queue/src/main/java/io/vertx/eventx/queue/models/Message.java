@@ -1,8 +1,11 @@
 package io.vertx.eventx.queue.models;
 
 
+import io.soabase.recordbuilder.core.RecordBuilder;
+
 import java.time.Instant;
 
+@RecordBuilder
 public record Message<T>(
   String messageId,
   String tenant,

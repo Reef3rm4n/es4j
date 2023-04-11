@@ -1,8 +1,8 @@
 package io.vertx.eventx;
 
 
-import io.vertx.eventx.common.CommandOptions;
 import io.vertx.eventx.objects.CommandHeaders;
+import io.vertx.eventx.objects.CommandOptions;
 
 public interface Command {
   String aggregateId();

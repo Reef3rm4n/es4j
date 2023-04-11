@@ -59,7 +59,10 @@
       <artifactId>micrometer-registry-prometheus</artifactId>
       <version>1.10.2</version>
     </dependency>
-
+    <dependency>
+      <groupId>io.soabase.record-builder</groupId>
+      <artifactId>record-builder-processor</artifactId>
+    </dependency>
 
     <!--    Logging Dependencies -->
     <dependency>

@@ -1,8 +1,12 @@
 package io.vertx.eventx.sql.models;
 
 
+import io.soabase.recordbuilder.core.RecordBuilder;
+
 import java.time.Instant;
 
+
+@RecordBuilder
 public record QueryOptions(
     String orderBy,
     Boolean desc,

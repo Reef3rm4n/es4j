@@ -4,7 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
-import io.vertx.eventx.infrastructure.proxies.AggregateEventBusPoxy;
+import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.ext.bridge.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
@@ -26,7 +26,7 @@ public class AggregateHttpRoute implements HttpRoute {
   ) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
-    this.entityAggregateProxy = new AggregateEventBusPoxy<>(vertx,aggregateClass);
+    this.entityAggregateProxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
   }
 
 
@@ -35,22 +35,28 @@ public class AggregateHttpRoute implements HttpRoute {
     router.post("/" + aggregateClass.getSimpleName().toLowerCase())
       .consumes(Constants.APPLICATION_JSON)
       .produces(Constants.APPLICATION_JSON)
-      .handler(routingContext -> entityAggregateProxy.command(routingContext.body().asJsonObject())
-        .subscribe()
-        .with(
-          state -> ok(routingContext, state),
-          routingContext::fail
-        )
+      .handler(routingContext -> {
+          LOGGER.debug("{} received command: {}", aggregateClass.getSimpleName(), routingContext.body().asJsonObject());
+          entityAggregateProxy.command(routingContext.body().asJsonObject())
+            .subscribe()
+            .with(
+              state -> ok(routingContext, state),
+              routingContext::fail
+            );
+        }
       );
     router.get("/" + aggregateClass.getSimpleName().toLowerCase())
       .consumes(Constants.APPLICATION_JSON)
       .produces(Constants.APPLICATION_JSON)
-      .handler(routingContext -> entityAggregateProxy.wakeUp(routingContext.body().asJsonObject().mapTo(AggregatePlainKey.class))
-        .subscribe()
-        .with(
-          response -> ok(routingContext, response),
-          routingContext::fail
-        )
+      .handler(routingContext -> {
+          LOGGER.debug("{} received wakeUp: {}", aggregateClass.getSimpleName(), routingContext.body().asJsonObject());
+          entityAggregateProxy.wakeUp(routingContext.body().asJsonObject().mapTo(AggregatePlainKey.class))
+            .subscribe()
+            .with(
+              response -> ok(routingContext, response),
+              routingContext::fail
+            );
+        }
       );
     final var options = new SockJSHandlerOptions()
       .setRegisterWriteHandler(true)
