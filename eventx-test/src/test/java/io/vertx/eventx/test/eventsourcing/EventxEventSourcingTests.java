@@ -34,7 +34,7 @@ public class EventxEventSourcingTests {
   }
 
   @Test
-  void  test_eventbus_bridge(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_eventbus_bridge(Vertx vertx, VertxTestContext vertxTestContext) {
     final var proxy = new AggregateEventBusPoxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var createDataCommand = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(createDataCommand).await().indefinitely();
@@ -46,7 +46,7 @@ public class EventxEventSourcingTests {
   }
 
   @Test
-  void test_snapshotting(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_snapshotting(Vertx vertx, VertxTestContext vertxTestContext) {
     final var proxy = new AggregateEventBusPoxy<>(VertxTestBootstrap.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();
@@ -58,7 +58,7 @@ public class EventxEventSourcingTests {
   }
 
   @Test
-  void test_web_socket_proxy(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_web_socket_proxy(Vertx vertx, VertxTestContext vertxTestContext) {
     final var proxy = new AggregateEventBusPoxy<>(BOOTSTRAP.VERTX, FakeAggregate.class);
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
     final var entity = proxy.command(newData).await().indefinitely();

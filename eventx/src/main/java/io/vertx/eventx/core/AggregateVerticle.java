@@ -58,10 +58,24 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   @Override
   public Uni<Void> asyncStart() {
     this.aggregateConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(AggregateConfiguration.class);
-    LOGGER.info("Starting Entity Actor " + aggregateClass.getSimpleName());
+    LOGGER.info("Starting Aggregate {}", aggregateClass.getSimpleName());
     final var injector = startInjector();
     this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
     this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
+    aggregatorWrappers.forEach(behaviour -> LOGGER.info(
+      new JsonObject()
+        .put("aggregator", behaviour.delegate().getClass().getName())
+        .put("event", behaviour.eventClass().getName())
+        .put("tenantId", behaviour.delegate().tenantId())
+        .encodePrettily()
+    ));
+    behaviourWrappers.forEach(behaviour -> LOGGER.info(
+      new JsonObject()
+        .put("aggregator", behaviour.delegate().getClass().getName())
+        .put("event", behaviour.commandClass().getName())
+        .put("tenantId", behaviour.delegate().tenantID())
+        .encodePrettily()
+    ));
     this.infrastructure = new Infrastructure(
       injector.getInstance(AggregateCache.class),
       injector.getInstance(EventStore.class),
@@ -125,13 +139,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         }
       )
       .toList();
-    behaviours.forEach(behaviour -> LOGGER.info(
-      new JsonObject()
-        .put("aggregator", behaviour.delegate().getClass().getName())
-        .put("event", behaviour.commandClass().getName())
-        .put("tenantId", behaviour.delegate().tenantID())
-        .encodePrettily()
-    ));
     if (behaviours.isEmpty()) {
       throw new IllegalStateException("Behaviours not found for aggregate " + entityAggregateClass);
     }
@@ -147,13 +154,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       )
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
       .toList();
-    aggregators.forEach(eventBehaviour -> LOGGER.info(
-      new JsonObject()
-        .put("aggregator", eventBehaviour.delegate().getClass().getName())
-        .put("event", eventBehaviour.eventClass().getName())
-        .put("tenantId", eventBehaviour.delegate().tenantId())
-        .encodePrettily()
-    ));
     if (aggregators.isEmpty()) {
       throw new IllegalStateException("Aggregators not found for aggregate " + entityAggregateClass);
     }

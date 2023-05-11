@@ -11,6 +11,7 @@ import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
+import io.vertx.eventx.task.CronTaskDeployer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.eventx.Aggregate;
@@ -26,19 +27,17 @@ import io.vertx.mutiny.core.eventbus.DeliveryContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.stream.Stream;
 
 public class EventxMain extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
   public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadModules());
-  private static final List<AggregateLauncher<? extends Aggregate>> AGGREGATES = new ArrayList<>();
+  private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
   public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
   public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
-  private TimerTaskDeployer timers;
-
-  private CronTaskLauncher cronTaskLauncher;
+  private CronTaskDeployer cronTaskDeployer;
+  private TimerTaskDeployer timerTaskDeployer;
   public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = CustomClassLoader.getSubTypes(Aggregate.class);
 
   @Override
@@ -46,6 +45,8 @@ public class EventxMain extends AbstractVerticle {
     LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
     Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x] Infrastructure had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
+    this.cronTaskDeployer = new CronTaskDeployer(vertx);
+    this.timerTaskDeployer = new TimerTaskDeployer(vertx);
     addEventBusInterceptors();
     startAggregateResources(startPromise);
   }
@@ -74,14 +75,14 @@ public class EventxMain extends AbstractVerticle {
   private void startAggregateResources(final Promise<Void> startPromise) {
     LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
     AGGREGATE_CLASSES.stream()
-      .map(aClass -> new AggregateLauncher<>(
+      .map(aClass -> new AggregateDeployer<>(
           aClass,
           vertx,
           context.deploymentID()
         )
       )
-      .forEach(AGGREGATES::add);
-    final var aggregatesDeployment = AGGREGATES.stream()
+      .forEach(AGGREGATE_DEPLOYERS::add);
+    final var aggregatesDeployment = AGGREGATE_DEPLOYERS.stream()
       .map(resource -> {
           final var promise = Promise.<Void>promise();
           resource.deploy(promise);
@@ -90,8 +91,8 @@ public class EventxMain extends AbstractVerticle {
       )
       .toList();
     Uni.join().all(aggregatesDeployment).andFailFast()
-      .flatMap(avoid -> deployBridges())
       .invoke(avoid -> deployProjections())
+      .flatMap(avoid -> deployBridges())
       .subscribe()
       .with(
         aVoid -> {
@@ -107,15 +108,12 @@ public class EventxMain extends AbstractVerticle {
   }
 
   private void deployProjections() {
-    this.timers = new TimerTaskDeployer(vertx);
-
-    cronTaskLauncher.kickstart(null, Stream.concat(STATE_PROJECTIONS.stream(), EVENT_PROJECTIONS.stream()).toList());
-
-    HEARTBEATS.forEach(this::deployHeartBeat);
+    EVENT_PROJECTIONS.forEach(cronTaskDeployer::deploy);
+    STATE_PROJECTIONS.forEach(cronTaskDeployer::deploy);
   }
 
   private void deployHeartBeat(AggregateHeartbeat<? extends Aggregate> aggregateHeartbeat) {
-    timers.deploy(aggregateHeartbeat);
+    timerTaskDeployer.deploy(aggregateHeartbeat);
   }
 
   private Uni<Void> deployBridges() {
@@ -141,8 +139,10 @@ public class EventxMain extends AbstractVerticle {
 
 
   private Uni<Void> undeployComponent() {
-    return Multi.createFrom().iterable(AGGREGATES)
-      .onItem().transformToUniAndMerge(AggregateLauncher::close)
+    timerTaskDeployer.close();
+    cronTaskDeployer.close();
+    return Multi.createFrom().iterable(AGGREGATE_DEPLOYERS)
+      .onItem().transformToUniAndMerge(AggregateDeployer::close)
       .collect().asList()
       .replaceWithVoid();
   }

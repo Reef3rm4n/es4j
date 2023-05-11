@@ -1,9 +1,5 @@
 package io.vertx.eventx.core;
 
-import com.cronutils.model.CronType;
-import com.cronutils.model.definition.CronDefinitionBuilder;
-import com.cronutils.parser.CronParser;
-import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.EventProjection;
 import io.vertx.eventx.infrastructure.EventStore;
@@ -13,12 +9,11 @@ import io.vertx.eventx.infrastructure.models.EventStream;
 import io.vertx.eventx.objects.JournalOffset;
 import io.vertx.eventx.objects.JournalOffsetKey;
 import io.vertx.eventx.objects.PolledEvent;
-import io.vertx.eventx.queue.models.QueueTransaction;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.task.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -26,34 +21,34 @@ import java.util.concurrent.atomic.AtomicReference;
 public class EventProjectionPoller implements CronTask {
 
   private static final Logger logger = LoggerFactory.getLogger(EventProjectionPoller.class);
-  private final List<EventProjection> eventProjections;
+  private final EventProjection eventProjection;
   private final EventStore eventStore;
   private final OffsetStore offsetStore;
 
   public EventProjectionPoller(
-    List<EventProjection> eventProjections,
+    EventProjection eventProjections,
     EventStore eventStore,
     OffsetStore offsetStore
   ) {
-    this.eventProjections = eventProjections;
+    this.eventProjection = eventProjections;
     this.eventStore = eventStore;
     this.offsetStore = offsetStore;
   }
 
   @Override
-  public Uni<Void> performTask(QueueTransaction transaction) {
-    return Multi.createFrom().iterable(eventProjections)
-      .onItem().transformToUniAndMerge(eventProjection -> offsetStore.get(new JournalOffsetKey(eventProjection.getClass().getName(), eventProjection.tenantID()))
-        .flatMap(journalOffset -> eventStore.fetch(streamStatement(eventProjection, journalOffset))
-          .flatMap(events -> eventProjection.apply(parseEvents(events))
-            .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
-          )
+  public Uni<Void> performTask() {
+    return offsetStore.get(getOffset())
+      .flatMap(journalOffset -> eventStore.fetch(streamStatement(eventProjection, journalOffset))
+        .flatMap(events -> eventProjection.apply(parseEvents(events))
+          .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
         )
-        .onFailure().invoke(throwable -> logger.error("Unable to update projection {}", eventProjection.getClass().getName(), throwable))
-        .onFailure().recoverWithNull()
       )
-      .collect().asList()
+      .onFailure().invoke(throwable -> logger.error("Unable to update projection {}", eventProjection.getClass().getName(), throwable))
       .replaceWithVoid();
+  }
+
+  private JournalOffsetKey getOffset() {
+    return new JournalOffsetKey(eventProjection.getClass().getName(), eventProjection.tenantID());
   }
 
   private static EventStream streamStatement(EventProjection eventProjection, JournalOffset journalOffset) {
@@ -100,10 +95,11 @@ public class EventProjectionPoller implements CronTask {
 
   @Override
   public CronTaskConfiguration configuration() {
-    return new CronTaskConfiguration(
-      new CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX)).parse("*/5 * * * *"),
-      0,
-      List.of()
-    );
+    return CronTaskConfigurationBuilder.builder()
+      .knownInterruptions(List.of(NotFound.class))
+      .lockLevel(LockLevel.CLUSTER_WIDE)
+      .cron(eventProjection.pollingPolicy())
+      .build();
   }
+
 }

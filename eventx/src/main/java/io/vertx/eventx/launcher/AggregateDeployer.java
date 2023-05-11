@@ -29,9 +29,9 @@ import java.util.function.Supplier;
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.eventbusBridge;
 import static io.vertx.eventx.launcher.EventxMain.*;
 
-public class AggregateLauncher<T extends Aggregate> {
+public class AggregateDeployer<T extends Aggregate> {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateLauncher.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateDeployer.class);
   private final Vertx vertx;
   private final String deploymentID;
   private final ArrayList<Module> localModules;
@@ -39,7 +39,7 @@ public class AggregateLauncher<T extends Aggregate> {
   private final Class<T> aggregateClass;
   private Infrastructure infrastructure;
 
-  public AggregateLauncher(
+  public AggregateDeployer(
     Class<T> aggregateClass,
     Vertx vertx,
     String deploymentID
@@ -49,7 +49,6 @@ public class AggregateLauncher<T extends Aggregate> {
     this.deploymentID = deploymentID;
     this.localModules = new ArrayList<>(MAIN_MODULES);
   }
-
 
   public void deploy(final Promise<Void> startPromise) {
     final var moduleBuilder = ModuleBuilder.create().install(localModules);
@@ -66,8 +65,8 @@ public class AggregateLauncher<T extends Aggregate> {
             }
           )
           .call(injector -> {
-              addPersistentProjections(injector);
               addHeartBeat();
+              addProjections(injector);
               final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules), deploymentID);
               return eventbusBridge(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
@@ -76,8 +75,7 @@ public class AggregateLauncher<T extends Aggregate> {
                     )
                     .replaceWithVoid()
                 )
-                .call(avoid -> ConfigLauncher.addConfigurations(injector))
-                .invoke(avoid -> CronTaskLauncher.addProjections(injector));
+                .call(avoid -> ConfigLauncher.addConfigurations(injector));
             }
           )
           .subscribe()
@@ -109,28 +107,33 @@ public class AggregateLauncher<T extends Aggregate> {
   }
 
 
-  private void addPersistentProjections(Injector injector) {
-    STATE_PROJECTIONS.add(new StateProjectionPoller<>(
+  private void addProjections(Injector injector) {
+    final var stateProjections = CustomClassLoader.loadFromInjector(injector, StateProjection.class).stream()
+      .filter(cc -> CustomClassLoader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
+      .map(cc -> new StateProjectionWrapper<T>(
+        cc,
         aggregateClass,
-        CustomClassLoader.loadFromInjector(injector, StateProjection.class).stream()
-          .filter(stateProjection -> CustomClassLoader.getFirstGenericType(stateProjection).isAssignableFrom(aggregateClass))
-          .map(stateProjection -> new StateProjectionWrapper<T>(
-            stateProjection,
-            aggregateClass
-          ))
-          .toList(),
+        LoggerFactory.getLogger(cc.getClass())
+      ))
+      .map(tStateProjectionWrapper -> new StateProjectionPoller<T>(
+        aggregateClass,
+        tStateProjectionWrapper,
         new AggregateEventBusPoxy<>(vertx, aggregateClass),
         infrastructure.eventStore(),
         infrastructure.offsetStore()
+      ))
+      .toList();
+    final var eventProjections = CustomClassLoader.loadFromInjector(injector, EventProjection.class).stream()
+      .filter(cc -> CustomClassLoader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
+      .map(eventProjection -> new EventProjectionPoller(
+          eventProjection,
+          infrastructure.eventStore(),
+          infrastructure.offsetStore()
+        )
       )
-    );
-    EVENT_PROJECTIONS.add(
-      new EventProjectionPoller(CustomClassLoader.loadFromInjector(injector, EventProjection.class).stream()
-        .filter(stateProjection -> CustomClassLoader.getFirstGenericType(stateProjection).isAssignableFrom(aggregateClass))
-        .toList(),
-        infrastructure.eventStore(),
-        infrastructure.offsetStore())
-    );
+      .toList();
+    EVENT_PROJECTIONS.addAll(eventProjections);
+    STATE_PROJECTIONS.addAll(stateProjections);
   }
 
   public Uni<Void> close() {

@@ -11,12 +11,12 @@ import java.util.List;
 
 public interface CronTask {
 
-  Uni<Void> performTask(QueueTransaction transaction);
+  Uni<Void> performTask();
 
   default CronTaskConfiguration configuration() {
     return new CronTaskConfiguration(
       new CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX)).parse("0 0 * * *"),
-      0,
+      LockLevel.LOCAL,
       List.of(NotFound.class)
     );
   }

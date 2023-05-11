@@ -12,6 +12,7 @@ import java.util.List;
 public class ChangeBehaviour implements Behaviour<FakeAggregate, ChangeData> {
   @Override
   public List<Event> process(final FakeAggregate state, final ChangeData command) {
+    //
     return List.of(new DataChanged(command.newData1()));
   }
 

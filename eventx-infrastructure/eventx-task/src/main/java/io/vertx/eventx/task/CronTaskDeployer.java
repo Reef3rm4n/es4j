@@ -1,26 +1,26 @@
 package io.vertx.eventx.task;
 
+import com.cronutils.model.time.ExecutionTime;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.NoStackTraceThrowable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.shareddata.Lock;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
 
-public class TimerTaskDeployer {
-
-  protected static final Logger LOGGER = LoggerFactory.getLogger(TimerTaskDeployer.class);
+public class CronTaskDeployer {
 
   public static final Map<Class<?>, Long> timers = new HashMap<>();
   private final Vertx vertx;
 
-  public TimerTaskDeployer(
+  public CronTaskDeployer(
     Vertx vertx
   ) {
     this.vertx = vertx;
@@ -30,12 +30,13 @@ public class TimerTaskDeployer {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
   }
 
-  public void deploy(TimerTask timerTask) {
+  public void deploy(CronTask timerTask) {
     final var wrapper = new TaskWrapper(timerTask, LoggerFactory.getLogger(timerTask.getClass()));
-    triggerTask(wrapper, vertx, Duration.ofMillis(100));
+    final var execution = nextExecution(wrapper);
+    triggerTask(wrapper, vertx, execution);
   }
 
-  public static void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Duration throttle) {
+  public void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Duration throttle) {
     timers.remove(taskWrapper.task().getClass());
     final var timerId = vertx.setTimer(
       throttle.toMillis(),
@@ -50,25 +51,19 @@ public class TimerTaskDeployer {
         lockUni.flatMap(lock -> taskWrapper.task().performTask().onItemOrFailure().invoke((avoid, failure) -> lock.release()))
           .subscribe()
           .with(avoid -> {
-              final var end = Instant.now();
-              final var emptyTaskBackOff = taskWrapper.task().configuration().throttle();
-              taskWrapper.logger().info("Task ran in " + Duration.between(start, end).toMillis() + "ms. Throttling for " + emptyTaskBackOff + "ms");
-              triggerTask(taskWrapper, vertx, emptyTaskBackOff);
+              taskWrapper.logger().info("cron-task ran in {}", Duration.between(start, Instant.now()).toMillis());
+              triggerTask(taskWrapper, vertx, nextExecution(taskWrapper));
             },
             throwable -> {
-              final var end = Instant.now();
+              taskWrapper.logger().info("cron-task ran in {}", Duration.between(start, Instant.now()).toMillis());
               if (taskWrapper.task.configuration().knownInterruptions().stream().anyMatch(t -> t.isAssignableFrom(throwable.getClass()))) {
-                taskWrapper.logger().debug("Task interrupted by" + throwable.getClass().getSimpleName() + " after " + Duration.between(start, end).toMillis() + "ms");
-                taskWrapper.logger().info("Interrupted, backing off for {}", taskWrapper.task().configuration().interruptionBackOff());
-                triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().interruptionBackOff());
+                taskWrapper.logger().debug("Interrupted by {} ", throwable.getClass().getSimpleName());
               } else if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
-                taskWrapper.logger().info("Unable to acquire lock, will back off for {}",taskWrapper.task().configuration().lockBackOff());
-                triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().lockBackOff());
+                taskWrapper.logger().debug("Unable to acquire lock");
               } else {
-                taskWrapper.logger().info("Error handling task, will back off for {}", taskWrapper.task().configuration().errorBackOff(), throwable);
-                triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().errorBackOff());
+                taskWrapper.logger().error("Error handling cron-task", throwable);
               }
-
+              triggerTask(taskWrapper, vertx, nextExecution(taskWrapper));
             }
           );
       }
@@ -76,9 +71,16 @@ public class TimerTaskDeployer {
     timers.put(taskWrapper.task().getClass(), timerId);
   }
 
+  public Duration nextExecution(TaskWrapper task) {
+    final var executionTime = ExecutionTime.forCron(task.task().configuration().cron());
+    task.logger().debug("Execution time {}", executionTime);
+    final var duration = executionTime.timeToNextExecution(ZonedDateTime.now()).orElseThrow();
+    task.logger().info("CronTask next execution {}", duration);
+    return duration;
+  }
 
   public record TaskWrapper(
-    TimerTask task,
+    CronTask task,
     Logger logger
   ) {
   }

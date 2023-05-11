@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 
-public class VertxTestBootstrap {
+public class VertxTestBootstrap<T extends Aggregate> {
   private static Network network = Network.newNetwork();
   public static final String POSTGRES_VERSION = "postgres:latest";
   private final Logger LOGGER = LoggerFactory.getLogger(VertxTestBootstrap.class);
@@ -36,8 +36,6 @@ public class VertxTestBootstrap {
   public WebClient WEB_CLIENT;
   public String configurationPath = System.getenv().getOrDefault("CONFIGURATION_FILE", "config.json");
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
-  public Boolean rabbitmq = Boolean.parseBoolean(System.getenv().getOrDefault("RABBITMQ", "false"));
-  public Boolean kafka = Boolean.parseBoolean(System.getenv().getOrDefault("KAFKA", "false"));
   public Boolean REMOTE_TEST = Boolean.parseBoolean(System.getenv().getOrDefault("REMOTE_TEST", "false"));
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
   public Integer HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
@@ -92,30 +90,12 @@ public class VertxTestBootstrap {
     return this;
   }
 
-  public VertxTestBootstrap setRabbitmq(final Boolean rabbitmq) {
-    this.rabbitmq = rabbitmq;
-    return this;
-  }
-
-  public VertxTestBootstrap setKafka(final Boolean kafka) {
-    this.kafka = kafka;
-    return this;
-  }
-
   public String configurationFile() {
     return configurationPath;
   }
 
   public Boolean postgresContainer() {
     return postgres;
-  }
-
-  public Boolean rabbitMQContainer() {
-    return rabbitmq;
-  }
-
-  public Boolean kafkaContainer() {
-    return kafka;
   }
 
   public Boolean remoteTest() {

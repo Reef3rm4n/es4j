@@ -76,12 +76,12 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
     final var command = parseCommand(commandClass, jsonCommand);
-    if (Objects.nonNull(command.options().schedule())) {
-      return infrastructure.queue().schedule(command);
-    }
-    if (Objects.nonNull(command.options().cron())) {
-      return infrastructure.queue().scheduleAt(command);
-    }
+//    if (Objects.nonNull(command.options().schedule())) {
+//      return infrastructure.queue().schedule(command);
+//    }
+//    if (Objects.nonNull(command.options().cron())) {
+//      return infrastructure.queue().scheduleAt(command);
+//    }
     if (command.options().simulate()) {
       return loadAggregate(command.aggregateId(), command.headers().tenantId())
         .map(aggregateState -> {

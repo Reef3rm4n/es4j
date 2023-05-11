@@ -1,8 +1,13 @@
 package io.vertx.eventx;
 
+import com.cronutils.model.Cron;
+import com.cronutils.model.CronType;
+import com.cronutils.model.definition.CronDefinitionBuilder;
+import com.cronutils.parser.CronParser;
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.objects.EventJournalFilter;
 import io.vertx.eventx.objects.PolledEvent;
+
 import java.util.List;
 import java.util.Optional;
 
@@ -15,7 +20,15 @@ public interface EventProjection {
   }
 
   default String tenantID() {
-    return null;
+    return "default";
+  }
+  //
+
+  default Cron pollingPolicy() {
+    return new CronParser(CronDefinitionBuilder
+      .instanceDefinitionFor(CronType.UNIX)
+    )
+      .parse("*/15 * * * *");
   }
 
 

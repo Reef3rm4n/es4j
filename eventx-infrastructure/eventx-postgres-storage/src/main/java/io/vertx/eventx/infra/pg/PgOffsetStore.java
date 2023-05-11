@@ -36,6 +36,7 @@ public class PgOffsetStore implements OffsetStore {
 
   @Override
   public Uni<JournalOffset> get(JournalOffsetKey journalOffset) {
+    // todo if not present create
     return repository.selectByKey(new EventJournalOffSetKey(journalOffset.consumer(),journalOffset.tenantId()))
       .map(PgOffsetStore::getJournalOffset);
   }

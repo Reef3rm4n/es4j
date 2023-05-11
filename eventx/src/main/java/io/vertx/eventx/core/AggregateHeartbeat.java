@@ -11,6 +11,7 @@ import io.vertx.eventx.task.TimerTask;
 import io.vertx.eventx.task.TimerTaskConfiguration;
 
 
+import java.time.Duration;
 import java.util.List;
 
 
@@ -38,10 +39,10 @@ public class AggregateHeartbeat<T extends Aggregate> implements TimerTask {
   public TimerTaskConfiguration configuration() {
     return new TimerTaskConfiguration(
       LockLevel.NONE,
-      2500L,
-      2500L,
-      1L,
-      1L,
+      Duration.ofSeconds(5),
+      Duration.ofMinutes(1),
+      Duration.ofMinutes(1),
+      Duration.ofMinutes(1),
       List.of()
     );
   }

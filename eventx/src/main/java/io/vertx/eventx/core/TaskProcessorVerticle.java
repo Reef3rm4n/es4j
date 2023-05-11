@@ -28,6 +28,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 
+import static io.vertx.eventx.launcher.EventxMain.MAIN_MODULES;
 import static java.util.stream.Collectors.groupingBy;
 
 public class TaskProcessorVerticle extends AbstractVerticle {
@@ -46,12 +47,11 @@ public class TaskProcessorVerticle extends AbstractVerticle {
 
   public static Uni<Void> deploy(
     final Vertx vertx,
-    final JsonObject newConfiguration,
-    final Collection<Module> modules
+    final JsonObject newConfiguration
   ) {
-    if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, modules)) {
+    if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, MAIN_MODULES)) {
       return vertx.deployVerticle(
-        () -> new TaskProcessorVerticle(modules),
+        () -> new TaskProcessorVerticle(MAIN_MODULES),
         new DeploymentOptions()
           .setInstances(CpuCoreSensor.availableProcessors() * 2)
           .setConfig(newConfiguration)
