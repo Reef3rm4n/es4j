@@ -86,7 +86,8 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       aggregateClass,
       aggregatorWrappers,
       behaviourWrappers,
-      infrastructure
+      infrastructure,
+      aggregateConfiguration
     );
     return AggregateBus.registerCommandConsumer(
         vertx,
@@ -102,12 +103,12 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
           };
           responseUni.subscribe()
             .with(
-              jsonMessage::reply,
+              response -> jsonMessage.reply(response),
               throwable -> {
                 if (throwable instanceof EventxException vertxServiceException) {
                   jsonMessage.fail(vertxServiceException.error().externalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
                 } else {
-                  LOGGER.error("Unexpected exception raised on {} ", jsonMessage.body(), throwable);
+                  LOGGER.error("Unexpected exception raised", throwable);
                   jsonMessage.fail(500, JsonObject.mapFrom(new EventxError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
                 }
               }

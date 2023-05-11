@@ -16,7 +16,7 @@ public class AggregateState<T extends Aggregate> implements Shareable {
   private final EvictingQueue<String> knownCommands = EvictingQueue.create(100);
   private Long currentVersion = null;
 
-  private Long currentJournalOffset = null;
+  private Long currentJournalOffset = 0L;
 
   public AggregateState(
     Class<T> aggregateClass
@@ -57,6 +57,7 @@ public class AggregateState<T extends Aggregate> implements Shareable {
     }
     return this;
   }
+
   public AggregateState<T> addKnownCommands(List<String> commandIds) {
     commandIds.stream()
       .filter(cmd -> !knownCommands.contains(cmd))
@@ -64,19 +65,11 @@ public class AggregateState<T extends Aggregate> implements Shareable {
     return this;
   }
 
-  public JsonObject toJson() {
-    return new JsonObject()
-      .put("state", JsonObject.mapFrom(state))
-      .put("currentVersion", currentVersion)
-      .put("knownCommands", knownCommands.stream().toList());
-  }
-
   public static <X extends Aggregate> AggregateState<X> fromJson(JsonObject jsonObject, Class<X> tClass) {
     return new AggregateState<>(
       tClass
     )
       .setCurrentVersion(jsonObject.getLong("currentVersion"))
-      .addKnownCommands(jsonObject.getJsonArray("knownCommands").stream().map(String::valueOf).toList())
       .setState(jsonObject.getJsonObject("state").mapTo(tClass));
   }
 
@@ -87,5 +80,18 @@ public class AggregateState<T extends Aggregate> implements Shareable {
   public AggregateState<T> setCurrentJournalOffset(Long currentJournalOffset) {
     this.currentJournalOffset = currentJournalOffset;
     return this;
+  }
+
+  public JsonObject toJson() {
+    try {
+      return new JsonObject()
+        .put("aggregateClass", aggregateClass.getName())
+        .put("state", JsonObject.mapFrom(state))
+        .put("currentVersion", currentVersion)
+        .put("currentJournalOffset", currentJournalOffset);
+    } catch (Exception e) {
+      throw new IllegalArgumentException(e);
+    }
+
   }
 }

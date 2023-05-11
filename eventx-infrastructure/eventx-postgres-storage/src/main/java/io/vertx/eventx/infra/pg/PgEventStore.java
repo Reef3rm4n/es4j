@@ -19,7 +19,6 @@ import io.vertx.eventx.sql.models.QueryOptions;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
 import java.util.function.Consumer;
 
 public class PgEventStore implements EventStore {
@@ -49,7 +48,6 @@ public class PgEventStore implements EventStore {
         ).toList()
       );
   }
-
 
 
   @Override
@@ -165,20 +163,21 @@ public class PgEventStore implements EventStore {
         null,
         null,
         null,
-        null,
-        snapshotFrom(aggregateEventStream),
+        aggregateEventStream.maxSize(),
+        startingOffset(aggregateEventStream),
         aggregateEventStream.tenantId()
       )
     );
   }
 
-  private static <T extends Aggregate> String snapshotFrom(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.startFrom() != null) {
-      // todo add journal offset so that id index helps in the speed of the query
-      return " (select max(id) from event_journal where " +
-        " event_class in (" + aggregateEventStream.startFrom().getName() + "))";
+  private static <T extends Aggregate> String startingOffset(AggregateEventStream<T> aggregateEventStream) {
+    if (aggregateEventStream.journalOffset() != null) {
+      return String.valueOf(aggregateEventStream.journalOffset());
+    } else if (aggregateEventStream.startFrom() != null) {
+      return "(select max(id) from event_journal where event_class = '" + aggregateEventStream.startFrom().getName() + "')";
+    } else {
+      return null;
     }
-   return null;
   }
 
   private EventRecordQuery eventJournalQuery(EventStream eventStream) {

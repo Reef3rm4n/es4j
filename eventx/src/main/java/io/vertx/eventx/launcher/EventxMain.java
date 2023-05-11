@@ -43,7 +43,7 @@ public class EventxMain extends AbstractVerticle {
   @Override
   public void start(final Promise<Void> startPromise) {
     LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
-    Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x] Infrastructure had to drop the following exception --]", throwable));
+    Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x]  had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
     this.cronTaskDeployer = new CronTaskDeployer(vertx);
     this.timerTaskDeployer = new TimerTaskDeployer(vertx);

@@ -62,6 +62,7 @@ public class EventStoreMapper implements RecordMapper<EventRecordKey, EventRecor
 
   @Override
   public void params(Map<String, Object> params, EventRecord actualRecord) {
+    params.put(ID, actualRecord.id());
     params.put(AGGREGATE_ID, actualRecord.aggregateId());
     params.put(AGGREGATE_CLASS, actualRecord.aggregateClass());
     params.put(EVENT_CLASS, actualRecord.eventClass());
@@ -74,7 +75,7 @@ public class EventStoreMapper implements RecordMapper<EventRecordKey, EventRecor
 
   @Override
   public void keyParams(Map<String, Object> params, EventRecordKey key) {
-    params.put(AGGREGATE_CLASS, key.id());
+    params.put(ID, key.id());
   }
 
   @Override

@@ -7,7 +7,7 @@ public class AggregateConfiguration {
   private Boolean useCache = true;
   private Long aggregateCacheTtlInMinutes = 20L;
   private Boolean snapshots = true;
-  private Integer snapshotEvery = 10;
+  private Integer snapshotEvery = 50;
   private Integer maxNumberOfCommandsForIdempotency = 50;
   private OperationMode operationMode = OperationMode.PROD;
   private Boolean replication = false;

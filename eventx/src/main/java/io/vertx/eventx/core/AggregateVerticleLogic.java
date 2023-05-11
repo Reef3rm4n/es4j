@@ -14,14 +14,11 @@ import io.vertx.eventx.infrastructure.models.Event;
 import io.vertx.eventx.objects.*;
 import io.vertx.eventx.sql.exceptions.Conflict;
 import io.smallrye.mutiny.Uni;
-import io.vertx.ext.auth.authorization.RoleBasedAuthorization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class AggregateVerticleLogic<T extends Aggregate> {
@@ -31,12 +28,14 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   private static final Logger LOGGER = LoggerFactory.getLogger(AggregateVerticleLogic.class);
   private final Class<T> aggregateClass;
   private final Map<String, String> commandClassMap = new HashMap<>();
+  private final AggregateConfiguration aggregateConfiguration;
 
   public AggregateVerticleLogic(
     final Class<T> aggregateClass,
     final List<AggregatorWrapper> aggregators,
     final List<BehaviourWrapper> behaviours,
-    final Infrastructure infrastructure
+    final Infrastructure infrastructure,
+    final AggregateConfiguration aggregateConfiguration
   ) {
     this.infrastructure = infrastructure;
     this.aggregateClass = aggregateClass;
@@ -49,6 +48,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       throw new IllegalStateException("Empty behaviours");
     }
     populateCommandClassMap(behaviours);
+    this.aggregateConfiguration = aggregateConfiguration;
   }
 
   private void populateCommandClassMap(List<BehaviourWrapper> commandBehaviours) {
@@ -134,7 +134,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private List<io.vertx.eventx.Event> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
-    LOGGER.debug("Applying {} behaviour for command {} ", behaviour.delegate().getClass().getSimpleName(), JsonObject.mapFrom(command));
+    LOGGER.debug("Applying {} {} ", behaviour.delegate().getClass().getSimpleName(), JsonObject.mapFrom(command));
     final var events = behaviour.process(aggregateState, command);
     LOGGER.debug("{} behaviour produced {}", behaviour.delegate().getClass().getSimpleName(), new JsonArray(events).encodePrettily());
     return events;
@@ -171,7 +171,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private Uni<AggregateState<T>> playFromLastJournalOffset(String aggregateId, String tenant, AggregateState<T> state) {
     final var instruction = streamInstruction(aggregateId, tenant, state);
-    LOGGER.debug("Playing aggregate stream with instruction {}", JsonObject.mapFrom(instruction).encodePrettily());
+    LOGGER.debug("Playing aggregate stream with instruction {}", instruction.toJson().encodePrettily());
     return infrastructure.eventStore().fetch(instruction)
       .map(events -> {
           events.forEach(ev -> applyEvent(state, ev));
@@ -181,13 +181,16 @@ public class AggregateVerticleLogic<T extends Aggregate> {
   }
 
   private AggregateEventStream<T> streamInstruction(String aggregateId, String tenant, AggregateState<T> state) {
+    // todo use aggregate configuration to limit the size of the instruction
+    //  the log from the last compression can only be as long as the compression policy
     return new AggregateEventStream<>(
       state.aggregateClass(),
       aggregateId,
       tenant,
       state.currentVersion(),
       state.currentJournalOffset(),
-      SnapshotEvent.class
+      SnapshotEvent.class,
+      aggregateConfiguration.snapshotEvery()
     );
   }
 

@@ -38,7 +38,7 @@ public class CaffeineWrapper {
   }
 
   public static <T extends Aggregate> void put(Class<T> aggregateClass, AggregatePlainKey k, AggregateState<T> v) {
-    logger.debug("Adding aggregate to cache {}", JsonObject.mapFrom(v).encodePrettily());
+    logger.debug("Adding {} to cache {}", aggregateClass.getName(), v.toJson().encodePrettily());
     CAFFEINE.put(k, v);
   }
 }

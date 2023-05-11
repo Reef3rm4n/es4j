@@ -192,7 +192,6 @@ public class AggregateBus {
 
   private static Throwable transformError(final Throwable throwable) {
     if (throwable instanceof ReplyException reply) {
-      LOGGER.error("Handler raised error", reply);
       if (reply.failureType() == RECIPIENT_FAILURE) {
         try {
           final var error = new JsonObject(reply.getLocalizedMessage()).mapTo(EventxError.class);
