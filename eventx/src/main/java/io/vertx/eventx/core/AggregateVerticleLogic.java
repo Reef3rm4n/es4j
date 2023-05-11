@@ -69,30 +69,17 @@ public class AggregateVerticleLogic<T extends Aggregate> {
     );
   }
 
-  public Uni<JsonObject> loadAggregate(AggregatePlainKey aggregateRecordKey) {
-    return loadAggregate(aggregateRecordKey.aggregateId(), aggregateRecordKey.tenantId())
+  public Uni<JsonObject> load(AggregatePlainKey aggregateRecordKey) {
+    return load(aggregateRecordKey.aggregateId(), aggregateRecordKey.tenantId())
       .map(AggregateState::toJson);
   }
 
   public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
     final var command = parseCommand(commandClass, jsonCommand);
-//    if (Objects.nonNull(command.options().schedule())) {
-//      return infrastructure.queue().schedule(command);
-//    }
-//    if (Objects.nonNull(command.options().cron())) {
-//      return infrastructure.queue().scheduleAt(command);
-//    }
     if (command.options().simulate()) {
-      return loadAggregate(command.aggregateId(), command.headers().tenantId())
-        .map(aggregateState -> {
-            checkCommandId(aggregateState, command);
-            final var events = applyCommandBehaviour(aggregateState, command);
-            aggregateEvents(aggregateState, events);
-            return aggregateState.toJson();
-          }
-        );
+      return simulateCommand(command);
     }
-    return loadAggregate(command.aggregateId(), command.headers().tenantId())
+    return load(command.aggregateId(), command.headers().tenantId())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
         .onFailure(Conflict.class).recoverWithUni(
           () -> playFromLastJournalOffset(command.aggregateId(), command.headers().tenantId(), aggregateState)
@@ -101,6 +88,17 @@ public class AggregateVerticleLogic<T extends Aggregate> {
         .onFailure().invoke(throwable -> logRejectedCommand(throwable, command))
       )
       .map(AggregateState::toJson);
+  }
+
+  private Uni<JsonObject> simulateCommand(Command command) {
+    return load(command.aggregateId(), command.headers().tenantId())
+      .map(aggregateState -> {
+          checkCommandId(aggregateState, command);
+          final var events = applyCommandBehaviour(aggregateState, command);
+          aggregateEvents(aggregateState, events);
+          return aggregateState.toJson();
+        }
+      );
   }
 
   private T aggregateEvent(T aggregateState, final io.vertx.eventx.Event event) {
@@ -134,6 +132,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
   private List<io.vertx.eventx.Event> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
+    behaviour.delegate().requiredRoles();
     LOGGER.debug("Applying {} {} ", behaviour.delegate().getClass().getSimpleName(), JsonObject.mapFrom(command));
     final var events = behaviour.process(aggregateState, command);
     LOGGER.debug("{} behaviour produced {}", behaviour.delegate().getClass().getSimpleName(), new JsonArray(events).encodePrettily());
@@ -157,7 +156,7 @@ public class AggregateVerticleLogic<T extends Aggregate> {
       .orElse(null);
   }
 
-  private Uni<AggregateState<T>> loadAggregate(String aggregateId, String tenant) {
+  private Uni<AggregateState<T>> load(String aggregateId, String tenant) {
     AggregateState<T> state = null;
     if (infrastructure.cache() != null) {
       state = infrastructure.cache().get(new AggregateKey<>(aggregateClass, aggregateId, tenant));
