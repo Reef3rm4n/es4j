@@ -233,7 +233,7 @@ public class LiquibaseHandler {
           final var pgPort = config.getString(Constants.PG_PORT, String.valueOf(EnvVars.PG_PORT));
           final var schema = config.getString(SCHEMA, EnvVars.SCHEMA);
           final var url = config.getString(Constants.JDBC_URL, "jdbc:postgresql://" + pgHost + ":" + pgPort + "/" + pgDatabase);
-          logger.debug("Using jdbc connection string -> " + url);
+          logger.debug("Using jdbc connection string {} ", url);
           final Connection conn = getProps(pgPassword, pgUser, schema, url);
           final var liquibase = liquibaseForStringChangelog(schema, changelog, conn, fileName);
           try {
@@ -336,7 +336,7 @@ public class LiquibaseHandler {
     Connection conn;
     try {
       conn = DriverManager.getConnection(url, props);
-      conn.createStatement().execute("create schema if not exists " + schema + ";");
+      conn.createStatement().execute("create schema if not exists \"" + schema + "\";");
       conn.setSchema(schema);
     } catch (Exception e) {
       throw new IllegalArgumentException(e);

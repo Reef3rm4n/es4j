@@ -8,7 +8,6 @@ import java.util.List;
 
 @RecordBuilder
 public record EventJournalFilter(
-  List<Class<? extends Aggregate>> aggregates,
   List<Class<? extends Event>> events,
   List<String> tags
 ) {

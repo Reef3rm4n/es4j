@@ -24,8 +24,10 @@ import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.ArrayList;
+import java.util.StringJoiner;
 import java.util.function.Supplier;
 
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.eventbusBridge;
 import static io.vertx.eventx.launcher.EventxMain.*;
 
@@ -56,7 +58,8 @@ public class AggregateDeployer<T extends Aggregate> {
       vertx,
       aggregateClass.getSimpleName().toLowerCase(),
       newConfiguration -> {
-        LOGGER.info(" --- Event.x starting aggregate {} ---", aggregateClass.getSimpleName());
+        newConfiguration.put("schema", camelToKebab(aggregateClass.getSimpleName()));
+        LOGGER.info("--- Event.x starting {}::{}--- {}", aggregateClass.getSimpleName(), this.deploymentID, newConfiguration.encodePrettily());
         close()
           .flatMap(avoid -> {
               moduleBuilder.bind(Vertx.class).toInstance(vertx);
@@ -70,7 +73,7 @@ public class AggregateDeployer<T extends Aggregate> {
               final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules), deploymentID);
               return eventbusBridge(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
-                      .setConfig(newConfiguration)
+                      .setConfig(injector.getInstance(JsonObject.class))
                       .setInstances(CpuCoreSensor.availableProcessors() * 2)
                     )
                     .replaceWithVoid()
@@ -82,10 +85,10 @@ public class AggregateDeployer<T extends Aggregate> {
           .with(
             aVoid -> {
               startPromise.complete();
-              LOGGER.info(" --- Event.x aggregate {} started ---", aggregateClass.getSimpleName());
+              LOGGER.info("--- Event.x {} started ---", aggregateClass.getSimpleName());
             }
             , throwable -> {
-              LOGGER.error(" --- Error starting aggregate {} --- ", aggregateClass.getSimpleName(), throwable);
+              LOGGER.error("--- Event.x {} failed to start ---", aggregateClass.getSimpleName(), throwable);
               startPromise.fail(throwable);
             }
           );
@@ -103,11 +106,14 @@ public class AggregateDeployer<T extends Aggregate> {
       injector.getInstance(EventStore.class),
       injector.getInstance(OffsetStore.class)
     );
-    return infrastructure.start().replaceWith(injector);
+    return infrastructure.start(aggregateClass, injector.getInstance(Vertx.class), injector.getInstance(JsonObject.class))
+      .replaceWith(injector);
   }
 
 
   private void addProjections(Injector injector) {
+    final var vertx = injector.getInstance(Vertx.class);
+    final var aggregateProxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
     final var stateProjections = CustomClassLoader.loadFromInjector(injector, StateProjection.class).stream()
       .filter(cc -> CustomClassLoader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
       .map(cc -> new StateProjectionWrapper<T>(
@@ -118,7 +124,7 @@ public class AggregateDeployer<T extends Aggregate> {
       .map(tStateProjectionWrapper -> new StateProjectionPoller<T>(
         aggregateClass,
         tStateProjectionWrapper,
-        new AggregateEventBusPoxy<>(vertx, aggregateClass),
+        aggregateProxy,
         infrastructure.eventStore(),
         infrastructure.offsetStore()
       ))
@@ -133,6 +139,28 @@ public class AggregateDeployer<T extends Aggregate> {
       )
       .toList();
     EVENT_PROJECTIONS.addAll(eventProjections);
+    EVENT_PROJECTIONS.add(
+      new EventProjectionPoller(
+        new EventbusEventProjection(vertx, aggregateClass),
+        infrastructure.eventStore(),
+        infrastructure.offsetStore()
+      )
+    );
+    STATE_PROJECTIONS.add(
+      new StateProjectionPoller<T>(
+        aggregateClass,
+        new StateProjectionWrapper<T>(
+          new EventbusStateProjection<>(
+            vertx
+          ),
+          aggregateClass,
+          LoggerFactory.getLogger(EventbusStateProjection.class)
+        ),
+        aggregateProxy,
+        infrastructure.eventStore(),
+        infrastructure.offsetStore()
+      )
+    );
     STATE_PROJECTIONS.addAll(stateProjections);
   }
 

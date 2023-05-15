@@ -106,7 +106,7 @@ public class AggregateBus {
   }
 
   public static <T extends Aggregate> void broadcastActorAddress(Vertx vertx, Class<T> entityClass, String deploymentID) {
-    LOGGER.info("New command consumer " + entityClass.getSimpleName() + " [address: " + commandConsumer(entityClass, deploymentID) + "]");
+    LOGGER.info("Publishing [{}] address[{}] ", entityClass.getSimpleName(), commandConsumer(entityClass, deploymentID));
     vertx.eventBus().<String>publish(
       AddressResolver.broadcastChannel(entityClass),
       commandConsumer(entityClass, deploymentID),
@@ -157,8 +157,6 @@ public class AggregateBus {
     if (!hashRing.contains(simpleNode)) {
       LOGGER.debug("Adding {} to {} hash-ring", hashRing.getName(), actorAddress);
       hashRing.add(simpleNode);
-    } else {
-      LOGGER.debug("{} already present in hash-ring {}", actorAddress, hashRing.getName());
     }
   }
 

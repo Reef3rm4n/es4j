@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
+
 import java.util.function.Consumer;
 
 import static io.vertx.eventx.config.Constants.KUBERNETES;
@@ -26,7 +27,7 @@ public class ConfigurationHandler {
   public static ConfigRetriever configure(Vertx vertx, String configurationName, Consumer<JsonObject> configurationConsumer) {
     final var configRetrieverOptions = new ConfigRetrieverOptions();
     if (Boolean.TRUE.equals(KUBERNETES)) {
-      LOGGER.info("Kubernetes configuration store activated for configmap -> " + configurationName);
+      LOGGER.info("Kubernetes config store activated for {}", configurationName);
       ConfigStoreOptions kubernetesStore = new ConfigStoreOptions()
         .setType("configmap")
         .setFormat(CONFIGURATION_FORMAT)
@@ -39,8 +40,7 @@ public class ConfigurationHandler {
       final var configurationRetriever = ConfigRetriever.create(vertx, configRetrieverOptions);
       configurationRetriever.listen(
         configChange -> {
-          LOGGER.debug("Previous configuration -> " + configChange.getPreviousConfiguration().encodePrettily());
-          LOGGER.info("New configuration -> " + configChange.getNewConfiguration().encodePrettily());
+          LOGGER.debug("new config {} \n  previous config {}", configChange.getNewConfiguration().encodePrettily(), configChange.getPreviousConfiguration().encodePrettily());
           JsonObject config;
           if (CONFIGURATION_FORMAT.equals("yaml")) {
             var stringConfig = configChange.getNewConfiguration().getString(
@@ -61,7 +61,7 @@ public class ConfigurationHandler {
       );
       return configurationRetriever;
     } else {
-      LOGGER.info("File configuration store activated for file -> " + configurationName + "." + CONFIGURATION_FORMAT);
+      LOGGER.info("{} configuration store activated ", configurationName + "." + CONFIGURATION_FORMAT);
       ConfigStoreOptions fileStore = new ConfigStoreOptions()
         .setType("file")
         .setFormat(CONFIGURATION_FORMAT)
@@ -73,8 +73,8 @@ public class ConfigurationHandler {
         .invoke(configurationConsumer)
         .subscribe()
         .with(
-          avoid -> LOGGER.info("Configuration consumed by -> " + configurationConsumer.getClass()),
-          throwable -> LOGGER.error("Unable to read configuration ", throwable)
+          avoid -> LOGGER.info("{} consumed ", configurationName),
+          throwable -> LOGGER.error("{} consumption failed", configurationName, throwable)
         );
       return retriever;
     }
@@ -85,10 +85,10 @@ public class ConfigurationHandler {
     try {
       final var mapper = new ObjectMapper(new YAMLFactory());
       final var finalConfiguration = JsonObject.mapFrom(mapper.readValue(config, Object.class));
-      LOGGER.info("Parsed configuration -> " + finalConfiguration.encodePrettily());
+      LOGGER.info("{} parsed {} ", config, finalConfiguration.encodePrettily());
       return finalConfiguration;
     } catch (JsonProcessingException jsonProcessingException) {
-      LOGGER.error("Unable to parse yaml", jsonProcessingException);
+      LOGGER.error("Failed to parse {}", config, jsonProcessingException);
       throw new IllegalArgumentException(jsonProcessingException);
     }
   }

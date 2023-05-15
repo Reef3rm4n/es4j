@@ -21,6 +21,7 @@ import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Aggregator;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
+import io.vertx.mutiny.core.eventbus.Message;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
@@ -29,6 +30,8 @@ import io.vertx.mutiny.core.eventbus.DeliveryContext;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
+
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
 
 public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
@@ -57,25 +60,11 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   @Override
   public Uni<Void> asyncStart() {
-    this.aggregateConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(AggregateConfiguration.class);
-    LOGGER.info("Starting Aggregate {}", aggregateClass.getSimpleName());
     final var injector = startInjector();
+    this.aggregateConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(AggregateConfiguration.class);
+    LOGGER.info("Event.x starting {}::{}", aggregateClass.getSimpleName(), this.deploymentID);
     this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
     this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
-    aggregatorWrappers.forEach(behaviour -> LOGGER.info(
-      new JsonObject()
-        .put("aggregator", behaviour.delegate().getClass().getName())
-        .put("event", behaviour.eventClass().getName())
-        .put("tenantId", behaviour.delegate().tenantId())
-        .encodePrettily()
-    ));
-    behaviourWrappers.forEach(behaviour -> LOGGER.info(
-      new JsonObject()
-        .put("aggregator", behaviour.delegate().getClass().getName())
-        .put("event", behaviour.commandClass().getName())
-        .put("tenantId", behaviour.delegate().tenantID())
-        .encodePrettily()
-    ));
     this.infrastructure = new Infrastructure(
       injector.getInstance(AggregateCache.class),
       injector.getInstance(EventStore.class),
@@ -93,29 +82,40 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         vertx,
         aggregateClass,
         deploymentID,
-        jsonMessage -> {
-          LOGGER.debug("Incoming command {}", jsonMessage.body().encodePrettily());
-          final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
-            case LOAD -> logic.load(jsonMessage.body().mapTo(AggregatePlainKey.class));
-            case COMMAND -> logic.process(jsonMessage.body().getString("commandClass")
-              , jsonMessage.body().getJsonObject("command")
-            );
-          };
-          responseUni.subscribe()
-            .with(
-              response -> jsonMessage.reply(response),
-              throwable -> {
-                if (throwable instanceof EventxException vertxServiceException) {
-                  jsonMessage.fail(vertxServiceException.error().externalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
-                } else {
-                  LOGGER.error("Unexpected exception raised", throwable);
-                  jsonMessage.fail(500, JsonObject.mapFrom(new EventxError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
-                }
-              }
-            );
-        }
+        this::consumeMessage
       )
       .flatMap(avoid -> AggregateBus.waitForRegistration(deploymentID, aggregateClass));
+  }
+
+  private void consumeMessage(Message<JsonObject> jsonMessage) {
+    LOGGER.debug("Incoming command {}", jsonMessage.body().encodePrettily());
+    final var command = jsonMessage.body().getJsonObject("command");
+    final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
+      case LOAD -> {
+        final var loadCommand = command.mapTo(LoadAggregate.class);
+        yield logic.load(new AggregatePlainKey(
+          aggregateClass.getName(),
+          loadCommand.aggregateId(),
+          loadCommand.headers().tenantId()
+        ));
+      }
+      case COMMAND -> logic.process(
+        jsonMessage.body().getString("commandClass"),
+        command
+      );
+    };
+    responseUni.subscribe()
+      .with(
+        jsonMessage::reply,
+        throwable -> {
+          if (throwable instanceof EventxException vertxServiceException) {
+            jsonMessage.fail(vertxServiceException.error().externalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
+          } else {
+            LOGGER.error("Unexpected exception raised", throwable);
+            jsonMessage.fail(500, JsonObject.mapFrom(new EventxError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
+          }
+        }
+      );
   }
 
   private void addContextualData(DeliveryContext<Object> event) {
@@ -125,7 +125,8 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   private Injector startInjector() {
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
-    moduleBuilder.bind(JsonObject.class).toInstance(config());
+    final var config = config().put("schema", camelToKebab(aggregateClass.getSimpleName()));
+    moduleBuilder.bind(JsonObject.class).toInstance(config);
     moduleBuilder.bind(AggregateConfiguration.class).toInstance(aggregateConfiguration);
     return Injector.of(moduleBuilder.build());
   }

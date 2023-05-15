@@ -1,8 +1,11 @@
 package io.vertx.eventx.infrastructure;
 
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
+import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.objects.JournalOffset;
 import io.vertx.eventx.objects.JournalOffsetKey;
+import io.vertx.mutiny.core.Vertx;
 
 public interface OffsetStore {
 
@@ -11,5 +14,6 @@ public interface OffsetStore {
 
   Uni<Void> close();
 
-  Uni<Void> start();
+
+  Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
 }

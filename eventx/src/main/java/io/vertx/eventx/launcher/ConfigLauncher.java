@@ -36,7 +36,7 @@ public class ConfigLauncher {
   }
 
   public static Uni<Void> addConfigurations(Injector injector) {
-    final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, injector.getInstance(RepositoryHandler.class));
+    final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, RepositoryHandler.leasePool(injector.getInstance(JsonObject.class), injector.getInstance(Vertx.class)));
     final var fsConfigs = CustomClassLoader.loadFromInjector(injector, FSConfig.class);
     final var configUni = new ArrayList<Uni<Void>>();
     if (!fsConfigs.isEmpty()) {

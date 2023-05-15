@@ -14,6 +14,7 @@ import io.vertx.eventx.task.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -55,7 +56,7 @@ public class EventProjectionPoller implements CronTask {
     AtomicReference<EventStream> eventStream = new AtomicReference<>();
     eventProjection.filter().ifPresentOrElse(
       filter -> eventStream.set(new EventStream(
-        filter.aggregates(),
+        null,
         filter.events(),
         null,
         filter.tags(),
@@ -82,7 +83,6 @@ public class EventProjectionPoller implements CronTask {
   private List<PolledEvent> parseEvents(List<io.vertx.eventx.infrastructure.models.Event> events) {
     return events.stream()
       .map(event -> new PolledEvent(
-          event.aggregateClass(),
           event.aggregateId(),
           event.tenantId(),
           event.journalOffset(),

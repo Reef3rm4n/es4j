@@ -1,11 +1,13 @@
 package io.vertx.eventx.infrastructure;
 
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.models.AppendInstruction;
 import io.vertx.eventx.infrastructure.models.Event;
 import io.vertx.eventx.infrastructure.models.AggregateEventStream;
 import io.vertx.eventx.infrastructure.models.EventStream;
+import io.vertx.mutiny.core.Vertx;
 
 
 import java.util.List;
@@ -22,7 +24,7 @@ public interface EventStore {
   <T extends Aggregate> Uni<Void> append(AppendInstruction<T> appendInstruction);
 
   Uni<Void> close();
-  Uni<Void> start();
+  Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
 
 
 }

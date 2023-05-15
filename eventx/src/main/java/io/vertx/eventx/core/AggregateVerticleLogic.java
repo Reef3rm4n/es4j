@@ -268,7 +268,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
           final var ev = array[index - 1];
           final var eventVersion = currentVersion + index;
           return new Event(
-            state.aggregateClass().getName(),
             finalCommand.aggregateId(),
             ev.getClass().getName(),
             eventVersion,
@@ -297,7 +296,6 @@ public class AggregateVerticleLogic<T extends Aggregate> {
             );
             LOGGER.debug("Appending a snapshot {}", JsonObject.mapFrom(snapshotEvent).encodePrettily());
             resultingEvents.add(new Event(
-              aggregateClass.getName(),
               finalCommand.aggregateId(),
               SnapshotEvent.class.getName(),
               state.currentVersion(),
@@ -403,6 +401,22 @@ public class AggregateVerticleLogic<T extends Aggregate> {
 
     // Replacement string
     String replacement = "$1_$2";
+
+    // Replace the given regex
+    // with replacement string
+    // and convert it to lower case.
+    str = str.replaceAll(regex, replacement).toLowerCase();
+
+    // return string
+    return str;
+  }
+
+  public static String camelToKebab(String str) {
+    // Regular Expression
+    String regex = "([a-z])([A-Z]+)";
+
+    // Replacement string
+    String replacement = "$1-$2";
 
     // Replace the given regex
     // with replacement string

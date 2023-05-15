@@ -73,7 +73,6 @@ public class CronTaskDeployer {
 
   public Duration nextExecution(TaskWrapper task) {
     final var executionTime = ExecutionTime.forCron(task.task().configuration().cron());
-    task.logger().debug("Execution time {}", executionTime);
     final var duration = executionTime.timeToNextExecution(ZonedDateTime.now()).orElseThrow();
     task.logger().info("CronTask next execution {}", duration);
     return duration;

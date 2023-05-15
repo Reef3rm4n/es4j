@@ -22,7 +22,6 @@ public class EventStoreMapper implements RecordMapper<EventRecordKey, EventRecor
   private static final String EVENT_CLASS = "event_class";
   public static final EventStoreMapper INSTANCE = new EventStoreMapper();
   public static final String COMMAND_ID = "command_id";
-  public static final String AGGREGATE_CLASS = "aggregate_class";
   public static final String TAGS = "tags";
   public static final String SCHEMA_VERSION = "schema_version";
 
@@ -36,7 +35,7 @@ public class EventStoreMapper implements RecordMapper<EventRecordKey, EventRecor
 
   @Override
   public Set<String> columns() {
-    return Set.of(AGGREGATE_CLASS, AGGREGATE_ID, EVENT, EVENT_VERSION, EVENT_CLASS, TAGS, SCHEMA_VERSION, COMMAND_ID);
+    return Set.of(AGGREGATE_ID, EVENT, EVENT_VERSION, EVENT_CLASS, TAGS, SCHEMA_VERSION, COMMAND_ID);
   }
 
   @Override
@@ -48,7 +47,6 @@ public class EventStoreMapper implements RecordMapper<EventRecordKey, EventRecor
   public EventRecord rowMapper(Row row) {
     return new EventRecord(
       row.getLong(ID),
-      row.getString(AGGREGATE_CLASS),
       row.getString(AGGREGATE_ID),
       row.getString(EVENT_CLASS),
       row.getLong(EVENT_VERSION),
@@ -64,7 +62,6 @@ public class EventStoreMapper implements RecordMapper<EventRecordKey, EventRecor
   public void params(Map<String, Object> params, EventRecord actualRecord) {
     params.put(ID, actualRecord.id());
     params.put(AGGREGATE_ID, actualRecord.aggregateId());
-    params.put(AGGREGATE_CLASS, actualRecord.aggregateClass());
     params.put(EVENT_CLASS, actualRecord.eventClass());
     params.put(EVENT_VERSION, actualRecord.eventVersion());
     params.put(EVENT, actualRecord.event());

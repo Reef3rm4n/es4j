@@ -1,12 +1,10 @@
 package io.vertx.eventx.infra.pg;
 
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.EventStore;
-import io.vertx.eventx.infrastructure.models.AggregateEventStream;
-import io.vertx.eventx.infrastructure.models.AppendInstruction;
-import io.vertx.eventx.infrastructure.models.Event;
-import io.vertx.eventx.infrastructure.models.EventStream;
+import io.vertx.eventx.infrastructure.models.*;
 import io.vertx.eventx.infra.pg.mappers.EventStoreMapper;
 import io.vertx.eventx.infra.pg.models.EventRecord;
 import io.vertx.eventx.infra.pg.models.EventRecordKey;
@@ -16,14 +14,21 @@ import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.sql.models.BaseRecord;
 import io.vertx.eventx.sql.models.QueryOptions;
+import io.vertx.mutiny.core.Vertx;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
+
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
 
 public class PgEventStore implements EventStore {
 
   private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
+  private final Logger LOGGER = LoggerFactory.getLogger(PgEventStore.class);
 
   public PgEventStore(Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal) {
     this.eventJournal = eventJournal;
@@ -35,7 +40,6 @@ public class PgEventStore implements EventStore {
       .onFailure(NotFound.class).recoverWithItem(new ArrayList<>())
       .map(eventRecords -> eventRecords.stream()
         .map(eventRecord -> new Event(
-            eventRecord.aggregateClass(),
             eventRecord.aggregateId(),
             eventRecord.eventClass(),
             eventRecord.eventVersion(),
@@ -55,7 +59,6 @@ public class PgEventStore implements EventStore {
     return eventJournal.stream(
       eventRecord -> {
         final var infraEvent = new Event(
-          eventRecord.aggregateClass(),
           eventRecord.aggregateId(),
           eventRecord.eventClass(),
           eventRecord.eventVersion(),
@@ -76,7 +79,6 @@ public class PgEventStore implements EventStore {
     return eventJournal.stream(
       eventRecord -> {
         final var infraEvent = new Event(
-          eventRecord.aggregateClass(),
           eventRecord.aggregateId(),
           eventRecord.eventClass(),
           eventRecord.eventVersion(),
@@ -96,7 +98,7 @@ public class PgEventStore implements EventStore {
     return eventJournal.query(eventJournalQuery(eventStream))
       .map(eventRecords -> eventRecords.stream()
         .map(eventRecord -> new Event(
-            eventRecord.aggregateClass(),
+            eventRecord.id(),
             eventRecord.aggregateId(),
             eventRecord.eventClass(),
             eventRecord.eventVersion(),
@@ -121,18 +123,18 @@ public class PgEventStore implements EventStore {
   }
 
   @Override
-  public Uni<Void> start() {
-    return LiquibaseHandler.runLiquibaseChangeLog(
+  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+    LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
+    return LiquibaseHandler.liquibaseString(
+      eventJournal.repositoryHandler(),
       "pg-event-store.xml",
-      eventJournal.repositoryHandler().vertx(),
-      eventJournal.repositoryHandler().configuration()
+      Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );
   }
 
   private <T extends Aggregate> List<EventRecord> parseInstruction(AppendInstruction<T> appendInstruction) {
     return appendInstruction.events().stream()
       .map(event -> new EventRecord(
-          appendInstruction.aggregate().getName(),
           event.aggregateId(),
           event.eventClass(),
           event.eventVersion(),
@@ -171,10 +173,10 @@ public class PgEventStore implements EventStore {
   }
 
   private static <T extends Aggregate> String startingOffset(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.journalOffset() != null) {
-      return String.valueOf(aggregateEventStream.journalOffset());
+    if (aggregateEventStream.journalOffset() != null && aggregateEventStream.journalOffset() == 0) {
+      return String.valueOf(0);
     } else if (aggregateEventStream.startFrom() != null) {
-      return "(select max(id) from event_journal where event_class = '" + aggregateEventStream.startFrom().getName() + "')";
+      return "(select max(id) from event_journal where event_class = '" + aggregateEventStream.startFrom().getName() + "' and aggregateId = '" + aggregateEventStream.aggregateId() + "')";
     } else {
       return null;
     }
@@ -183,8 +185,8 @@ public class PgEventStore implements EventStore {
   private EventRecordQuery eventJournalQuery(EventStream eventStream) {
     return new EventRecordQuery(
       eventStream.aggregateIds(),
-      eventStream.events().stream().map(Class::getName).toList(),
-      eventStream.aggregates().stream().map(Class::getName).toList(),
+      eventStream.events() != null ? eventStream.events().stream().map(Class::getName).toList() : null,
+      eventStream.aggregates() != null ? eventStream.aggregates().stream().map(Class::getName).toList() : null,
       eventStream.tags(),
       null,
       null,

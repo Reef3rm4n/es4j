@@ -32,13 +32,14 @@ public class EventxMain extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
   public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadModules());
+  public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = CustomClassLoader.getSubTypes(Aggregate.class);
   private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
   public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
   public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
   private CronTaskDeployer cronTaskDeployer;
   private TimerTaskDeployer timerTaskDeployer;
-  public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = CustomClassLoader.getSubTypes(Aggregate.class);
+
 
   @Override
   public void start(final Promise<Void> startPromise) {
@@ -57,12 +58,8 @@ public class EventxMain extends AbstractVerticle {
   }
 
   private void addContextualData(DeliveryContext<Object> event) {
-    final var commandID = event.message().headers().get("COMMAND");
     final var tenantID = event.message().headers().get("TENANT");
     final var aggregate = event.message().headers().get("AGGREGATE");
-    if (commandID != null) {
-      ContextualData.put("COMMAND", commandID);
-    }
     if (tenantID != null) {
       ContextualData.put("TENANT", tenantID);
     }
@@ -73,7 +70,6 @@ public class EventxMain extends AbstractVerticle {
   }
 
   private void startAggregateResources(final Promise<Void> startPromise) {
-    LOGGER.info("Bindings " + MAIN_MODULES.stream().map(m -> m.getBindings().prettyPrint()).toList());
     AGGREGATE_CLASSES.stream()
       .map(aClass -> new AggregateDeployer<>(
           aClass,
@@ -91,6 +87,7 @@ public class EventxMain extends AbstractVerticle {
       )
       .toList();
     Uni.join().all(aggregatesDeployment).andFailFast()
+      .invoke(avoid -> deployHeartBeat())
       .invoke(avoid -> deployProjections())
       .flatMap(avoid -> deployBridges())
       .subscribe()
@@ -112,8 +109,8 @@ public class EventxMain extends AbstractVerticle {
     STATE_PROJECTIONS.forEach(cronTaskDeployer::deploy);
   }
 
-  private void deployHeartBeat(AggregateHeartbeat<? extends Aggregate> aggregateHeartbeat) {
-    timerTaskDeployer.deploy(aggregateHeartbeat);
+  private void deployHeartBeat() {
+    HEARTBEATS.forEach(timerTaskDeployer::deploy);
   }
 
   private Uni<Void> deployBridges() {

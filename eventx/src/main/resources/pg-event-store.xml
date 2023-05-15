@@ -5,11 +5,12 @@
   http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
 >
   <!-- EventJournal -->
+  <changeSet id="event-journal-seq" author="reeferman" context="vertx">
+    <createSequence sequenceName="event_journal_seq" schemaName="${schema}"/>
+  </changeSet>
   <changeSet id="event-journal-table" author="reeferman" context="vertx">
-    <createSequence sequenceName="event_journal_seq" schemaName="eventx"/>
-    <createTable tableName="event_store" schemaName="eventx">
+    <createTable tableName="event_store" schemaName="${schema}">
       <column type="bigint" name="id" defaultValueSequenceNext="event_journal_seq"/>
-      <column type="text" name="aggregate_class"/>
       <column type="text" name="aggregate_id"/>
       <column type="text" name="event_class"/>
       <column type="bigint" name="event_version"/>
@@ -21,28 +22,28 @@
       <column type="text" name="tenant"/>
       <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
       <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
-      <column type="int" name="version" defaultValue="0"/>
     </createTable>
   </changeSet>
   <changeSet id="event-journal-indexes" author="reeferman" context="vertx">
-    <addPrimaryKey tableName="event_store" columnNames="id" schemaName="eventx"/>
-    <addUniqueConstraint tableName="event_store" columnNames="aggregate_class, aggregate_id, event_version"
-                         schemaName="eventx"/>
-    <createIndex tableName="event_store" indexName="index-2" schemaName="eventx">
+    <addPrimaryKey tableName="event_store" columnNames="id" schemaName="${schema}"/>
+    <addUniqueConstraint tableName="event_store" columnNames="aggregate_id, event_version"
+                         schemaName="${schema}"/>
+    <createIndex tableName="event_store" indexName="index-2" schemaName="${schema}">
       <column name="aggregate_id"/>
-      <column name="aggregate_class"/>
       <column name="tenant"/>
     </createIndex>
-    <createIndex tableName="event_store" indexName="index-3" schemaName="eventx">
+    <createIndex tableName="event_store" indexName="index-3" schemaName="${schema}">
       <column name="event_class"/>
-      <column name="aggregate_class"/>
       <column name="aggregate_id"/>
       <column name="tags"/>
       <column name="tenant"/>
     </createIndex>
-    <createIndex tableName="event_store" indexName="index-4" schemaName="eventx">
+    <createIndex tableName="event_store" indexName="index-4" schemaName="${schema}">
       <column name="command_id"/>
       <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="event_store" indexName="index-5" schemaName="${schema}">
+      <column name="tags"/>
     </createIndex>
   </changeSet>
   <!--  -->

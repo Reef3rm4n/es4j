@@ -4,16 +4,16 @@ import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.Command;
 import io.vertx.eventx.Aggregate;
+import io.vertx.eventx.core.EventbusEventProjection;
+import io.vertx.eventx.core.EventbusStateProjection;
+import io.vertx.eventx.objects.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.exceptions.CommandRejected;
-import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
-import io.vertx.eventx.objects.Action;
-import io.vertx.eventx.objects.AggregateState;
-import io.vertx.eventx.objects.ErrorSource;
-import io.vertx.eventx.objects.EventxError;
 import io.vertx.mutiny.core.Vertx;
+
+import java.util.function.Consumer;
 
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.request;
 
@@ -31,13 +31,12 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
     this.aggregateClass = entityClass;
   }
 
-  public Uni<AggregateState<T>> wakeUp(AggregatePlainKey key) {
-    ContextualData.put("TENANT", key.tenantId());
-    ContextualData.put("COMMAND", "wakeUp");
+  public Uni<AggregateState<T>> load(LoadAggregate loadCommand) {
+    ContextualData.put("TENANT", loadCommand.headers().tenantId());
     return request(
       vertx,
       aggregateClass,
-      JsonObject.mapFrom(key),
+      JsonObject.mapFrom(new CommandWrapper(loadCommand.getClass().getName(), loadCommand)),
       Action.LOAD
     );
   }
@@ -45,11 +44,10 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
 
   public Uni<AggregateState<T>> command(Command command) {
     ContextualData.put("TENANT", command.headers().tenantId());
-    ContextualData.put("COMMAND", command.getClass().getSimpleName());
     return request(
       vertx,
       aggregateClass,
-      JsonObject.mapFrom(new CommandWrapper(command.getClass().getName(),command)),
+      JsonObject.mapFrom(new CommandWrapper(command.getClass().getName(), command)),
       Action.COMMAND
     );
   }
@@ -57,7 +55,8 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   public record CommandWrapper(
     String commandClass,
     Command command
-  ){}
+  ) {
+  }
 
   public Uni<AggregateState<T>> command(final JsonObject command) {
     if (command.getString("commandClass") == null) {
@@ -78,6 +77,39 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
       command,
       Action.COMMAND
     );
+  }
+
+
+  public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer) {
+    final var address = EventbusStateProjection.subscriptionAddress(aggregateClass);
+    LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
+    return vertx.eventBus().<JsonObject>consumer(
+        EventbusStateProjection.subscriptionAddress(aggregateClass))
+      .handler(jsonObjectMessage -> {
+        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
+        final var aggregateState = AggregateState.fromJson(jsonObjectMessage.body(), aggregateClass);
+        consumer.accept(aggregateState);
+      })
+      .exceptionHandler(this::subscriptionError)
+      .completionHandler();
+  }
+
+  public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer) {
+    final var address = EventbusEventProjection.eventbusAddress(aggregateClass);
+    LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
+    return vertx.eventBus().<JsonObject>consumer(
+        EventbusEventProjection.eventbusAddress(aggregateClass))
+      .handler(jsonObjectMessage -> {
+        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
+        final var aggregateState = jsonObjectMessage.body().mapTo(PolledEvent.class);
+        consumer.accept(aggregateState);
+      })
+      .exceptionHandler(this::subscriptionError)
+      .completionHandler();
+  }
+
+  private void subscriptionError(Throwable throwable) {
+    LOGGER.error("{} subscription dropped exception", aggregateClass, throwable);
   }
 
 

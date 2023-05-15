@@ -3,18 +3,18 @@ package io.vertx.eventx.core;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.eventx.objects.CommandHeaders;
+import io.vertx.eventx.objects.LoadAggregate;
 import io.vertx.eventx.sql.exceptions.NotFound;
 import io.vertx.eventx.task.*;
 import io.vertx.eventx.infrastructure.EventStore;
 import io.vertx.eventx.infrastructure.OffsetStore;
-import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.eventx.infrastructure.models.EventStream;
 import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.eventx.objects.JournalOffsetKey;
 import io.vertx.eventx.objects.StateProjectionWrapper;
 import io.vertx.eventx.Aggregate;
 
-import java.time.Duration;
 import java.util.List;
 
 import static java.util.stream.Collectors.groupingBy;
@@ -46,7 +46,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     stateProjectionWrapper.logger().debug("Polling events");
     return offsetStore.get(new JournalOffsetKey(stateProjectionWrapper.stateProjection().getClass().getName(), "default"))
       .flatMap(journalOffset -> {
-          stateProjectionWrapper.logger().debug("ID offset marked at {}", journalOffset.idOffSet());
+          stateProjectionWrapper.logger().debug("Journal offset at {}", journalOffset.idOffSet());
           return eventStore.fetch(new EventStream(
               List.of(aggregateClass),
               null,
@@ -66,7 +66,11 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
           stateProjectionWrapper.logger().debug("Updating {} IDs : {}", aggregateClass.getSimpleName(), aggregateIds);
           return Multi.createFrom().iterable(aggregateIds)
             .onItem().transformToUniAndMerge(
-              tuple2 -> proxy.wakeUp(new AggregatePlainKey(aggregateClass.getName(), tuple2.getItem1(), tuple2.getItem2()))
+              tuple2 -> proxy.load(new LoadAggregate(
+                    tuple2.getItem1(),
+                    CommandHeaders.defaultHeaders(tuple2.getItem2())
+                  )
+                )
                 .flatMap(stateProjectionWrapper::update)
             )
             .collect().asList()

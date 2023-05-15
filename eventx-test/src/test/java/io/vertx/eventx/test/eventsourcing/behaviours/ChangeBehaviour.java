@@ -3,7 +3,7 @@ package io.vertx.eventx.test.eventsourcing.behaviours;
 
 import io.vertx.eventx.Behaviour;
 import io.vertx.eventx.Event;
-import io.vertx.eventx.test.eventsourcing.FakeAggregate;
+import io.vertx.eventx.test.eventsourcing.domain.FakeAggregate;
 import io.vertx.eventx.test.eventsourcing.commands.ChangeData;
 import io.vertx.eventx.test.eventsourcing.events.DataChanged;
 

@@ -9,7 +9,7 @@ public interface AggregateCache {
   <T extends Aggregate> AggregateState<T> get(AggregateKey<T> aggregateKey);
 
   <T extends Aggregate> void put(AggregateKey<T> aggregateKey, AggregateState<T> aggregate);
-  default Uni<Void> start() {
+  default Uni<Void> start(Class<? extends Aggregate> aggregateClass) {
     return Uni.createFrom().voidItem();
   }
   default Uni<Void> close() {

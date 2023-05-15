@@ -50,7 +50,7 @@ public class AggregateHttpRoute implements HttpRoute {
       .produces(Constants.APPLICATION_JSON)
       .handler(routingContext -> {
           LOGGER.debug("{} received wakeUp: {}", aggregateClass.getSimpleName(), routingContext.body().asJsonObject());
-          entityAggregateProxy.wakeUp(routingContext.body().asJsonObject().mapTo(AggregatePlainKey.class))
+          entityAggregateProxy.load(routingContext.body().asJsonObject().mapTo(AggregatePlainKey.class))
             .subscribe()
             .with(
               response -> ok(routingContext, response),

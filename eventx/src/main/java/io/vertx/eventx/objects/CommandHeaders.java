@@ -47,6 +47,14 @@ public record CommandHeaders(
       null
     );
   }
+  public static CommandHeaders defaultHeaders(String tenantId) {
+    return new CommandHeaders(
+      UUID.randomUUID().toString(),
+      tenantId,
+      null,
+      null
+    );
+  }
 
 
 }
