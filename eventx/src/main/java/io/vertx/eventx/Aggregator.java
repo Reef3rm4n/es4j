@@ -21,7 +21,7 @@ public interface Aggregator<T extends Aggregate, E extends Event> {
     throw new UnknownEvent(new EventxError(
       ErrorSource.LOGIC,
       Aggregator.class.getName(),
-      "missing schema version " + schemaVersion,
+      "missing schema versionTo " + schemaVersion,
       "could not transform event",
       "aggregate.event.transform",
       500

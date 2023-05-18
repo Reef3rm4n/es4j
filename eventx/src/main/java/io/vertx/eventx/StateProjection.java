@@ -20,7 +20,7 @@ public interface StateProjection<T extends Aggregate> {
     return new CronParser(CronDefinitionBuilder
       .instanceDefinitionFor(CronType.UNIX)
     )
-      .parse("*/15 * * * *");
+      .parse("*/1 * * * *");
   }
 
 }

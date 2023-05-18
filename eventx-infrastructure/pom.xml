@@ -21,7 +21,6 @@
     <module>eventx-config-storage</module>
     <module>eventx-postgres-storage</module>
     <module>eventx-http-client</module>
-    <module>eventx-eventbus-projections</module>
   </modules>
 
   <dependencyManagement>

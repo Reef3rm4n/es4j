@@ -18,8 +18,8 @@
       <!--  Repository Entity    -->
       <column type="bigint" name="id" defaultValueSequenceNext="configuration_seq"/>
       <column type="text" name="tenant"/>
-      <column type="timestamp" name="creation_date" defaultValueComputed="current_timestamp"/>
-      <column type="timestamp" name="last_update" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
       <column type="int" name="version" defaultValue="0"/>
     </createTable>
   </changeSet>
@@ -43,15 +43,15 @@
   <changeSet id="configuration-pub-function" author="reeferman" context="vertx">
     <sql splitStatements="false">
       CREATE
-      OR REPLACE FUNCTION ${schema}.configuration_publisher()
+      OR REPLACE FUNCTION "${schema}".configuration_publisher()
     RETURNS trigger AS
 $$
       BEGIN
     if (TG_OP = 'DELETE' or TG_OP = 'TRUNCATE') then
-        perform pg_notify('configuration_channel',
+        perform pg_notify('${schema}_configuration_channel',
                           concat(OLD.name::text, '::', OLD.class::text, '::', OLD.tenant::text));
       else
-        perform pg_notify('configuration_channel',
+        perform pg_notify('${schema}_configuration_channel',
                           concat(NEW.name::text, '::', NEW.class::text, '::', NEW.tenant::text));
       end if;
       RETURN null;
@@ -64,7 +64,7 @@ $$
   <!-- Configuration Trigger -->
   <changeSet id="configuration-trigger" author="reeferman" context="vertx">
     <sql splitStatements="false">
-      CREATE TRIGGER configuration_trigger AFTER INSERT OR UPDATE OR DELETE ON ${schema}.configuration FOR EACH ROW EXECUTE PROCEDURE configuration_publisher();
+      CREATE TRIGGER configuration_trigger AFTER INSERT OR UPDATE OR DELETE ON "${schema}".configuration FOR EACH ROW EXECUTE PROCEDURE configuration_publisher();
     </sql>
   </changeSet>
   <!---->

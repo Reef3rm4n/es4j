@@ -13,29 +13,33 @@ import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.WebClient;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
 
 import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
 
 
 public class EventxTestBootstrapper<T extends Aggregate> {
   public AggregateEventBusPoxy<T> eventBusPoxy;
+  public AggregateHttpClient<T> httpClient;
   private static Network network = Network.newNetwork();
   public static final String POSTGRES_VERSION = "postgres:latest";
+  public static final String ZOOKEEPER_VERSION = "bitnami/zookeeper:latest";
   private final Logger LOGGER = LoggerFactory.getLogger(EventxTestBootstrapper.class);
   public PostgreSQLContainer<?> postgreSQLContainer;
 
   public static Vertx vertx;
   public JsonObject config;
   public static RepositoryHandler repositoryHandler;
-  public WebClient webClient;
-  public String configurationPath = System.getenv().getOrDefault("CONFIGURATION_FILE", "config.json");
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
+  public Boolean clustered = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
   public Integer HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
   public Class<T> aggregateClass;
+  private GenericContainer zookeeperContainer;
 
   public EventxTestBootstrapper(
     Class<T> aggregateClass
@@ -50,9 +54,12 @@ public class EventxTestBootstrapper<T extends Aggregate> {
       deployPgContainer();
     }
     repositoryHandler = RepositoryHandler.leasePool(config, vertx);
-    webClient = WebClient.create(vertx, new WebClientOptions()
-      .setDefaultHost(HTTP_HOST)
-      .setDefaultPort(HTTP_PORT)
+    this.httpClient = new AggregateHttpClient<>(
+      WebClient.create(vertx, new WebClientOptions()
+        .setDefaultHost(HTTP_HOST)
+        .setDefaultPort(HTTP_PORT)
+      ),
+      aggregateClass
     );
     vertx.deployVerticle(EventxMain::new, new DeploymentOptions().setInstances(1).setConfig(config)).await().indefinitely();
     this.eventBusPoxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
@@ -100,6 +107,13 @@ public class EventxTestBootstrapper<T extends Aggregate> {
       .put(Constants.JDBC_URL, postgreSQLContainer.getJdbcUrl());
     vertx.fileSystem().writeFileBlocking(aggregateClass.getSimpleName() + ".json", Buffer.newInstance(config.toBuffer()));
     LOGGER.debug("Configuration after container bootstrap {}", config);
+  }
+
+  public void deployZookeeper() {
+     zookeeperContainer = new GenericContainer<>(DockerImageName.parse(ZOOKEEPER_VERSION))
+      .withNetwork(network)
+      .waitingFor(Wait.forListeningPort());
+    zookeeperContainer.start();
   }
 
   public void destroy() {

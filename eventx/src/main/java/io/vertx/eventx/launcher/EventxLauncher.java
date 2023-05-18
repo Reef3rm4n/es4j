@@ -12,9 +12,13 @@ import io.vertx.core.eventbus.EventBusOptions;
 import io.vertx.micrometer.MicrometerMetricsOptions;
 import io.vertx.micrometer.VertxPrometheusOptions;
 import io.vertx.micrometer.backends.BackendRegistries;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 public class EventxLauncher extends Launcher {
+
+  private final Logger logger = LoggerFactory.getLogger(EventxLauncher.class);
 
   public static void main(String[] args) {
     new EventxLauncher().dispatch(args);
@@ -23,6 +27,7 @@ public class EventxLauncher extends Launcher {
 
   @Override
   public void beforeStartingVertx(VertxOptions vertxOptions) {
+    logger.info("--- Starting Event.x -----");
     vertxOptions
       .setPreferNativeTransport(true)
       .setMetricsOptions(
@@ -33,17 +38,11 @@ public class EventxLauncher extends Launcher {
           )
           .setJvmMetricsEnabled(true)
           .setEnabled(true)
-      )
-      .setEventBusOptions(
-        new EventBusOptions()
-//          .setLogActivity(true)
-//          .setTcpQuickAck(true)
-//          .setTcpFastOpen(true)
-//          .setTcpNoDelay(true)
-//          .setTcpCork(true)
-//          .setUseAlpn(true)
       );
   }
+
+
+
 
 
   @Override

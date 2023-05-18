@@ -1,11 +1,22 @@
 package io.vertx.eventx.http;
 
 
-import io.reactiverse.contextual.logging.ContextualData;
+import io.netty.handler.logging.ByteBufFormat;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.eventx.Aggregate;
+import io.vertx.eventx.Command;
+import io.vertx.eventx.core.EventbusEventProjection;
+import io.vertx.eventx.core.EventbusStateProjection;
+import io.vertx.eventx.infrastructure.bus.AggregateBus;
+import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
+import io.vertx.eventx.launcher.EventxMain;
+import io.vertx.ext.bridge.PermittedOptions;
+import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
+import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
+import io.vertx.mutiny.core.buffer.Buffer;
+import io.vertx.mutiny.ext.web.handler.sockjs.SockJSHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
@@ -13,7 +24,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.exceptions.EventxException;
 import io.vertx.eventx.infrastructure.Bridge;
-import io.vertx.eventx.objects.CommandHeaders;
 import io.vertx.eventx.objects.EventxError;
 import io.vertx.eventx.objects.PublicQueryOptions;
 import io.vertx.ext.healthchecks.Status;
@@ -29,7 +39,12 @@ import io.vertx.mutiny.ext.web.handler.BodyHandler;
 import io.vertx.mutiny.ext.web.handler.LoggerHandler;
 
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.StringJoiner;
+
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
 
 
 public class HttpBridge implements Bridge {
@@ -41,7 +56,7 @@ public class HttpBridge implements Bridge {
   private final List<HealthCheck> healthChecks;
   private HttpServer httpServer;
   private Vertx vertx;
-  private JsonObject configuration;
+  private final Map<Class<? extends Aggregate>, AggregateEventBusPoxy<? extends Aggregate>> proxies = new HashMap<>();
 
   public HttpBridge(
     final List<HttpRoute> routes,
@@ -54,29 +69,78 @@ public class HttpBridge implements Bridge {
   @Override
   public Uni<Void> start(Vertx vertx, JsonObject configuration, List<Class<? extends Aggregate>> aggregateClasses) {
     this.vertx = vertx;
-    this.configuration = configuration;
     this.httpServer = httpServer();
     final var router = Router.router(vertx);
     this.healthChecks(router);
     this.metrics(router);
+    router.route().failureHandler(this::failureHandler);
     router.route().handler(LoggerHandler.create(LoggerFormat.SHORT));
     openApiRoute(router);
     router.route().handler(BodyHandler.create());
-    router.route().handler(routingContext -> {
-        if (routingContext.request().getHeader(CommandHeaders.COMMAND_ID) != null) {
-          ContextualData.put(CommandHeaders.COMMAND_ID, routingContext.request().getHeader(CommandHeaders.COMMAND_ID));
-        }
-        routingContext.next();
-      }
-    );
-    routes.forEach(route -> route.registerRoutes(router));
-    router.route().failureHandler(this::failureHandler);
+    startProxies(vertx);
+    aggregateRoutes(router);
+    aggregateWebSocket(router);
     return httpServer.requestHandler(router)
       .invalidRequestHandler(this::handleInvalidRequest)
       .exceptionHandler(throwable -> LOGGER.error("HTTP Server dropped exception", throwable))
       .listen(HTTP_PORT)
       .invoke(httpServer1 -> LOGGER.info("HTTP Server listening on port {}", httpServer1.actualPort()))
       .replaceWithVoid();
+  }
+
+  private void startProxies(Vertx vertx) {
+    EventxMain.AGGREGATE_CLASSES.forEach(aggregateClass -> proxies.put(aggregateClass, new AggregateEventBusPoxy<>(vertx, aggregateClass)));
+  }
+
+  private void aggregateWebSocket(Router router) {
+    final var options = new SockJSHandlerOptions().setRegisterWriteHandler(true);
+    final var bridgeOptions = new SockJSBridgeOptions();
+    EventxMain.AGGREGATE_CLASSES.forEach(
+      aClass -> bridgeOptions
+        .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
+        .addOutboundPermitted(permission(EventbusStateProjection.STATE_PROJECTION, aClass))
+        .addOutboundPermitted(permission(EventbusEventProjection.EVENT_PROJECTION, aClass))
+    );
+    final var subRouter = SockJSHandler.create(vertx, options).bridge(
+      bridgeOptions,
+      bridgeEvent -> {
+        LOGGER.info("Bridge event {}::{}", bridgeEvent.type(), bridgeEvent.getRawMessage());
+        bridgeEvent.tryComplete(true);
+      }
+    );
+    router.route("/eventbus/*").subRouter(subRouter);
+  }
+
+  private static PermittedOptions permission(String permissionType, Class<? extends Aggregate> aClass) {
+    return new PermittedOptions().setAddressRegex("^" + permissionType + "\\/" + camelToKebab(aClass.getSimpleName()) + "\\/.*");
+  }
+
+  private void aggregateRoutes(Router router) {
+    EventxMain.AGGREGATE_COMMANDS.forEach((key, value) -> value.forEach(commandClass -> router.post(parsePath(key, commandClass))
+        .consumes(Constants.APPLICATION_JSON)
+        .produces(Constants.APPLICATION_JSON)
+        .handler(routingContext -> {
+            LOGGER.debug("{} received {} {}", key.getSimpleName(), commandClass.getSimpleName(), routingContext.body().asJsonObject().encodePrettily());
+            final var command = new JsonObject()
+              .put("commandClass", commandClass.getName())
+              .put("command", routingContext.body().asJsonObject());
+            proxies.get(key).forward(command)
+              .subscribe()
+              .with(
+                state -> okJson(routingContext, state.toJson()),
+                routingContext::fail
+              );
+          }
+        )
+      )
+    );
+  }
+
+  public static String parsePath(Class<? extends Aggregate> aggregateClass, Class<? extends Command> commandClass) {
+    return new StringJoiner("/", "/", "")
+      .add(camelToKebab(aggregateClass.getSimpleName()))
+      .add(camelToKebab(commandClass.getSimpleName()))
+      .toString();
   }
 
   @Override
@@ -86,14 +150,9 @@ public class HttpBridge implements Bridge {
 
   private HttpServer httpServer() {
     return vertx.createHttpServer(new HttpServerOptions()
-        .setTracingPolicy(TracingPolicy.PROPAGATE)
-        .setLogActivity(false)
-//      .setUseAlpn(true)
-//      .setReusePort(true)
-//      .setTcpCork(true)
-//      .setTcpFastOpen(true)
-//      .setTcpNoDelay(true)
-//      .setTcpQuickAck(true)
+      .setTracingPolicy(TracingPolicy.ALWAYS)
+      .setLogActivity(true)
+      .setRegisterWebSocketWriteHandlers(true)
     );
   }
 
@@ -165,6 +224,12 @@ public class HttpBridge implements Bridge {
     routingContext.response().setStatusCode(200)
       .putHeader(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON)
       .sendAndForget(JsonObject.mapFrom(o).encode());
+  }
+
+  public static void okJson(RoutingContext routingContext, JsonObject o) {
+    routingContext.response().setStatusCode(200)
+      .putHeader(Constants.CONTENT_TYPE, Constants.APPLICATION_JSON)
+      .sendAndForget(Buffer.newInstance(o.toBuffer()));
   }
 
   public static void created(RoutingContext routingContext, Object o) {

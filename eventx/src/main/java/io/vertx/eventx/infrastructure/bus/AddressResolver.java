@@ -2,6 +2,8 @@ package io.vertx.eventx.infrastructure.bus;
 
 import io.vertx.eventx.Aggregate;
 
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+
 public class AddressResolver {
 
   private AddressResolver() {
@@ -21,6 +23,6 @@ public class AddressResolver {
   }
 
   public static <T extends Aggregate> String commandBridge(Class<T> aggregateClass) {
-    return "/" + aggregateClass.getSimpleName().toLowerCase() + "/bridge/command";
+    return "command-bridge/" + camelToKebab(aggregateClass.getSimpleName());
   }
 }

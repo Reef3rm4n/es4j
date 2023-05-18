@@ -3,6 +3,7 @@ package io.vertx.eventx.http;
 import io.activej.inject.Injector;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
+import io.vertx.eventx.infrastructure.Bridge;
 import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.objects.EventxModule;
 
@@ -10,13 +11,9 @@ import java.util.List;
 
 public class HttpBridgeModule extends EventxModule {
 
-
   @Provides
   @Inject
-  HttpBridge httpBridge(
-    final List<HttpRoute> routes,
-    final List<HealthCheck> healthChecks
-  ) {
+  Bridge bridge(final List<HttpRoute> routes, final List<HealthCheck> healthChecks) {
     return new HttpBridge(routes, healthChecks);
   }
 

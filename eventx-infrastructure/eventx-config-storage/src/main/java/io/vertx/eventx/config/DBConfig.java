@@ -12,10 +12,7 @@ import io.vertx.eventx.sql.models.BaseRecord;
 import io.vertx.eventx.sql.models.QueryOptions;
 import io.vertx.mutiny.core.Vertx;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.StringJoiner;
+import java.util.*;
 
 public class DBConfig<T extends ConfigurationEntry> {
   private final Vertx vertx;
@@ -31,16 +28,22 @@ public class DBConfig<T extends ConfigurationEntry> {
     this.repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, repositoryHandler);
   }
 
-  public T fetch(String name, String tenant) {
-    return DbConfigCache.get(parseKey(name, tenant, tClass)).mapTo(tClass);
+  public T fetch(String tenant) {
+    return Objects.requireNonNull(
+      DbConfigCache.get(parseKey(tenant, tClass)), "configuration not found"
+    ).mapTo(tClass);
   }
 
   public Uni<T> fetchThrough(String name, Integer revision, String tenant) {
     return repository.selectByKey(new ConfigurationKey(name, tClass.getName(), revision, tenant))
       .map(cfgRec -> cfgRec.data().mapTo(tClass));
   }
-  public String parseKey(String name, String tenant, Class<T> tClass) {
-    return new StringJoiner("::").add(name).add(tenant).add(tClass.getName()).toString();
+
+  public String parseKey(String tenant, Class<T> tClass) {
+    return new StringJoiner("::")
+      .add(tenant)
+      .add(tClass.getName())
+      .toString();
   }
 
   public Uni<T> add(T data) {

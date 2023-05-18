@@ -116,7 +116,7 @@ public record RepositoryHandler(
   }
 
   public static RepositoryHandler leasePool(JsonObject configuration, Vertx vertx, Class<?> aggregate) {
-    configuration.put(Constants.SCHEMA, camelToSnake(aggregate.getSimpleName().toLowerCase()));
+    configuration.put(Constants.SCHEMA, camelToSnake(aggregate.getSimpleName()));
     return leasePool(configuration, vertx);
   }
 

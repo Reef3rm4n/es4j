@@ -35,10 +35,11 @@ import static io.vertx.core.eventbus.ReplyFailure.RECIPIENT_FAILURE;
 import static io.vertx.eventx.infrastructure.bus.AddressResolver.commandConsumer;
 
 public class AggregateBus {
+  public static final String COMMAND_BRIDGE = "command-bridge";
+
   private AggregateBus() {
   }
 
-  public static final String ACTION = "action";
   private static final Logger LOGGER = LoggerFactory.getLogger(AggregateBus.class);
 
   private static HashRing<SimpleNode> startHashRing(Class<? extends Aggregate> aggregateClass) {
@@ -51,7 +52,6 @@ public class AggregateBus {
 
   public static final Map<Class<? extends Aggregate>, HashRing<SimpleNode>> HASH_RING_MAP = new HashMap<>();
 
-  // todo put a pipe in the channel that routes commands from the eventbus to the correct handler.
   public static <T extends Aggregate> Uni<Void> eventbusBridge(Vertx vertx, Class<T> aggregateClass, String deploymentID) {
     HASH_RING_MAP.put(aggregateClass, startHashRing(aggregateClass));
     return vertx.eventBus().<String>consumer(AddressResolver.invokeChannel(aggregateClass))
@@ -63,8 +63,7 @@ public class AggregateBus {
         .handler(message -> request(
             vertx,
             aggregateClass,
-            message.body(),
-            Action.valueOf(Objects.requireNonNull(message.headers().get(ACTION), "Missing action headers, either COMMAND or LOAD"))
+            message.body()
           )
         )
         .completionHandler()
@@ -136,16 +135,16 @@ public class AggregateBus {
 
   public static <T extends Aggregate> Uni<Void> registerCommandConsumer(
     Vertx vertx,
-    Class<T> entityClass,
+    Class<T> aggregateClass,
     String deploymentID,
     Consumer<Message<JsonObject>> consumer
   ) {
 
-    return vertx.eventBus().<JsonObject>consumer(commandConsumer(entityClass, deploymentID))
+    return vertx.eventBus().<JsonObject>consumer(commandConsumer(aggregateClass, deploymentID))
       .handler(consumer)
-      .exceptionHandler(throwable -> dropped(entityClass, throwable))
+      .exceptionHandler(throwable -> dropped(aggregateClass, throwable))
       .completionHandler()
-      .invoke(avoid -> broadcastActorAddress(vertx, entityClass, deploymentID));
+      .invoke(avoid -> broadcastActorAddress(vertx, aggregateClass, deploymentID));
   }
 
   private static void dropped(Class<?> entityClass, final Throwable throwable) {
@@ -160,7 +159,7 @@ public class AggregateBus {
     }
   }
 
-  public static <T extends Aggregate> Uni<AggregateState<T>> request(Vertx vertx, Class<T> aggregateClass, JsonObject payload, Action action) {
+  public static <T extends Aggregate> Uni<AggregateState<T>> request(Vertx vertx, Class<T> aggregateClass, JsonObject payload) {
     final var command = payload.getJsonObject("command");
     final var aggregateKey = new AggregatePlainKey(
       aggregateClass.getName(),
@@ -168,7 +167,7 @@ public class AggregateBus {
       command.getJsonObject("headers").getString("tenantId", "default")
     );
     final var address = AggregateBus.resolveActor(aggregateClass, aggregateKey);
-    LOGGER.debug("Proxying {} {}", action.name(), new JsonObject()
+    LOGGER.debug("Proxying {} {}", payload.getString("commandClass"), new JsonObject()
       .put("key", aggregateKey)
       .put("address", address)
       .put("payload", payload)
@@ -178,11 +177,10 @@ public class AggregateBus {
         address,
         payload,
         new DeliveryOptions()
-          .setLocalOnly(false)
+          .setTracingPolicy(TracingPolicy.ALWAYS)
+          .setLocalOnly(!vertx.isClustered())
           .setSendTimeout(5000)
-          .addHeader(ACTION, action.name())
       )
-      //.onFailure(throwable -> checkError(throwable)).retry().atMost(3)
       .map(response -> AggregateState.fromJson(response.body(), aggregateClass))
       .onFailure().transform(Unchecked.function(AggregateBus::transformError));
   }
@@ -243,14 +241,6 @@ public class AggregateBus {
   }
 
   private static void synchronizeChannel(Message<String> objectMessage, Class<? extends Aggregate> entityClass) {
-    LOGGER.debug(
-      "Synchronizing {} {}",
-      entityClass.getSimpleName(),
-      new JsonObject()
-        .put("action", objectMessage.headers().get(Actions.ACTION.name()))
-        .put("body", objectMessage.body())
-        .encodePrettily()
-    );
     HASH_RING_MAP.computeIfAbsent(entityClass, (aClass) -> HASH_RING_MAP.put(aClass, startHashRing(aClass)));
     switch (Actions.valueOf(objectMessage.headers().get(Actions.ACTION.name()))) {
       case ADD -> addNode(objectMessage.body(), HASH_RING_MAP.get(entityClass));

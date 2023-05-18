@@ -16,6 +16,10 @@
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <testcontainers.version>1.17.6</testcontainers.version>
+    <gatling.version>3.9.5</gatling.version>
+    <gatling-maven-plugin.version>4.3.4</gatling-maven-plugin.version>
+    <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
+    <maven-jar-plugin.version>3.2.2</maven-jar-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -31,7 +35,6 @@
   </dependencyManagement>
 
   <dependencies>
-    <!--    Test Dependencies  -->
     <dependency>
       <groupId>io.vertx.eventx</groupId>
       <artifactId>eventx</artifactId>
@@ -40,6 +43,11 @@
     <dependency>
       <groupId>io.vertx.eventx</groupId>
       <artifactId>eventx-postgres-storage</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>eventx-http-bridge</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -62,7 +70,11 @@
       <groupId>io.smallrye.reactive</groupId>
       <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
     </dependency>
-    <!---->
-
+    <dependency>
+      <groupId>io.vertx.eventx</groupId>
+      <artifactId>eventx-http-client</artifactId>
+      <version>${project.version}</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 </project>

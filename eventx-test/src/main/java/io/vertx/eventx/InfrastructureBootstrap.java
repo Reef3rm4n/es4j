@@ -33,7 +33,6 @@ public class InfrastructureBootstrap {
   public WebClient WEB_CLIENT;
   public String configurationPath = System.getenv().getOrDefault("CONFIGURATION_FILE", "config.json");
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
-  public Boolean REMOTE_TEST = Boolean.parseBoolean(System.getenv().getOrDefault("REMOTE_TEST", "false"));
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
   public Integer HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
 

@@ -26,6 +26,8 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+
 public class ConfigLauncher {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ConfigLauncher.class);
@@ -37,11 +39,10 @@ public class ConfigLauncher {
 
   public static Uni<Void> addConfigurations(Injector injector) {
     final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, RepositoryHandler.leasePool(injector.getInstance(JsonObject.class), injector.getInstance(Vertx.class)));
-    final var fsConfigs = CustomClassLoader.loadFromInjector(injector, FSConfig.class);
     final var configUni = new ArrayList<Uni<Void>>();
-    if (!fsConfigs.isEmpty()) {
+    if (CustomClassLoader.checkPresence(injector, FSConfig.class)) {
       LOGGER.info("File-System configuration detected");
-      configUni.add(fsConfigurations(injector.getInstance(Vertx.class), fsConfigs));
+      configUni.add(fsConfigurations(injector));
     }
     if (CustomClassLoader.checkPresence(injector, DBConfig.class)) {
       LOGGER.info("Database configuration detected");
@@ -53,7 +54,9 @@ public class ConfigLauncher {
     return Uni.createFrom().voidItem();
   }
 
-  private static Uni<Void> fsConfigurations(Vertx vertx, List<FSConfig> fsConfigs) {
+  private static Uni<Void> fsConfigurations(Injector injector) {
+    final var vertx = injector.getInstance(Vertx.class);
+    final var fsConfigs = CustomClassLoader.loadFromInjectorClass(injector, FSConfig.class);
     final var promiseMap = fsConfigs.stream().map(cfg -> Map.entry(cfg.name(), Promise.promise()))
       .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     CONFIG_RETRIEVERS.addAll(
@@ -91,7 +94,8 @@ public class ConfigLauncher {
       RepositoryHandler.connectionOptions(repositoryHandler.configuration())
     );
     PG_SUBSCRIBER.reconnectPolicy(integer -> 0L);
-    final var pgChannel = PG_SUBSCRIBER.channel("configuration_channel");
+    // todo put schema in the channel
+    final var pgChannel = PG_SUBSCRIBER.channel(camelToKebab(repositoryHandler.configuration().getString("schema")) + "_configuration_channel");
     pgChannel.handler(id -> {
           final ConfigurationKey key = configurationKey(id);
           LOGGER.info("Updating configuration {} ", JsonObject.mapFrom(key).encodePrettily());
@@ -140,7 +144,6 @@ public class ConfigLauncher {
 
   private static String parseKey(ConfigurationKey key) {
     return new StringJoiner("::")
-      .add(key.name())
       .add(key.tenantId())
       .add(key.tClass())
       .toString();
@@ -148,7 +151,6 @@ public class ConfigLauncher {
 
   public static String parseKey(ConfigurationRecord record) {
     return new StringJoiner("::")
-      .add(record.name())
       .add(record.baseRecord().tenantId())
       .add(record.tClass())
       .toString();

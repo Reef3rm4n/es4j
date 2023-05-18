@@ -45,6 +45,10 @@
     <createIndex tableName="event_store" indexName="index-5" schemaName="${schema}">
       <column name="tags"/>
     </createIndex>
+    <createIndex tableName="event_store" indexName="index-6" schemaName="${schema}">
+      <column name="event_class"/>
+      <column name="aggregate_id"/>
+    </createIndex>
   </changeSet>
   <!--  -->
 

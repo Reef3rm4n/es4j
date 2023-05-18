@@ -5,6 +5,7 @@ import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.tuples.Tuple2;
+import io.vertx.eventx.Event;
 import io.vertx.eventx.exceptions.EventxException;
 import io.vertx.eventx.infrastructure.AggregateCache;
 import io.vertx.eventx.infrastructure.EventStore;
@@ -12,8 +13,8 @@ import io.vertx.eventx.infrastructure.Infrastructure;
 import io.vertx.eventx.infrastructure.OffsetStore;
 import io.vertx.eventx.infrastructure.bus.AggregateBus;
 import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
+import io.vertx.eventx.launcher.EventxMain;
 import io.vertx.eventx.objects.*;
-import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.eventx.Command;
 import io.vertx.eventx.Behaviour;
@@ -72,6 +73,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
     );
     vertx.eventBus().addInboundInterceptor(this::addContextualData);
     this.logic = new AggregateVerticleLogic<>(
+      vertx,
       aggregateClass,
       aggregatorWrappers,
       behaviourWrappers,
@@ -82,29 +84,15 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
         vertx,
         aggregateClass,
         deploymentID,
-        this::consumeMessage
+        this::processCommand
       )
       .flatMap(avoid -> AggregateBus.waitForRegistration(deploymentID, aggregateClass));
   }
 
-  private void consumeMessage(Message<JsonObject> jsonMessage) {
+  private void processCommand(Message<JsonObject> jsonMessage) {
     LOGGER.debug("Incoming command {}", jsonMessage.body().encodePrettily());
-    final var command = jsonMessage.body().getJsonObject("command");
-    final var responseUni = switch (Action.valueOf(jsonMessage.headers().get(ACTION))) {
-      case LOAD -> {
-        final var loadCommand = command.mapTo(LoadAggregate.class);
-        yield logic.load(new AggregatePlainKey(
-          aggregateClass.getName(),
-          loadCommand.aggregateId(),
-          loadCommand.headers().tenantId()
-        ));
-      }
-      case COMMAND -> logic.process(
-        jsonMessage.body().getString("commandClass"),
-        command
-      );
-    };
-    responseUni.subscribe()
+    logic.process(jsonMessage.body().getString("commandClass"), jsonMessage.body().getJsonObject("command"))
+      .subscribe()
       .with(
         jsonMessage::reply,
         throwable -> {
@@ -142,7 +130,17 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       )
       .toList();
     if (behaviours.isEmpty()) {
-      throw new IllegalStateException("Behaviours not found for aggregate " + entityAggregateClass);
+      throw new IllegalStateException("Behaviours not found for " + entityAggregateClass.getSimpleName());
+    }
+    if (!EventxMain.AGGREGATE_COMMANDS.containsKey(entityAggregateClass)) {
+      final var behavioursClass = new ArrayList<Class<? extends Command>>(behaviours.stream()
+        .map(wrapper -> (Class<? extends Command>) wrapper.commandClass())
+        .toList());
+      behavioursClass.add(LoadAggregate.class);
+      EventxMain.AGGREGATE_COMMANDS.put(
+        entityAggregateClass,
+        behavioursClass
+      );
     }
     return behaviours;
   }
@@ -157,8 +155,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
       .toList();
     if (aggregators.isEmpty()) {
-      throw new IllegalStateException("Aggregators not found for aggregate " + entityAggregateClass);
+      throw new IllegalStateException("Aggregators not found for " + entityAggregateClass.getSimpleName());
     }
+    EventxMain.AGGREGATE_EVENTS.putIfAbsent(
+      entityAggregateClass, aggregators.stream()
+        .map(wrapper -> (Class<Event>) wrapper.eventClass())
+        .toList()
+    );
     return aggregators;
   }
 

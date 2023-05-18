@@ -23,10 +23,6 @@ public interface Aggregate extends Shareable, Serializable {
     return 0;
   }
 
-  default List<Class<? extends Event>> snapshotOn() {
-    return Collections.emptyList();
-  }
-
   default Optional<Integer> snapshotEvery() {
     return Optional.empty();
   }
@@ -35,7 +31,7 @@ public interface Aggregate extends Shareable, Serializable {
     throw new UnknownEvent(new EventxError(
       ErrorSource.LOGIC,
       Aggregator.class.getName(),
-      "missing schema version " + schemaVersion,
+      "missing schema versionTo " + schemaVersion,
       "could not transform event",
       "aggregate.event.transform",
       500

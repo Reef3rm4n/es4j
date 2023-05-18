@@ -146,21 +146,6 @@ public class AggregateDeployer<T extends Aggregate> {
         infrastructure.offsetStore()
       )
     );
-    STATE_PROJECTIONS.add(
-      new StateProjectionPoller<T>(
-        aggregateClass,
-        new StateProjectionWrapper<T>(
-          new EventbusStateProjection<>(
-            vertx
-          ),
-          aggregateClass,
-          LoggerFactory.getLogger(EventbusStateProjection.class)
-        ),
-        aggregateProxy,
-        infrastructure.eventStore(),
-        infrastructure.offsetStore()
-      )
-    );
     STATE_PROJECTIONS.addAll(stateProjections);
   }
 

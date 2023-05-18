@@ -160,7 +160,7 @@ public class LiquibaseHandler {
           final var pgUser = config.getString(Constants.PG_USER, EnvVars.PG_USER);
           final var pgDatabase = config.getString(Constants.PG_DATABASE, EnvVars.PG_DATABASE);
           final var pgPort = config.getString(Constants.PG_PORT, String.valueOf(EnvVars.PG_PORT));
-          final var schema = schemaClass.getSimpleName().toLowerCase();
+          final var schema = schemaClass.getSimpleName();
           final var changelog = config.getString(Constants.CHANGELOG, EnvVars.CHANGELOG);
           final String url = config.getString(Constants.JDBC_URL, "jdbc:postgresql://" + pgHost + ":" + pgPort + "/" + pgDatabase);
           logger.debug("Using jdbc connection string -> " + url);

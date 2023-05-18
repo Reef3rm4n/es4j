@@ -1,6 +1,5 @@
 package io.vertx.eventx.infrastructure.proxy;
 
-import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.Command;
 import io.vertx.eventx.Aggregate;
@@ -13,6 +12,7 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.exceptions.CommandRejected;
 import io.vertx.mutiny.core.Vertx;
 
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.request;
@@ -25,67 +25,65 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
 
   public AggregateEventBusPoxy(
     final Vertx vertx,
-    final Class<T> entityClass
+    final Class<T> aggregateClass
   ) {
     this.vertx = vertx;
-    this.aggregateClass = entityClass;
+    this.aggregateClass = aggregateClass;
   }
 
-  public Uni<AggregateState<T>> load(LoadAggregate loadCommand) {
-    ContextualData.put("TENANT", loadCommand.headers().tenantId());
+
+  public Uni<AggregateState<T>> forward(Command command) {
     return request(
       vertx,
       aggregateClass,
-      JsonObject.mapFrom(new CommandWrapper(loadCommand.getClass().getName(), loadCommand)),
-      Action.LOAD
+      JsonObject.mapFrom(new CommandWrapper(command.getClass().getName(), command))
     );
   }
 
-
-  public Uni<AggregateState<T>> command(Command command) {
-    ContextualData.put("TENANT", command.headers().tenantId());
+  public Uni<AggregateState<T>> forward(final JsonObject command) {
+    validateClass(command);
+    validateCommand(command);
     return request(
       vertx,
       aggregateClass,
-      JsonObject.mapFrom(new CommandWrapper(command.getClass().getName(), command)),
-      Action.COMMAND
+      command
     );
   }
 
-  public record CommandWrapper(
-    String commandClass,
-    Command command
-  ) {
-  }
-
-  public Uni<AggregateState<T>> command(final JsonObject command) {
-    if (command.getString("commandClass") == null) {
+  private static void validateCommand(JsonObject command) {
+    if (Objects.isNull(command.getString("command"))) {
       throw new CommandRejected(
         new EventxError(
           ErrorSource.LOGIC,
           "command",
-          "commandClass is null",
-          "command must have both commandClass and command",
+          "command is null",
+          "command must define command",
           "missing.param",
           400
         )
       );
     }
-    return request(
-      vertx,
-      aggregateClass,
-      command,
-      Action.COMMAND
-    );
   }
 
+  private static void validateClass(JsonObject command) {
+    if (Objects.isNull(command.getString("commandClass"))) {
+      throw new CommandRejected(
+        new EventxError(
+          ErrorSource.LOGIC,
+          "command",
+          "commandClass is null",
+          "command must specify commandClass",
+          "missing.param",
+          400
+        )
+      );
+    }
+  }
 
   public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer) {
-    final var address = EventbusStateProjection.subscriptionAddress(aggregateClass);
+    final var address = EventbusStateProjection.subscriptionAddress(aggregateClass, "default");
     LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
-    return vertx.eventBus().<JsonObject>consumer(
-        EventbusStateProjection.subscriptionAddress(aggregateClass))
-      .handler(jsonObjectMessage -> {
+    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
         final var aggregateState = AggregateState.fromJson(jsonObjectMessage.body(), aggregateClass);
         consumer.accept(aggregateState);
@@ -94,12 +92,22 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
       .completionHandler();
   }
 
-  public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer) {
-    final var address = EventbusEventProjection.eventbusAddress(aggregateClass);
+  public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer, String tenantId) {
+    final var address = EventbusStateProjection.subscriptionAddress(aggregateClass, tenantId);
+    LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
+    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
+        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
+        final var aggregateState = AggregateState.fromJson(jsonObjectMessage.body(), aggregateClass);
+        consumer.accept(aggregateState);
+      })
+      .exceptionHandler(this::subscriptionError)
+      .completionHandler();
+  }
+
+  public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer, String tenantId) {
+    final var address = EventbusEventProjection.eventbusAddress(aggregateClass, tenantId);
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
-    return vertx.eventBus().<JsonObject>consumer(
-        EventbusEventProjection.eventbusAddress(aggregateClass))
-      .handler(jsonObjectMessage -> {
+    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
         final var aggregateState = jsonObjectMessage.body().mapTo(PolledEvent.class);
         consumer.accept(aggregateState);
@@ -108,8 +116,25 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
       .completionHandler();
   }
 
+  public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer) {
+    final var address = EventbusEventProjection.eventbusAddress(aggregateClass, "default");
+    LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
+    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
+        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
+
+      })
+      .exceptionHandler(this::subscriptionError)
+      .completionHandler();
+  }
+
   private void subscriptionError(Throwable throwable) {
     LOGGER.error("{} subscription dropped exception", aggregateClass, throwable);
+  }
+
+  public record CommandWrapper(
+    String commandClass,
+    Command command
+  ) {
   }
 
 

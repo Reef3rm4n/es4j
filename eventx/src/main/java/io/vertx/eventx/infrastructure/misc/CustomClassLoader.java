@@ -22,17 +22,16 @@ import java.util.Map;
 public class CustomClassLoader {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(CustomClassLoader.class);
-
   public static final String PACKAGE_NAME = System.getenv().getOrDefault("PACKAGE_NAME", "io.vertx.eventx");
-  public static final Reflections REFLECTIONS = new Reflections("io.vertx.eventx");
-  public static final Reflections REFLECTIONS_EXTERNAL = new Reflections(PACKAGE_NAME);
+  public static final Reflections INTERNAL_REFLECTIONS = new Reflections("io.vertx.eventx");
+  public static final Reflections EXTERNAL_REFLECTIONS = new Reflections(PACKAGE_NAME);
 
   public static <T> List<Class<? extends T>> getSubTypes(Class<T> tClass) {
-    return REFLECTIONS_EXTERNAL.getSubTypesOf(tClass).stream().toList();
+    return EXTERNAL_REFLECTIONS.getSubTypesOf(tClass).stream().toList();
   }
 
   public static Collection<Module> loadModules() {
-    return REFLECTIONS.getSubTypesOf(EventxModule.class).stream()
+    return INTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream()
       .map(CustomClassLoader::instantiate)
       .map(foundCLass -> {
           LOGGER.info("Event.x module found -> " + foundCLass.getClass().getName());
@@ -137,6 +136,14 @@ public class CustomClassLoader {
     return injector.getBindings().entrySet().stream()
       .filter(entry -> checkPresenceInBinding(tClass, entry))
       .map(entry -> injector.getInstance(Key.of(entry.getKey().getRawType(), entry.getKey().getQualifier())))
+      .map(tClass::cast)
+      .toList();
+  }
+
+  public static <T> List<T> loadFromInjectorClass(final Injector injector, final Class<T> tClass) {
+    return injector.getBindings().entrySet().stream()
+      .filter(entry -> checkPresenceInBinding(tClass, entry))
+      .map(entry -> injector.getInstance(entry.getKey()))
       .map(tClass::cast)
       .toList();
   }

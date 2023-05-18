@@ -62,7 +62,11 @@ public class EventProjectionPoller implements CronTask {
         filter.tags(),
         eventProjection.tenantID(),
         journalOffset.idOffSet(),
-        1000
+        1000,
+        null,
+        null,
+        null,
+        null
       )),
       () -> eventStream.set(
         new EventStream(
@@ -72,7 +76,11 @@ public class EventProjectionPoller implements CronTask {
           null,
           eventProjection.tenantID(),
           journalOffset.idOffSet(),
-          1000
+          1000,
+          null,
+          null,
+          null,
+          null
         )
       )
     );

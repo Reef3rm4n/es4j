@@ -28,7 +28,7 @@ public interface EventProjection {
     return new CronParser(CronDefinitionBuilder
       .instanceDefinitionFor(CronType.UNIX)
     )
-      .parse("*/15 * * * *");
+      .parse("*/1 * * * *");
   }
 
 

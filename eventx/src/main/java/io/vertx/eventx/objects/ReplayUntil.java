@@ -4,10 +4,10 @@ import io.vertx.eventx.Command;
 
 import java.time.Instant;
 
-public record LoadAggregate(
+public record ReplayUntil(
   String aggregateId,
-  Long versionTo,
-  Instant dateTo,
+  Long version,
+  Instant date,
   CommandHeaders headers
 
 ) implements Command {

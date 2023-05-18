@@ -111,5 +111,9 @@
       <version>4.3.6</version>
       <scope>compile</scope>
     </dependency>
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-io_uring-incubator</artifactId>
+    </dependency>
   </dependencies>
 </project>

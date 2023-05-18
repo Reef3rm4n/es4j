@@ -54,7 +54,11 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
               null,
               null,
               journalOffset.idOffSet(),
-              1000
+              1000,
+              null,
+              null,
+              null,
+              null
             )
           );
         }
@@ -66,8 +70,10 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
           stateProjectionWrapper.logger().debug("Updating {} IDs : {}", aggregateClass.getSimpleName(), aggregateIds);
           return Multi.createFrom().iterable(aggregateIds)
             .onItem().transformToUniAndMerge(
-              tuple2 -> proxy.load(new LoadAggregate(
+              tuple2 -> proxy.forward(new LoadAggregate(
                     tuple2.getItem1(),
+                    null,
+                    null,
                     CommandHeaders.defaultHeaders(tuple2.getItem2())
                   )
                 )

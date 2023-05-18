@@ -11,6 +11,8 @@ import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
+import io.vertx.eventx.Command;
+import io.vertx.eventx.Event;
 import io.vertx.eventx.task.CronTaskDeployer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,9 +26,7 @@ import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.task.TimerTaskDeployer;
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 public class EventxMain extends AbstractVerticle {
 
@@ -39,6 +39,8 @@ public class EventxMain extends AbstractVerticle {
   public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
   private CronTaskDeployer cronTaskDeployer;
   private TimerTaskDeployer timerTaskDeployer;
+  public static final Map<Class<? extends Aggregate>, List<Class<? extends Command>>> AGGREGATE_COMMANDS = new HashMap<>();
+  public static final Map<Class<? extends Aggregate>, List<Class<Event>>> AGGREGATE_EVENTS = new HashMap<>();
 
 
   @Override
@@ -86,6 +88,9 @@ public class EventxMain extends AbstractVerticle {
         }
       )
       .toList();
+    if (aggregatesDeployment.isEmpty()) {
+      throw new IllegalStateException("Aggregates not found");
+    }
     Uni.join().all(aggregatesDeployment).andFailFast()
       .invoke(avoid -> deployHeartBeat())
       .invoke(avoid -> deployProjections())

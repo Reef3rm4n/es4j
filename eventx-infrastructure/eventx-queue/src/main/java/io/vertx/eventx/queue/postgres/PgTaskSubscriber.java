@@ -55,6 +55,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
 
   @Override
   public Uni<Void> subscribe(MessageProcessorManager messageProcessorManager) {
+    // todo put schema in channel
     final var pgChannel = pgSubscriber.channel("task_queue_ch");
     pgChannel.handler(payload -> {
           pgChannel.pause();

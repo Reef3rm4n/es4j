@@ -2,6 +2,7 @@ package io.vertx.eventx.core;
 
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.eventbus.DeliveryOptions;
+import io.vertx.core.tracing.TracingPolicy;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.StateProjection;
 import io.vertx.eventx.objects.AggregateState;
@@ -11,38 +12,18 @@ import org.slf4j.LoggerFactory;
 
 import java.util.StringJoiner;
 
-
-public class EventbusStateProjection<T extends Aggregate> implements StateProjection<T> {
-
-  private final Vertx vertx;
-
-  private final Logger LOGGER = LoggerFactory.getLogger(EventbusStateProjection.class);
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
 
 
-  public EventbusStateProjection(Vertx vertx) {
-    this.vertx = vertx;
-  }
+public class EventbusStateProjection {
 
-  @Override
-  public Uni<Void> update(AggregateState<T> currentState) {
-    final var address = subscriptionAddress(currentState.state().getClass());
-    try {
-      vertx.eventBus().publish(
-        subscriptionAddress(currentState.state().getClass()),
-        currentState.toJson()
-      );
-    } catch (Exception exception) {
-      LOGGER.error("Unable to publish state update for {}::{} on address {}", currentState.aggregateClass().getSimpleName(), currentState.state().aggregateId(), address);
-      return Uni.createFrom().failure(exception);
-    }
-    LOGGER.debug("State update published for {}::{} to address {}", currentState.aggregateClass().getSimpleName(), currentState.state().aggregateId(), address);
-    return Uni.createFrom().voidItem();
-  }
+  public static final String STATE_PROJECTION = "state-projection";
 
-  public static String subscriptionAddress(Class<? extends Aggregate> aggregateClass) {
+  public static String subscriptionAddress(Class<? extends Aggregate> aggregateClass, String tenantId) {
     return new StringJoiner("/")
-      .add("state-projection")
-      .add(aggregateClass.getSimpleName().toLowerCase())
+      .add(STATE_PROJECTION)
+      .add(camelToKebab(aggregateClass.getSimpleName()))
+      .add(tenantId)
       .toString();
 
   }

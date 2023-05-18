@@ -9,8 +9,11 @@ import io.vertx.mutiny.core.Vertx;
 import java.util.List;
 import java.util.StringJoiner;
 
+import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+
 public class EventbusEventProjection implements EventProjection {
 
+  public static final String EVENT_PROJECTION = "event-projection";
   private final Vertx vertx;
   private final Class<? extends Aggregate> aggregateClass;
 
@@ -23,7 +26,7 @@ public class EventbusEventProjection implements EventProjection {
   public Uni<Void> apply(List<PolledEvent> events) {
     try {
       events.forEach(polledEvent -> vertx.eventBus().publish(
-          eventbusAddress(),
+          eventbusAddress(polledEvent),
           polledEvent.toJson()
         )
       );
@@ -33,17 +36,19 @@ public class EventbusEventProjection implements EventProjection {
     return Uni.createFrom().voidItem();
   }
 
-  public String eventbusAddress() {
+  public String eventbusAddress(PolledEvent polledEvent) {
     return new StringJoiner("/")
-      .add("event-projection")
-      .add(aggregateClass.getSimpleName())
+      .add(EVENT_PROJECTION)
+      .add(camelToKebab(aggregateClass.getSimpleName()))
+      .add(polledEvent.tenantId())
       .toString();
   }
 
-  public static String eventbusAddress(Class<? extends Aggregate> aggregateClass) {
+  public static String eventbusAddress(Class<? extends Aggregate> aggregateClass, String tenantId) {
     return new StringJoiner("/")
-      .add("event-projection")
-      .add(aggregateClass.getSimpleName())
+      .add(EVENT_PROJECTION)
+      .add(camelToKebab(aggregateClass.getSimpleName()))
+      .add(tenantId)
       .toString();
   }
 
