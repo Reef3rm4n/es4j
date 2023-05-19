@@ -1,31 +1,37 @@
 package io.vertx.eventx.http;
 
 
-import io.netty.handler.logging.ByteBufFormat;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.Command;
-import io.vertx.eventx.core.EventbusEventProjection;
-import io.vertx.eventx.core.EventbusStateProjection;
+import io.vertx.eventx.core.projections.EventbusEventStream;
+import io.vertx.eventx.core.objects.EventbusStateProjection;
 import io.vertx.eventx.infrastructure.bus.AggregateBus;
 import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.eventx.launcher.EventxMain;
+import io.vertx.ext.auth.PubSecKeyOptions;
+import io.vertx.ext.auth.authentication.Credentials;
+import io.vertx.ext.auth.authentication.TokenCredentials;
+import io.vertx.ext.auth.jwt.JWTAuthOptions;
 import io.vertx.ext.bridge.PermittedOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
+import io.vertx.mutiny.core.MultiMap;
 import io.vertx.mutiny.core.buffer.Buffer;
+import io.vertx.mutiny.ext.auth.authentication.AuthenticationProvider;
+import io.vertx.mutiny.ext.auth.jwt.JWTAuth;
 import io.vertx.mutiny.ext.web.handler.sockjs.SockJSHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
-import io.vertx.eventx.exceptions.EventxException;
+import io.vertx.eventx.core.exceptions.EventxException;
 import io.vertx.eventx.infrastructure.Bridge;
-import io.vertx.eventx.objects.EventxError;
-import io.vertx.eventx.objects.PublicQueryOptions;
+import io.vertx.eventx.core.objects.EventxError;
+import io.vertx.eventx.core.objects.PublicQueryOptions;
 import io.vertx.ext.healthchecks.Status;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.micrometer.PrometheusScrapingHandler;
@@ -39,12 +45,9 @@ import io.vertx.mutiny.ext.web.handler.BodyHandler;
 import io.vertx.mutiny.ext.web.handler.LoggerHandler;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 
 
 public class HttpBridge implements Bridge {
@@ -56,12 +59,16 @@ public class HttpBridge implements Bridge {
   private final List<HealthCheck> healthChecks;
   private HttpServer httpServer;
   private Vertx vertx;
+  private final CommandAuth commandAuth;
+
   private final Map<Class<? extends Aggregate>, AggregateEventBusPoxy<? extends Aggregate>> proxies = new HashMap<>();
 
   public HttpBridge(
+    final CommandAuth commandAuth,
     final List<HttpRoute> routes,
     final List<HealthCheck> healthChecks
   ) {
+    this.commandAuth = commandAuth;
     this.routes = routes;
     this.healthChecks = healthChecks;
   }
@@ -99,7 +106,7 @@ public class HttpBridge implements Bridge {
       aClass -> bridgeOptions
         .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
         .addOutboundPermitted(permission(EventbusStateProjection.STATE_PROJECTION, aClass))
-        .addOutboundPermitted(permission(EventbusEventProjection.EVENT_PROJECTION, aClass))
+        .addOutboundPermitted(permission(EventbusEventStream.EVENT_PROJECTION, aClass))
     );
     final var subRouter = SockJSHandler.create(vertx, options).bridge(
       bridgeOptions,
@@ -120,11 +127,16 @@ public class HttpBridge implements Bridge {
         .consumes(Constants.APPLICATION_JSON)
         .produces(Constants.APPLICATION_JSON)
         .handler(routingContext -> {
-            LOGGER.debug("{} received {} {}", key.getSimpleName(), commandClass.getSimpleName(), routingContext.body().asJsonObject().encodePrettily());
             final var command = new JsonObject()
               .put("commandClass", commandClass.getName())
               .put("command", routingContext.body().asJsonObject());
-            proxies.get(key).forward(command)
+            Optional.ofNullable(commandAuth).orElse((command1, headers) -> {
+                  LOGGER.warn("Default CommandAuth for {} {} {}", commandClass.getSimpleName(), command1, headers.entries());
+                  return Uni.createFrom().voidItem();
+                }
+              )
+              .validateCommand(routingContext.body().asJsonObject().mapTo(commandClass), routingContext.request().headers())
+              .flatMap(avoid -> proxies.get(key).forward(command))
               .subscribe()
               .with(
                 state -> okJson(routingContext, state.toJson()),

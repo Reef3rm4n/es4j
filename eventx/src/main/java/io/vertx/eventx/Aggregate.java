@@ -2,13 +2,11 @@ package io.vertx.eventx;
 
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.shareddata.Shareable;
-import io.vertx.eventx.exceptions.UnknownEvent;
-import io.vertx.eventx.objects.ErrorSource;
-import io.vertx.eventx.objects.EventxError;
+import io.vertx.eventx.core.exceptions.UnknownEvent;
+import io.vertx.eventx.core.objects.ErrorSource;
+import io.vertx.eventx.core.objects.EventxError;
 
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 public interface Aggregate extends Shareable, Serializable {

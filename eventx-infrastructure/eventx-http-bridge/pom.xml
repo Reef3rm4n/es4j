@@ -57,5 +57,13 @@
       <groupId>io.soabase.record-builder</groupId>
       <artifactId>record-builder-processor</artifactId>
     </dependency>
+    <dependency>
+      <groupId>io.smallrye.reactive</groupId>
+      <artifactId>smallrye-mutiny-vertx-auth-jwt</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.smallrye.reactive</groupId>
+      <artifactId>smallrye-mutiny-vertx-auth-common</artifactId>
+    </dependency>
   </dependencies>
 </project>

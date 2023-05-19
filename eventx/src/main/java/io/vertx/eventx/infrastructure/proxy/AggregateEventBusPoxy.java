@@ -3,13 +3,12 @@ package io.vertx.eventx.infrastructure.proxy;
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.Command;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.core.EventbusEventProjection;
-import io.vertx.eventx.core.EventbusStateProjection;
-import io.vertx.eventx.objects.*;
+import io.vertx.eventx.core.objects.*;
+import io.vertx.eventx.core.projections.EventbusEventStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.exceptions.CommandRejected;
+import io.vertx.eventx.core.exceptions.CommandRejected;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.Objects;
@@ -105,7 +104,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
   public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer, String tenantId) {
-    final var address = EventbusEventProjection.eventbusAddress(aggregateClass, tenantId);
+    final var address = EventbusEventStream.eventbusAddress(aggregateClass, tenantId);
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
@@ -117,7 +116,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
   public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer) {
-    final var address = EventbusEventProjection.eventbusAddress(aggregateClass, "default");
+    final var address = EventbusEventStream.eventbusAddress(aggregateClass, "default");
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());

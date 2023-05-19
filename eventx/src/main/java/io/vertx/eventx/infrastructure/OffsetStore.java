@@ -3,8 +3,8 @@ package io.vertx.eventx.infrastructure;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.objects.JournalOffset;
-import io.vertx.eventx.objects.JournalOffsetKey;
+import io.vertx.eventx.core.objects.JournalOffset;
+import io.vertx.eventx.core.objects.JournalOffsetKey;
 import io.vertx.mutiny.core.Vertx;
 
 public interface OffsetStore {

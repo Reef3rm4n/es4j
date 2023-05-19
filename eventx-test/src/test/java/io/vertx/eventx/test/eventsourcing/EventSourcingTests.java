@@ -6,18 +6,17 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.UniHelper;
 import io.vertx.eventx.EventxTestBootstrapper;
 import io.vertx.eventx.config.DBConfig;
-import io.vertx.eventx.core.EventProjectionPoller;
-import io.vertx.eventx.core.EventbusEventProjection;
+import io.vertx.eventx.core.tasks.EventProjectionPoller;
+import io.vertx.eventx.core.projections.EventbusEventStream;
 import io.vertx.eventx.infra.pg.PgEventStore;
 import io.vertx.eventx.infra.pg.PgOffsetStore;
 import io.vertx.eventx.infra.pg.mappers.EventStoreMapper;
 import io.vertx.eventx.infra.pg.mappers.JournalOffsetMapper;
-import io.vertx.eventx.objects.AggregateState;
-import io.vertx.eventx.objects.CommandHeaders;
-import io.vertx.eventx.objects.LoadAggregate;
+import io.vertx.eventx.core.objects.AggregateState;
+import io.vertx.eventx.core.objects.CommandHeaders;
+import io.vertx.eventx.core.objects.LoadAggregate;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.exceptions.IntegrityContraintViolation;
-import io.vertx.eventx.test.eventsourcing.behaviours.ChangeBehaviourWithDatabaseConfig;
 import io.vertx.eventx.test.eventsourcing.commands.ChangeData;
 import io.vertx.eventx.test.eventsourcing.commands.ChangeDataWithConfig;
 import io.vertx.eventx.test.eventsourcing.commands.ChangeDataWithDbConfig;
@@ -140,7 +139,7 @@ public class EventSourcingTests {
       .await().indefinitely();
     final var aggregate = createAggregate();
     final var poller = new EventProjectionPoller(
-      new EventbusEventProjection(EventxTestBootstrapper.vertx, FakeAggregate.class),
+      new EventbusEventStream(EventxTestBootstrapper.vertx, FakeAggregate.class),
       new PgEventStore(new Repository<>(EventStoreMapper.INSTANCE, repositoryHandler)),
       new PgOffsetStore(new Repository<>(JournalOffsetMapper.INSTANCE, repositoryHandler))
     );

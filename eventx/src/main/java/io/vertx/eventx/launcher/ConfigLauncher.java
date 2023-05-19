@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 
 public class ConfigLauncher {
 

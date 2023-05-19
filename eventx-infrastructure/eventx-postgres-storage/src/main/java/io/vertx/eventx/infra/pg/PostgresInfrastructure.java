@@ -7,7 +7,7 @@ import io.vertx.eventx.infra.pg.mappers.EventStoreMapper;
 import io.vertx.eventx.infra.pg.mappers.JournalOffsetMapper;
 import io.vertx.eventx.infra.pg.models.*;
 import io.vertx.eventx.infrastructure.*;
-import io.vertx.eventx.objects.EventxModule;
+import io.vertx.eventx.core.objects.EventxModule;
 import io.vertx.eventx.sql.Repository;
 import io.vertx.eventx.sql.RepositoryHandler;
 import io.vertx.eventx.sql.models.EmptyQuery;

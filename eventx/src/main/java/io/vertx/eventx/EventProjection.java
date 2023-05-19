@@ -5,8 +5,8 @@ import com.cronutils.model.CronType;
 import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.parser.CronParser;
 import io.smallrye.mutiny.Uni;
-import io.vertx.eventx.objects.EventJournalFilter;
-import io.vertx.eventx.objects.PolledEvent;
+import io.vertx.eventx.core.objects.EventJournalFilter;
+import io.vertx.eventx.core.objects.PolledEvent;
 
 import java.util.List;
 import java.util.Optional;

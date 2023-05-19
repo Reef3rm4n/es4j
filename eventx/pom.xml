@@ -115,5 +115,10 @@
       <groupId>io.vertx</groupId>
       <artifactId>vertx-io_uring-incubator</artifactId>
     </dependency>
+    <dependency>
+      <groupId>org.crac</groupId>
+      <artifactId>crac</artifactId>
+      <version>0.1.3</version>
+    </dependency>
   </dependencies>
 </project>

@@ -19,7 +19,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 
 
 public class EventxTestBootstrapper<T extends Aggregate> {

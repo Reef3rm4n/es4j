@@ -1,7 +1,7 @@
 package io.vertx.eventx.http;
 
-import io.vertx.eventx.objects.EventxError;
-import io.vertx.eventx.objects.PublicQueryOptions;
+import io.vertx.eventx.core.objects.EventxError;
+import io.vertx.eventx.core.objects.PublicQueryOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.ext.web.Router;

@@ -7,7 +7,7 @@ import io.activej.inject.binding.Binding;
 import io.activej.inject.module.Module;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.vertx.eventx.objects.EventxModule;
+import io.vertx.eventx.core.objects.EventxModule;
 import org.reflections.Reflections;
 
 import java.lang.reflect.InvocationTargetException;

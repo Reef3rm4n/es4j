@@ -3,14 +3,12 @@ package io.vertx.eventx.infra.pg;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.infra.pg.mappers.JournalOffsetMapper;
-import io.vertx.eventx.infra.pg.mappers.OffsetMapper;
+import io.vertx.eventx.core.objects.JournalOffsetBuilder;
 import io.vertx.eventx.infrastructure.OffsetStore;
 import io.vertx.eventx.infra.pg.models.EventJournalOffSet;
 import io.vertx.eventx.infra.pg.models.EventJournalOffSetKey;
-import io.vertx.eventx.objects.JournalOffset;
-import io.vertx.eventx.objects.JournalOffsetBuilder;
-import io.vertx.eventx.objects.JournalOffsetKey;
+import io.vertx.eventx.core.objects.JournalOffset;
+import io.vertx.eventx.core.objects.JournalOffsetKey;
 import io.vertx.eventx.sql.LiquibaseHandler;
 import io.vertx.eventx.sql.Repository;
 
@@ -24,7 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 
 public class PgOffsetStore implements OffsetStore {
   private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> repository;
@@ -56,7 +54,6 @@ public class PgOffsetStore implements OffsetStore {
 
   @Override
   public Uni<JournalOffset> get(JournalOffsetKey journalOffset) {
-    // todo if not present create
     return repository.selectByKey(new EventJournalOffSetKey(journalOffset.consumer(), journalOffset.tenantId()))
       .map(PgOffsetStore::getJournalOffset)
       .onFailure(NotFound.class).recoverWithUni(put(JournalOffsetBuilder.builder()
@@ -71,12 +68,12 @@ public class PgOffsetStore implements OffsetStore {
 
 
   private static JournalOffset getJournalOffset(EventJournalOffSet offset) {
-    return new JournalOffset(
-      offset.consumer(),
-      offset.baseRecord().tenantId(),
-      offset.idOffSet(),
-      offset.eventVersionOffset()
-    );
+    return JournalOffsetBuilder.builder()
+      .consumer(offset.consumer())
+      .eventVersionOffset(offset.eventVersionOffset())
+      .idOffSet(offset.idOffSet())
+      .tenantId(offset.baseRecord().tenantId())
+      .build();
   }
 
   @Override
@@ -93,4 +90,5 @@ public class PgOffsetStore implements OffsetStore {
       Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );
   }
+
 }

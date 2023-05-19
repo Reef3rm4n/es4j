@@ -17,10 +17,10 @@ import io.vertx.eventx.task.CronTaskDeployer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.eventx.Aggregate;
-import io.vertx.eventx.core.AggregateBridge;
-import io.vertx.eventx.core.AggregateHeartbeat;
-import io.vertx.eventx.core.EventProjectionPoller;
-import io.vertx.eventx.core.StateProjectionPoller;
+import io.vertx.eventx.core.verticles.AggregateBridge;
+import io.vertx.eventx.core.tasks.AggregateHeartbeat;
+import io.vertx.eventx.core.tasks.EventProjectionPoller;
+import io.vertx.eventx.core.tasks.StateProjectionPoller;
 
 import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.task.TimerTaskDeployer;

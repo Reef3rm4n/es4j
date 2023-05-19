@@ -7,7 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
-import io.vertx.eventx.objects.AggregateState;
+import io.vertx.eventx.core.objects.AggregateState;
 
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;

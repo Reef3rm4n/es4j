@@ -1,8 +1,8 @@
 package io.vertx.eventx.test.infrastructure.hashing;
 
 
-import io.vertx.eventx.consistenthashing.Consistent;
-import io.vertx.eventx.consistenthashing.member.Member;
+import io.vertx.eventx.infrastructure.consistenthashing.Consistent;
+import io.vertx.eventx.infrastructure.consistenthashing.member.Member;
 
 import java.util.*;
 

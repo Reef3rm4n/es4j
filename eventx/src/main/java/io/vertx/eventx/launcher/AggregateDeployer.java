@@ -8,6 +8,11 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
+import io.vertx.eventx.core.projections.EventbusEventStream;
+import io.vertx.eventx.core.tasks.AggregateHeartbeat;
+import io.vertx.eventx.core.tasks.EventProjectionPoller;
+import io.vertx.eventx.core.tasks.StateProjectionPoller;
+import io.vertx.eventx.core.verticles.AggregateVerticle;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
@@ -15,19 +20,17 @@ import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.EventProjection;
 import io.vertx.eventx.StateProjection;
 import io.vertx.eventx.config.ConfigurationHandler;
-import io.vertx.eventx.core.*;
 import io.vertx.eventx.infrastructure.*;
 import io.vertx.eventx.infrastructure.misc.CustomClassLoader;
 import io.vertx.eventx.infrastructure.proxy.AggregateEventBusPoxy;
-import io.vertx.eventx.objects.StateProjectionWrapper;
+import io.vertx.eventx.core.objects.StateProjectionWrapper;
 import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.ArrayList;
-import java.util.StringJoiner;
 import java.util.function.Supplier;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 import static io.vertx.eventx.infrastructure.bus.AggregateBus.eventbusBridge;
 import static io.vertx.eventx.launcher.EventxMain.*;
 
@@ -141,7 +144,7 @@ public class AggregateDeployer<T extends Aggregate> {
     EVENT_PROJECTIONS.addAll(eventProjections);
     EVENT_PROJECTIONS.add(
       new EventProjectionPoller(
-        new EventbusEventProjection(vertx, aggregateClass),
+        new EventbusEventStream(vertx, aggregateClass),
         infrastructure.eventStore(),
         infrastructure.offsetStore()
       )

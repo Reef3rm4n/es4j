@@ -5,9 +5,7 @@ import com.cronutils.model.CronType;
 import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.parser.CronParser;
 import io.smallrye.mutiny.Uni;
-import io.vertx.eventx.objects.AggregateState;
-
-import java.time.Duration;
+import io.vertx.eventx.core.objects.AggregateState;
 
 public interface StateProjection<T extends Aggregate> {
 

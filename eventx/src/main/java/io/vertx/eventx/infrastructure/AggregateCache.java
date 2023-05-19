@@ -3,7 +3,7 @@ package io.vertx.eventx.infrastructure;
 import io.smallrye.mutiny.Uni;
 import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.models.AggregateKey;
-import io.vertx.eventx.objects.AggregateState;
+import io.vertx.eventx.core.objects.AggregateState;
 
 public interface AggregateCache {
   <T extends Aggregate> AggregateState<T> get(AggregateKey<T> aggregateKey);

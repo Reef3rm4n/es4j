@@ -2,7 +2,7 @@ package io.vertx.eventx.test.infrastructure.taskqueue;
 
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
-import io.vertx.eventx.objects.EventxModule;
+import io.vertx.eventx.core.objects.EventxModule;
 
 public class TestModule extends EventxModule {
 

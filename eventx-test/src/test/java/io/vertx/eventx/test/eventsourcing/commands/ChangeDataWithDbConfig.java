@@ -1,7 +1,7 @@
 package io.vertx.eventx.test.eventsourcing.commands;
 
 import io.vertx.eventx.Command;
-import io.vertx.eventx.objects.CommandHeaders;
+import io.vertx.eventx.core.objects.CommandHeaders;
 
 import java.util.Map;
 

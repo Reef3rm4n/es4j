@@ -2,7 +2,7 @@ package io.vertx.eventx.infrastructure.bus;
 
 import io.vertx.eventx.Aggregate;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 
 public class AddressResolver {
 

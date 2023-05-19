@@ -1,12 +1,10 @@
 package io.vertx.eventx.test.eventsourcing.domain;
 
-import io.activej.inject.annotation.Eager;
 import io.activej.inject.annotation.Inject;
-import io.activej.inject.annotation.Named;
 import io.activej.inject.annotation.Provides;
 import io.vertx.eventx.config.DBConfig;
 import io.vertx.eventx.config.FSConfig;
-import io.vertx.eventx.objects.EventxModule;
+import io.vertx.eventx.core.objects.EventxModule;
 import io.vertx.eventx.sql.RepositoryHandler;
 import io.vertx.eventx.test.eventsourcing.behaviours.*;
 

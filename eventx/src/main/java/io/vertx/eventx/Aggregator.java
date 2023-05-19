@@ -1,9 +1,9 @@
 package io.vertx.eventx;
 
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.exceptions.UnknownEvent;
-import io.vertx.eventx.objects.ErrorSource;
-import io.vertx.eventx.objects.EventxError;
+import io.vertx.eventx.core.exceptions.UnknownEvent;
+import io.vertx.eventx.core.objects.ErrorSource;
+import io.vertx.eventx.core.objects.EventxError;
 
 public interface Aggregator<T extends Aggregate, E extends Event> {
 

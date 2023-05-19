@@ -1,12 +1,12 @@
 package io.vertx.eventx;
 
 import io.smallrye.mutiny.Uni;
-import io.vertx.eventx.objects.AggregateState;
+import io.vertx.eventx.core.objects.AggregateState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.vertx.eventx.exceptions.CommandRejected;
-import io.vertx.eventx.objects.EventxError;
+import io.vertx.eventx.core.exceptions.CommandRejected;
+import io.vertx.eventx.core.objects.EventxError;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.HttpResponse;
 import io.vertx.mutiny.ext.web.client.WebClient;
@@ -14,7 +14,7 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 import java.util.Objects;
 import java.util.StringJoiner;
 
-import static io.vertx.eventx.core.AggregateVerticleLogic.camelToKebab;
+import static io.vertx.eventx.core.CommandHandler.camelToKebab;
 
 public class AggregateHttpClient<T extends Aggregate> {
 

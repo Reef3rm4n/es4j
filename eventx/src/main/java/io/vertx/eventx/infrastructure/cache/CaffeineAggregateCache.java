@@ -5,7 +5,7 @@ import io.vertx.eventx.Aggregate;
 import io.vertx.eventx.infrastructure.AggregateCache;
 import io.vertx.eventx.infrastructure.models.AggregateKey;
 import io.vertx.eventx.infrastructure.models.AggregatePlainKey;
-import io.vertx.eventx.objects.AggregateState;
+import io.vertx.eventx.core.objects.AggregateState;
 import org.jetbrains.annotations.NotNull;
 
 
