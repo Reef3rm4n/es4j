@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>io.vertx.eventx</groupId>
+    <groupId>io.eventx</groupId>
     <artifactId>eventx-infrastructure</artifactId>
     <version>${revision}</version>
   </parent>
@@ -20,7 +20,7 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.vertx.eventx</groupId>
+        <groupId>io.eventx</groupId>
         <artifactId>eventx-dependencies</artifactId>
         <version>${project.version}</version>
         <type>pom</type>
@@ -32,7 +32,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.vertx.eventx</groupId>
+      <groupId>io.eventx</groupId>
       <artifactId>eventx-sql</artifactId>
       <version>${project.version}</version>
     </dependency>
@@ -42,7 +42,7 @@
       <version>9.2.0</version>
     </dependency>
     <dependency>
-      <groupId>io.vertx.eventx</groupId>
+      <groupId>io.eventx</groupId>
       <artifactId>eventx-queue</artifactId>
       <version>${project.version}</version>
     </dependency>
