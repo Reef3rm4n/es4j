@@ -14,7 +14,7 @@ import io.vertx.mutiny.core.Vertx;
 
 import java.util.*;
 
-public class DBConfig<T extends ConfigurationEntry> {
+public class DBConfig<T extends Configuration> {
   private final Vertx vertx;
   private final Class<T> tClass;
   private final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository;
@@ -51,12 +51,12 @@ public class DBConfig<T extends ConfigurationEntry> {
       .map(configuration -> configuration.data().mapTo(tClass));
   }
 
-  public Uni<Void> addAll(List<? extends ConfigurationEntry> configurationEntries) {
+  public Uni<Void> addAll(List<? extends Configuration> configurationEntries) {
     final var entries = configurationEntries.stream().map(DBConfig::map).toList();
     return repository.insertBatch(entries);
   }
 
-  private static ConfigurationRecord map(ConfigurationEntry data) {
+  private static ConfigurationRecord map(Configuration data) {
     return new ConfigurationRecord(
       data.name(),
       data.description(),
@@ -68,7 +68,7 @@ public class DBConfig<T extends ConfigurationEntry> {
     );
   }
 
-  public Uni<Void> updateAll(List<? extends ConfigurationEntry> configurationEntries) {
+  public Uni<Void> updateAll(List<? extends Configuration> configurationEntries) {
     final var entries = configurationEntries.stream().map(DBConfig::map).toList();
     return repository.updateByKeyBatch(entries);
   }

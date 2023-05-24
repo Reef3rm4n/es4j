@@ -3,7 +3,7 @@ package io.eventx.config;
 
 import io.vertx.core.json.JsonObject;
 
-public record FSConfig<T extends ConfigurationEntry> (
+public record FSConfig<T extends Configuration> (
   Class<T> tClass,
   String name
 ) {

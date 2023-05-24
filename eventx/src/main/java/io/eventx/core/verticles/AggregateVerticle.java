@@ -4,6 +4,7 @@ package io.eventx.core.verticles;
 import io.activej.inject.Injector;
 import io.activej.inject.module.ModuleBuilder;
 import io.eventx.core.objects.*;
+import io.eventx.infrastructure.cache.CaffeineAggregateCache;
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.eventx.Event;
@@ -69,7 +70,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
     this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
     this.infrastructure = new Infrastructure(
-      injector.getInstance(AggregateCache.class),
+      new CaffeineAggregateCache(),
       injector.getInstance(EventStore.class),
       injector.getInstance(OffsetStore.class)
     );

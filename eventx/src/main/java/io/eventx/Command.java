@@ -3,11 +3,16 @@ package io.eventx;
 
 import io.eventx.core.objects.CommandHeaders;
 import io.eventx.core.objects.CommandOptions;
+import io.vertx.core.shareddata.Shareable;
 
-public interface Command {
+import java.io.Serializable;
+
+public interface Command extends Shareable, Serializable {
   String aggregateId();
 
-  CommandHeaders headers();
+  default CommandHeaders headers() {
+    return CommandHeaders.defaultHeaders();
+  }
 
   default CommandOptions options() {
     return CommandOptions.defaultOptions();

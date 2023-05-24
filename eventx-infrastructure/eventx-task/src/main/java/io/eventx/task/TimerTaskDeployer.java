@@ -37,6 +37,7 @@ public class TimerTaskDeployer {
 
   public static void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Duration throttle) {
     timers.remove(taskWrapper.task().getClass());
+    taskWrapper.logger().info("Starting task");
     final var timerId = vertx.setTimer(
       throttle.toMillis(),
       delay -> {
@@ -52,7 +53,7 @@ public class TimerTaskDeployer {
           .with(avoid -> {
               final var end = Instant.now();
               final var emptyTaskBackOff = taskWrapper.task().configuration().throttle();
-              taskWrapper.logger().info("Task ran in " + Duration.between(start, end).toMillis() + "ms. Throttling for " + emptyTaskBackOff + "ms");
+              taskWrapper.logger().info("Task ran in " + Duration.between(start, end).toMillis() + "ms. Next execution in " + emptyTaskBackOff.getSeconds() + "s");
               triggerTask(taskWrapper, vertx, emptyTaskBackOff);
             },
             throwable -> {

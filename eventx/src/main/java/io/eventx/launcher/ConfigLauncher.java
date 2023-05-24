@@ -119,7 +119,7 @@ public class ConfigLauncher {
   private static Object handleMessage(final ConfigurationKey key, final ConfigurationRecord updatedConfig, final Throwable failure) {
     final var currentCachedEntry = DbConfigCache.get(parseKey(updatedConfig));
     // if updated config active
-    ConfigurationEntry currentConfigState = null;
+    Configuration currentConfigState = null;
     if (currentCachedEntry != null) {
       currentConfigState = mapData(currentCachedEntry, updatedConfig.tClass());
     }
@@ -199,18 +199,18 @@ public class ConfigLauncher {
     LOGGER.info("Pg subscription dropped");
   }
 
-  private static ConfigurationEntry mapData(final ConfigurationRecord item) {
+  private static Configuration mapData(final ConfigurationRecord item) {
     try {
-      return (ConfigurationEntry) item.data().mapTo(Class.forName(item.tClass()));
+      return (Configuration) item.data().mapTo(Class.forName(item.tClass()));
     } catch (ClassNotFoundException e) {
       LOGGER.error("Unable to cast configuration using class for name");
       throw new IllegalArgumentException(e);
     }
   }
 
-  private static ConfigurationEntry mapData(final JsonObject item, final String tClass) {
+  private static Configuration mapData(final JsonObject item, final String tClass) {
     try {
-      return (ConfigurationEntry) item.mapTo(Class.forName(tClass));
+      return (Configuration) item.mapTo(Class.forName(tClass));
     } catch (ClassNotFoundException e) {
       LOGGER.error("Unable to cast configuration using class for name");
       throw new IllegalArgumentException(e);

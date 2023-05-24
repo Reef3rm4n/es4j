@@ -13,8 +13,8 @@ public class HttpBridgeModule extends EventxModule {
 
   @Provides
   @Inject
-  Bridge bridge(final CommandAuth commandAuth, final List<HttpRoute> routes, final List<HealthCheck> healthChecks) {
-    return new HttpBridge(commandAuth,routes, healthChecks);
+  Bridge bridge(final List<HttpRoute> routes, final List<HealthCheck> healthChecks) {
+    return new HttpBridge(null, routes, healthChecks);
   }
 
   @Provides
@@ -29,14 +29,14 @@ public class HttpBridgeModule extends EventxModule {
     return CustomClassLoader.loadFromInjector(injector, HealthCheck.class);
   }
 
-  @Provides
-  @Inject
-  CommandAuth commandAuth(Injector injector) {
-    if (CustomClassLoader.checkPresence(injector,CommandAuth.class)) {
-
-    }
-    return CustomClassLoader.loadFromInjectorClass(injector, CommandAuth.class)
-      .stream().findFirst().orElse(null);
-  }
+//  @Provides
+//  @Inject
+//  CommandAuth commandAuth(Injector injector) {
+//    if (CustomClassLoader.checkPresence(injector, CommandAuth.class)) {
+//      return CustomClassLoader.loadFromInjectorClass(injector, CommandAuth.class)
+//        .stream().findFirst().orElse(null);
+//    }
+//    return null;
+//  }
 
 }

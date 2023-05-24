@@ -12,6 +12,7 @@ import io.eventx.infrastructure.AggregateCache;
 import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.Infrastructure;
 import io.eventx.infrastructure.OffsetStore;
+import io.eventx.infrastructure.cache.CaffeineAggregateCache;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
@@ -108,7 +109,7 @@ public class AggregateDeployer<T extends Aggregate> {
 
   private Uni<Injector> infrastructure(Injector injector) {
     this.infrastructure = new Infrastructure(
-      injector.getInstance(AggregateCache.class),
+      new CaffeineAggregateCache(),
       injector.getInstance(EventStore.class),
       injector.getInstance(OffsetStore.class)
     );

@@ -1,6 +1,6 @@
 package io.eventx.test.domain;
 
-import io.eventx.config.ConfigurationEntry;
+import io.eventx.config.Configuration;
 
 import java.util.Map;
 
@@ -9,7 +9,7 @@ public record DataConfiguration(
   String description,
   Map<String, Object> data
 
-) implements ConfigurationEntry {
+) implements Configuration {
 
   @Override
   public String name() {

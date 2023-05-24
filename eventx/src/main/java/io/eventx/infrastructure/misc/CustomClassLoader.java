@@ -17,6 +17,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 
 public class CustomClassLoader {
@@ -31,7 +32,7 @@ public class CustomClassLoader {
   }
 
   public static Collection<Module> loadModules() {
-    return INTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream()
+    return Stream.concat(EXTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream(), INTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream())
       .map(CustomClassLoader::instantiate)
       .map(foundCLass -> {
           LOGGER.info("Event.x module found -> " + foundCLass.getClass().getName());
