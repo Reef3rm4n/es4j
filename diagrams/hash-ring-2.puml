@@ -1,0 +1,15 @@
+@startuml
+skinparam monochrome true
+skinparam state {
+  BackgroundColor White
+  BorderColor Black
+  FontColor Black
+}
+
+state "Hash Ring" as HR {
+  [*] --> Node1
+  Node1 --> Node2 : "hash function"
+  Node2 --> Node3 : "hash function"
+  Node3 --> Node1 : "hash function"
+}
+@enduml

@@ -11,7 +11,6 @@ import java.util.List;
 
 @RecordBuilder
 public record ConfigurationQuery(
-  List<String> name,
   List<String> tClasses,
   QueryOptions options
 

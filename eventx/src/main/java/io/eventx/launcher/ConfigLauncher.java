@@ -39,11 +39,11 @@ public class ConfigLauncher {
   public static Uni<Void> addConfigurations(Injector injector) {
     final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, RepositoryHandler.leasePool(injector.getInstance(JsonObject.class), injector.getInstance(Vertx.class)));
     final var configUni = new ArrayList<Uni<Void>>();
-    if (CustomClassLoader.checkPresence(injector, FSConfig.class)) {
+    if (CustomClassLoader.checkPresence(injector, FileBusinessRule.class)) {
       LOGGER.info("File-System configuration detected");
       configUni.add(fsConfigurations(injector));
     }
-    if (CustomClassLoader.checkPresence(injector, DBConfig.class)) {
+    if (CustomClassLoader.checkPresence(injector, DatabaseBusinessRule.class)) {
       LOGGER.info("Database configuration detected");
       configUni.add(dbConfigurations(injector.getInstance(RepositoryHandler.class), repository));
     }
@@ -55,25 +55,25 @@ public class ConfigLauncher {
 
   private static Uni<Void> fsConfigurations(Injector injector) {
     final var vertx = injector.getInstance(Vertx.class);
-    final var fsConfigs = CustomClassLoader.loadFromInjectorClass(injector, FSConfig.class);
-    final var promiseMap = fsConfigs.stream().map(cfg -> Map.entry(cfg.name(), Promise.promise()))
+    final var fsConfigs = CustomClassLoader.loadFromInjectorClass(injector, FileBusinessRule.class);
+    final var promiseMap = fsConfigs.stream().map(cfg -> Map.entry(cfg.fileName(), Promise.promise()))
       .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     CONFIG_RETRIEVERS.addAll(
       fsConfigs.stream()
         .map(fileConfiguration -> ConfigurationHandler.configure(
             vertx,
-            fileConfiguration.name(),
+            fileConfiguration.fileName(),
             newConfiguration -> {
               try {
-                LOGGER.info("Adding {} configuration to cache {}", fileConfiguration.name(), newConfiguration);
-                FsConfigCache.put(fileConfiguration.name(), newConfiguration);
-                final var promise = promiseMap.get(fileConfiguration.name());
+                LOGGER.info("Caching file configuration {} {}", fileConfiguration.fileName(), newConfiguration);
+                FsConfigCache.put(fileConfiguration.fileName(), newConfiguration);
+                final var promise = promiseMap.get(fileConfiguration.fileName());
                 if (promise != null) {
                   promise.complete();
                 }
               } catch (Exception e) {
-                LOGGER.error("Unable to consume file {} {}", fileConfiguration.name(), newConfiguration, e);
-                final var promise = promiseMap.get(fileConfiguration.name());
+                LOGGER.error("Unable to consume file configuration {} {}", fileConfiguration.fileName(), newConfiguration, e);
+                final var promise = promiseMap.get(fileConfiguration.fileName());
                 if (promise != null) {
                   promise.complete();
                 }
@@ -93,7 +93,6 @@ public class ConfigLauncher {
       RepositoryHandler.connectionOptions(repositoryHandler.configuration())
     );
     PG_SUBSCRIBER.reconnectPolicy(integer -> 0L);
-    // todo put schema in the channel
     final var pgChannel = PG_SUBSCRIBER.channel(CommandHandler.camelToKebab(repositoryHandler.configuration().getString("schema")) + "_configuration_channel");
     pgChannel.handler(id -> {
           final ConfigurationKey key = configurationKey(id);
@@ -119,7 +118,7 @@ public class ConfigLauncher {
   private static Object handleMessage(final ConfigurationKey key, final ConfigurationRecord updatedConfig, final Throwable failure) {
     final var currentCachedEntry = DbConfigCache.get(parseKey(updatedConfig));
     // if updated config active
-    Configuration currentConfigState = null;
+    BusinessRule currentConfigState = null;
     if (currentCachedEntry != null) {
       currentConfigState = mapData(currentCachedEntry, updatedConfig.tClass());
     }
@@ -141,7 +140,7 @@ public class ConfigLauncher {
     return updatedConfig;
   }
 
-  private static String parseKey(ConfigurationKey key) {
+  public static String parseKey(ConfigurationKey key) {
     return new StringJoiner("::")
       .add(key.tenantId())
       .add(key.tClass())
@@ -156,23 +155,21 @@ public class ConfigLauncher {
   }
 
   private static ConfigurationKey configurationKey(final String id) {
-    LOGGER.info("Parsing channel message {}", id);
+    LOGGER.debug("Parsing channel message {}", id);
     final var splitId = id.split("::");
-    final var name = splitId[0];
-    final var tClass = splitId[1];
-    final var tenant = splitId[2];
-    final var revision = Integer.parseInt(splitId[3]);
-    return new ConfigurationKey(name, tClass, revision, tenant);
+    final var tClass = splitId[0];
+    final var tenant = splitId[1];
+    final var revision = Integer.parseInt(splitId[2]);
+    return new ConfigurationKey(tClass, revision, tenant);
   }
 
   private static Uni<Void> warmCaches(final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
     return repository.stream(configurationRecord -> {
-        final var key = new ConfigurationKey(configurationRecord.name(), configurationRecord.tClass(), configurationRecord.revision(), configurationRecord.baseRecord().tenantId());
+        final var key = new ConfigurationKey(configurationRecord.tClass(), configurationRecord.revision(), configurationRecord.baseRecord().tenantId());
         handleMessage(key, configurationRecord, null);
       }
       ,
       new ConfigurationQuery(
-        null,
         null,
         QueryOptions.simple()
       )
@@ -199,20 +196,20 @@ public class ConfigLauncher {
     LOGGER.info("Pg subscription dropped");
   }
 
-  private static Configuration mapData(final ConfigurationRecord item) {
+  private static BusinessRule mapData(final ConfigurationRecord item) {
     try {
-      return (Configuration) item.data().mapTo(Class.forName(item.tClass()));
+      return (BusinessRule) item.data().mapTo(Class.forName(item.tClass()));
     } catch (ClassNotFoundException e) {
-      LOGGER.error("Unable to cast configuration using class for name");
+      LOGGER.error("Unable to cast configuration using class for fileName");
       throw new IllegalArgumentException(e);
     }
   }
 
-  private static Configuration mapData(final JsonObject item, final String tClass) {
+  private static BusinessRule mapData(final JsonObject item, final String tClass) {
     try {
-      return (Configuration) item.mapTo(Class.forName(tClass));
+      return (BusinessRule) item.mapTo(Class.forName(tClass));
     } catch (ClassNotFoundException e) {
-      LOGGER.error("Unable to cast configuration using class for name");
+      LOGGER.error("Unable to cast configuration using class for {} to class {}", item.encodePrettily(), tClass, e);
       throw new IllegalArgumentException(e);
     }
   }

@@ -3,6 +3,7 @@ package io.eventx.http;
 import io.activej.inject.Injector;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
+import io.activej.inject.binding.OptionalDependency;
 import io.eventx.core.objects.EventxModule;
 import io.eventx.infrastructure.Bridge;
 import io.eventx.infrastructure.misc.CustomClassLoader;
@@ -13,8 +14,8 @@ public class HttpBridgeModule extends EventxModule {
 
   @Provides
   @Inject
-  Bridge bridge(final List<HttpRoute> routes, final List<HealthCheck> healthChecks) {
-    return new HttpBridge(null, routes, healthChecks);
+  Bridge bridge(OptionalDependency<CommandAuth> commandAuth, final List<HttpRoute> routes, final List<HealthCheck> healthChecks) {
+    return new HttpBridge(commandAuth, routes, healthChecks);
   }
 
   @Provides
@@ -29,14 +30,14 @@ public class HttpBridgeModule extends EventxModule {
     return CustomClassLoader.loadFromInjector(injector, HealthCheck.class);
   }
 
-//  @Provides
-//  @Inject
-//  CommandAuth commandAuth(Injector injector) {
-//    if (CustomClassLoader.checkPresence(injector, CommandAuth.class)) {
-//      return CustomClassLoader.loadFromInjectorClass(injector, CommandAuth.class)
-//        .stream().findFirst().orElse(null);
-//    }
-//    return null;
-//  }
+  @Provides
+  @Inject
+  OptionalDependency<CommandAuth> commandAuth(Injector injector) {
+    if (CustomClassLoader.checkPresence(injector, CommandAuth.class)) {
+      return OptionalDependency.of(CustomClassLoader.loadFromInjectorClass(injector, CommandAuth.class)
+        .stream().findFirst().orElseThrow());
+    }
+    return OptionalDependency.empty();
+  }
 
 }

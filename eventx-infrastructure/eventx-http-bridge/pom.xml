@@ -46,7 +46,7 @@
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-micrometer-metrics</artifactId>
-      <version>4.3.5</version>
+      <version>${vertx.version}</version>
     </dependency>
     <dependency>
       <groupId>io.micrometer</groupId>
@@ -64,6 +64,14 @@
     <dependency>
       <groupId>io.smallrye.reactive</groupId>
       <artifactId>smallrye-mutiny-vertx-auth-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.smallrye</groupId>
+      <artifactId>smallrye-open-api-jaxrs</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>javax.ws.rs</groupId>
+      <artifactId>javax.ws.rs-api</artifactId>
     </dependency>
   </dependencies>
 </project>

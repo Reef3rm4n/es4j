@@ -18,4 +18,7 @@ public interface Event extends Shareable, Serializable {
     return Collections.emptyList();
   }
 
+  // todo add mandatory event-type and use that instead of the event class when storing in event log
+  // at startup save the map of event-type -> class
+
 }

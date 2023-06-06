@@ -149,7 +149,6 @@ public class CommandHandler<T extends Aggregate> {
 
   private List<Event> applyCommandBehaviour(final T aggregateState, final Command command) {
     final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
-    behaviour.delegate().requiredRoles();
     LOGGER.debug("Applying {} {} ", behaviour.delegate().getClass().getSimpleName(), JsonObject.mapFrom(command));
     final var events = behaviour.process(aggregateState, command);
     LOGGER.debug("{} behaviour produced {}", behaviour.delegate().getClass().getSimpleName(), new JsonArray(events).encodePrettily());
@@ -360,7 +359,7 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   private void publishStateToEventBus(AggregateState<T> state) {
-    final var address = EventbusStateProjection.subscriptionAddress(state.aggregateClass(), state.state().tenantID());
+    final var address = EventbusStateProjection.subscriptionAddress(state.aggregateClass(), state.state().tenant());
     try {
       vertx.eventBus().publish(address, state.toJson(), new DeliveryOptions().setLocalOnly(false).setTracingPolicy(TracingPolicy.ALWAYS));
     } catch (Exception exception) {
@@ -391,7 +390,7 @@ public class CommandHandler<T extends Aggregate> {
         new AggregateKey<>(
           aggregateClass,
           state.state().aggregateId(),
-          state.state().tenantID()
+          state.state().tenant()
         ),
         state);
     }
@@ -403,7 +402,7 @@ public class CommandHandler<T extends Aggregate> {
       new AppendInstruction<>(
         aggregateClass,
         state.state().aggregateId(),
-        state.state().tenantID(),
+        state.state().tenant(),
         events
       )
     );

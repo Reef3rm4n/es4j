@@ -12,7 +12,7 @@ import java.util.*;
 public class ConfigurationRecordMapper implements RecordMapper<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> {
 
   public static final ConfigurationRecordMapper INSTANCE = new ConfigurationRecordMapper();
-  public static final String NAME = "name";
+  public static final String NAME = "fileName";
   public static final String CLASS = "class";
   public static final String DATA = "data";
   public static final String CONFIGURATION = "configuration";
@@ -30,7 +30,7 @@ public class ConfigurationRecordMapper implements RecordMapper<ConfigurationKey,
 
   @Override
   public Set<String> columns() {
-    return Set.of(NAME, CLASS, DATA, REVISION, DESCRIPTION, ACTIVE);
+    return Set.of(CLASS, DATA, REVISION, DESCRIPTION, ACTIVE);
   }
 
   @Override
@@ -41,7 +41,6 @@ public class ConfigurationRecordMapper implements RecordMapper<ConfigurationKey,
   @Override
   public ConfigurationRecord rowMapper(Row row) {
     return new ConfigurationRecord(
-      row.getString(NAME),
       row.getString(DESCRIPTION),
       row.getInteger(REVISION),
       row.getString(CLASS),
@@ -53,7 +52,6 @@ public class ConfigurationRecordMapper implements RecordMapper<ConfigurationKey,
 
   @Override
   public void params(Map<String, Object> params, ConfigurationRecord actualRecord) {
-    params.put(NAME, actualRecord.name());
     params.put(CLASS, actualRecord.tClass());
     params.put(DATA, actualRecord.data());
     params.put(ACTIVE, actualRecord.active());
@@ -63,7 +61,6 @@ public class ConfigurationRecordMapper implements RecordMapper<ConfigurationKey,
 
   @Override
   public void keyParams(Map<String, Object> params, ConfigurationKey key) {
-    params.put(NAME, key.name());
     params.put(CLASS, key.tClass());
     params.put(REVISION, key.revision());
   }
@@ -73,13 +70,8 @@ public class ConfigurationRecordMapper implements RecordMapper<ConfigurationKey,
     builder
       .iLike(
         new QueryFilters<>(String.class)
-        .filterColumn(NAME)
-        .filterParams(query.name())
-      )
-      .iLike(
-        new QueryFilters<>(String.class)
-        .filterColumn(CLASS)
-        .filterParams(query.tClasses())
+          .filterColumn(CLASS)
+          .filterParams(query.tClasses())
       );
   }
 }

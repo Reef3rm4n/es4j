@@ -13,7 +13,7 @@ public interface Aggregate extends Shareable, Serializable {
 
   String aggregateId();
 
-  default String tenantID() {
+  default String tenant() {
     return "default";
   }
 
@@ -28,7 +28,7 @@ public interface Aggregate extends Shareable, Serializable {
   default Aggregate transformSnapshot(int schemaVersion, JsonObject snapshot) {
     throw new UnknownEvent(new EventxError(
       ErrorSource.LOGIC,
-      Aggregator.class.getName(),
+      EventBehaviour.class.getName(),
       "missing schema versionTo " + schemaVersion,
       "could not transform event",
       "aggregate.event.transform",

@@ -1,0 +1,91 @@
+@startuml
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+}
+
+participant "Event.x Bus" as LB
+note over LB: the bus is embeded in each node \n this is just to make the visualization easier
+database "Node 1" as N1
+database "Node 2" as N2
+database "Node 3" as N3
+== "Node 1" Sync ==
+
+N1 -> LB : PublishNodeHeartBeat(topic, message)
+activate LB
+LB -> N1 : Relay(topic, message)
+activate N1
+N1 ->> N1 : addNodeToHashRing(topic, message)
+deactivate N1
+
+LB -> N2 : Relay(topic, message)
+activate N2
+N2 ->> N2 : addNodeToHashRing(topic, message)
+deactivate N2
+
+LB -> N3 : Relay(topic, message)
+activate N3
+N3 ->> N3 : addNodeToHashRing(topic, message)
+deactivate N3
+
+deactivate LB
+
+== "Node 2" Sync ==
+
+N2 -> LB : PublishNodeHeartBeat(topic, message)
+activate LB
+
+LB -> N1 : Relay(topic, message)
+activate N1
+N1 ->> N1 : addNodeToHashRing(topic, message)
+deactivate N1
+
+LB -> N2 : Relay(topic, message)
+activate N2
+N2 ->> N2 : addNodeToHashRing(topic, message)
+deactivate N2
+
+LB -> N3 : Relay(topic, message)
+activate N3
+N3 ->> N3 : addNodeToHashRing(topic, message)
+deactivate N3
+
+deactivate LB
+
+
+== "Node 3" Sync ==
+
+N3 -> LB : PublishNodeHeartBeat(topic, message)
+activate LB
+
+LB -> N1 : Relay(topic, message)
+activate N1
+N1 ->> N1 : addNodeToHashRing(topic, message)
+deactivate N1
+
+LB -> N2 : Relay(topic, message)
+activate N2
+N2 ->> N2 : addNodeToHashRing(topic, message)
+deactivate N2
+
+LB -> N3 : Relay(topic, message)
+activate N3
+N3 ->> N3 : addNodeToHashRing(topic, message)
+deactivate N3
+
+deactivate LB
+
+note over LB: synchronization happens concurrently
+
+@enduml

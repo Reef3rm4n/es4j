@@ -86,7 +86,7 @@ public class PgOffsetStore implements OffsetStore {
     LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
       repository.repositoryHandler(),
-      "pg-offset-store.xml",
+            "pg-offset-store.xml",
       Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );
   }

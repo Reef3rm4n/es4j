@@ -10,7 +10,6 @@ import io.smallrye.mutiny.tuples.Tuple2;
 import io.eventx.Event;
 import io.eventx.core.CommandHandler;
 import io.eventx.core.exceptions.EventxException;
-import io.eventx.infrastructure.AggregateCache;
 import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.Infrastructure;
 import io.eventx.infrastructure.OffsetStore;
@@ -19,9 +18,9 @@ import io.eventx.infrastructure.misc.CustomClassLoader;
 import io.eventx.launcher.EventxMain;
 import io.vertx.mutiny.core.Vertx;
 import io.eventx.Command;
-import io.eventx.Behaviour;
+import io.eventx.CommandBehaviour;
 import io.eventx.Aggregate;
-import io.eventx.Aggregator;
+import io.eventx.EventBehaviour;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.mutiny.core.eventbus.Message;
@@ -42,7 +41,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateVerticle.class);
 
   public static final String ACTION = "action";
-  public static final String CLASS_NAME = "className";
   private final ModuleBuilder moduleBuilder;
   private final Class<T> aggregateClass;
   private final String deploymentID;
@@ -123,7 +121,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   }
 
   public static <T extends Aggregate> List<BehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
-    final var behaviours = CustomClassLoader.loadFromInjector(injector, Behaviour.class).stream()
+    final var behaviours = CustomClassLoader.loadFromInjector(injector, CommandBehaviour.class).stream()
       .filter(behaviour ->
         parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem1().isAssignableFrom(entityAggregateClass))
       .map(commandBehaviour -> {
@@ -149,7 +147,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   }
 
   public static <T extends Aggregate> List<AggregatorWrapper> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
-    final var aggregators = CustomClassLoader.loadFromInjector(injector, Aggregator.class).stream()
+    final var aggregators = CustomClassLoader.loadFromInjector(injector, EventBehaviour.class).stream()
       .map(aggregator -> {
           final var genericTypes = parseAggregatorClass(aggregator.getClass());
           return new AggregatorWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
@@ -168,7 +166,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     return aggregators;
   }
 
-  public static Tuple2<Class<? extends Aggregate>, Class<?>> parseAggregatorClass(Class<? extends Aggregator> behaviour) {
+  public static Tuple2<Class<? extends Aggregate>, Class<?>> parseAggregatorClass(Class<? extends EventBehaviour> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -193,7 +191,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     }
   }
 
-  public static Tuple2<Class<? extends Aggregate>, Class<? extends Command>> parseCommandBehaviourGenericTypes(Class<? extends Behaviour> behaviour) {
+  public static Tuple2<Class<? extends Aggregate>, Class<? extends Command>> parseCommandBehaviourGenericTypes(Class<? extends CommandBehaviour> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
@@ -235,4 +233,5 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   public void afterRestore(Context<? extends Resource> context) throws Exception {
 
   }
+
 }

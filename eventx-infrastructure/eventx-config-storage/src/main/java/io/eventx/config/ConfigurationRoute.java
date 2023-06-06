@@ -24,7 +24,7 @@
 //          final var metadata = extractMetadata(routingContext);
 //          configuration.selectByTenant(metadata.tenant())
 //            .onItem().transformToUniAndMerge(cfg -> vertx.fileSystem()
-//              .createTempFile(cfg.name() + "_" + metadata.tenant().brandId() + "_" + metadata.tenant().partnerId(), ".json")
+//              .createTempFile(cfg.fileName() + "_" + metadata.tenant().brandId() + "_" + metadata.tenant().partnerId(), ".json")
 //              .call(filePath -> vertx.fileSystem().writeFile(filePath, Buffer.newInstance(JsonObject.mapFrom(cfg).toBuffer())))
 //            )
 //            .collect().asList()
@@ -49,10 +49,10 @@
 //                .onItem().transformToUniAndMerge(file -> vertx.fileSystem().readFile(file)
 //                  .flatMap(fileBuffer -> {
 //                      final var json = new JsonObject(fileBuffer.getDelegate());
-//                      final var name = json.getString("name");
+//                      final var fileName = json.getString("fileName");
 //                      final var tClass = json.getString("tClass");
 //                      final var data = json.getJsonObject("data");
-//                      return configuration.insert(new ConfigurationRecord(name, tClass, data, BaseRecord.newRecord(requestMetadata.tenant())));
+//                      return configuration.insert(new ConfigurationRecord(fileName, tClass, data, BaseRecord.newRecord(requestMetadata.tenant())));
 //                    }
 //                  )
 //                )
@@ -65,12 +65,12 @@
 //            .with(avoid -> noContent(routingContext), routingContext::fail);
 //        }
 //      );
-//    router.get("/configuration/:class/:name")
+//    router.get("/configuration/:class/:fileName")
 //      .handler(routingContext -> {
 //          final var tClass = routingContext.pathParam("class");
-//          final var name = routingContext.pathParam("name");
+//          final var fileName = routingContext.pathParam("fileName");
 //          final var metadata = extractMetadata(routingContext);
-//          configuration.selectByKey(new ConfigurationKey(name, tClass, metadata.tenant()))
+//          configuration.selectByKey(new ConfigurationKey(fileName, tClass, metadata.tenant()))
 //            .subscribe()
 //            .with(cfg -> ok(routingContext, cfg.data()), routingContext::fail);
 //        }
@@ -79,7 +79,7 @@
 //      .handler(routingContext -> {
 //          final var metadata = extractMetadata(routingContext);
 //          final var query = new ConfigurationQuery(
-//            routingContext.queryParam("name"),
+//            routingContext.queryParam("fileName"),
 //            routingContext.queryParam("class"),
 //            QueryOptions.from(null, metadata, getQueryOptions(routingContext))
 //          );
@@ -87,7 +87,7 @@
 //            .subscribe()
 //            .with(cfgs -> {
 //                final var configurations = cfgs.stream().map(cfg -> new JsonObject()
-//                  .put("name", cfg.name())
+//                  .put("fileName", cfg.fileName())
 //                  .put("tClass", cfg.tClass())
 //                  .put("data", cfg.data())
 //                  .put("lastUpdate", cfg.persistedRecord().lastUpdate())
@@ -99,34 +99,34 @@
 //            );
 //        }
 //      );
-//    router.delete("/configuration/:class/:name")
+//    router.delete("/configuration/:class/:fileName")
 //      .handler(routingContext -> {
 //          final var tClass = routingContext.pathParam("class");
-//          final var name = routingContext.pathParam("name");
+//          final var fileName = routingContext.pathParam("fileName");
 //          final var metadata = extractMetadata(routingContext);
-//          configuration.deleteByKey(new ConfigurationKey(name, tClass, metadata.tenant()))
+//          configuration.deleteByKey(new ConfigurationKey(fileName, tClass, metadata.tenant()))
 //            .subscribe()
 //            .with(cfg -> noContent(routingContext), routingContext::fail);
 //        }
 //      );
-//    router.put("/configuration/:class/:name")
+//    router.put("/configuration/:class/:fileName")
 //      .handler(routingContext -> {
 //          final var tClass = routingContext.pathParam("class");
-//          final var name = routingContext.pathParam("name");
+//          final var fileName = routingContext.pathParam("fileName");
 //          final var metadata = extractMetadata(routingContext);
 //          final var cfgData = routingContext.body().asJsonObject();
-//          configuration.updateByKey(new ConfigurationRecord(name, tClass, cfgData, BaseRecord.newRecord(metadata.tenant())))
+//          configuration.updateByKey(new ConfigurationRecord(fileName, tClass, cfgData, BaseRecord.newRecord(metadata.tenant())))
 //            .subscribe()
 //            .with(cfg -> ok(routingContext, cfg.data()), routingContext::fail);
 //        }
 //      );
-//    router.post("/configuration/:class/:name")
+//    router.post("/configuration/:class/:fileName")
 //      .handler(routingContext -> {
 //          final var tClass = routingContext.pathParam("class");
-//          final var name = routingContext.pathParam("name");
+//          final var fileName = routingContext.pathParam("fileName");
 //          final var metadata = extractMetadata(routingContext);
 //          final var cfgData = routingContext.body().asJsonObject();
-//          configuration.insert(new ConfigurationRecord(name, tClass, cfgData, BaseRecord.newRecord(metadata.tenant())))
+//          configuration.insert(new ConfigurationRecord(fileName, tClass, cfgData, BaseRecord.newRecord(metadata.tenant())))
 //            .subscribe()
 //            .with(cfg -> ok(routingContext, cfg.data()), routingContext::fail);
 //        }

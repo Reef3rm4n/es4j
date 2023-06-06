@@ -43,7 +43,7 @@ public class AggregateBus {
 
   private static HashRing<SimpleNode> startHashRing(Class<? extends Aggregate> aggregateClass) {
     return HashRing.<SimpleNode>newBuilder()
-      .name(aggregateClass.getName())       // set hash ring name
+      .name(aggregateClass.getName())       // set hash ring fileName
       .hasher(DefaultHasher.MURMUR_3)   // hash function to distribute partitions
       .partitionRate(100000)                  // number of partitions per node
       .build();

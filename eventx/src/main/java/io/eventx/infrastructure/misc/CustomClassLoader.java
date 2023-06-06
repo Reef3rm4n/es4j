@@ -32,6 +32,16 @@ public class CustomClassLoader {
   }
 
   public static Collection<Module> loadModules() {
+    if (PACKAGE_NAME.equals("io.eventx")) {
+      return INTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream()
+        .map(CustomClassLoader::instantiate)
+        .map(foundCLass -> {
+            LOGGER.info("Event.x module found -> " + foundCLass.getClass().getName());
+            return (Module) foundCLass;
+          }
+        )
+        .toList();
+    }
     return Stream.concat(EXTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream(), INTERNAL_REFLECTIONS.getSubTypesOf(EventxModule.class).stream())
       .map(CustomClassLoader::instantiate)
       .map(foundCLass -> {

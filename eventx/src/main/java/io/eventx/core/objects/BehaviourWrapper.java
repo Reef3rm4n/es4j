@@ -1,6 +1,6 @@
 package io.eventx.core.objects;
 
-import io.eventx.Behaviour;
+import io.eventx.CommandBehaviour;
 import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.Event;
@@ -8,7 +8,7 @@ import io.eventx.Event;
 import java.util.List;
 
 public record BehaviourWrapper<A extends Aggregate, C extends Command>(
-  Behaviour<A, C> delegate,
+  CommandBehaviour<A, C> delegate,
   Class<A> entityAggregateClass,
   Class<C> commandClass
 ) {

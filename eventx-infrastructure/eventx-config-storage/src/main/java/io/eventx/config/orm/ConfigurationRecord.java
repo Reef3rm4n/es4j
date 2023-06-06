@@ -8,7 +8,6 @@ import io.eventx.sql.models.RepositoryRecord;
 
 @RecordBuilder
 public record ConfigurationRecord(
-  String name,
   String description,
   Integer revision,
   String tClass,
@@ -18,9 +17,8 @@ public record ConfigurationRecord(
 ) implements RepositoryRecord<ConfigurationRecord> {
   @Override
   public ConfigurationRecord with(BaseRecord baseRecord) {
-    return new ConfigurationRecord(name, description, revision, tClass, data, active,baseRecord);
+    return new ConfigurationRecord(description, revision, tClass, data, active, baseRecord);
   }
-
 
 
 }

@@ -49,10 +49,10 @@ $$
       BEGIN
     if (TG_OP = 'DELETE' or TG_OP = 'TRUNCATE') then
         perform pg_notify('${schema}_configuration_channel',
-                          concat(OLD.name::text, '::', OLD.class::text, '::', OLD.tenant::text));
+                          concat(OLD.class::text, '::', OLD.tenant::text, '::', OLD.revision::text));
       else
         perform pg_notify('${schema}_configuration_channel',
-                          concat(NEW.name::text, '::', NEW.class::text, '::', NEW.tenant::text));
+                           concat(OLD.class::text, '::', OLD.tenant::text, '::', OLD.revision::text));
       end if;
       RETURN null;
       END;

@@ -1,10 +1,13 @@
 package io.eventx.http;
 
 
+import io.activej.inject.binding.OptionalDependency;
 import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.core.objects.EventxError;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.openapi.api.models.OpenAPIImpl;
+import io.smallrye.openapi.api.models.servers.ServerImpl;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.eventx.core.projections.EventbusEventStream;
@@ -17,6 +20,7 @@ import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.handler.sockjs.SockJSHandler;
+import org.eclipse.microprofile.openapi.models.OpenAPI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
@@ -52,12 +56,12 @@ public class HttpBridge implements Bridge {
   private final List<HealthCheck> healthChecks;
   private HttpServer httpServer;
   private Vertx vertx;
-  private final CommandAuth commandAuth;
+  private final OptionalDependency<CommandAuth> commandAuth;
 
   private final Map<Class<? extends Aggregate>, AggregateEventBusPoxy<? extends Aggregate>> proxies = new HashMap<>();
 
   public HttpBridge(
-    final CommandAuth commandAuth,
+    final OptionalDependency<CommandAuth> commandAuth,
     final List<HttpRoute> routes,
     final List<HealthCheck> healthChecks
   ) {
@@ -116,6 +120,7 @@ public class HttpBridge implements Bridge {
   }
 
   private void aggregateRoutes(Router router) {
+    //todo build openapi spec at run-time from commands
     EventxMain.AGGREGATE_COMMANDS.forEach((key, value) -> value.forEach(commandClass -> router.post(parsePath(key, commandClass))
         .consumes(Constants.APPLICATION_JSON)
         .produces(Constants.APPLICATION_JSON)
@@ -123,13 +128,7 @@ public class HttpBridge implements Bridge {
             final var command = new JsonObject()
               .put("commandClass", commandClass.getName())
               .put("command", routingContext.body().asJsonObject());
-            Optional.ofNullable(commandAuth).orElse((command1, headers) -> {
-                  LOGGER.warn("Default CommandAuth for {} {} {}", commandClass.getSimpleName(), command1, headers.entries());
-                  return Uni.createFrom().voidItem();
-                }
-              )
-              .validateCommand(routingContext.body().asJsonObject().mapTo(commandClass), routingContext.request().headers())
-              .flatMap(avoid -> proxies.get(key).forward(command))
+            proxies.get(key).forward(command)
               .subscribe()
               .with(
                 state -> okJson(routingContext, state.toJson()),

@@ -246,7 +246,7 @@ public record RepositoryHandler(
     return upstreamSupplier -> upstreamSupplier.get()
       .map(row -> {
           final var end = Instant.now();
-          logger.info(" Inserted  " + row.rowCount() + " record in " + Duration.between(start, end).toMillis() + "ms");
+          logger.info(" Inserted in " + Duration.between(start, end).toMillis() + "ms");
 //          return row != null && row.iterator().hasNext() ? row.iterator().next().getLong(ID) : null;
           return row.rowCount() == 0 ? null : (long) row.rowCount();
         }
@@ -262,7 +262,7 @@ public record RepositoryHandler(
     return upstreamSupplier -> upstreamSupplier.get()
       .onItem().transformToMulti(RowSet::toMulti).collect().asList()
       .map(Unchecked.function(list -> {
-            logger.debug("Fetched results -> " + list);
+            logger.debug("Fetched results {} ", list);
             final var end = Instant.now();
             if (size != list.size()) {
               throw new Conflict(

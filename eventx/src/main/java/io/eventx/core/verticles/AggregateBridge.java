@@ -52,7 +52,6 @@ public class AggregateBridge extends AbstractVerticle implements Resource {
   public Uni<Void> asyncStart() {
     final var injector = startInjector();
     this.bridges = CustomClassLoader.loadFromInjector(injector, Bridge.class);
-    LOGGER.info("Starting bridges {}", bridges);
     return Multi.createFrom().iterable(bridges)
       .onItem().transformToUniAndMerge(bridge -> bridge.start(vertx, config(), AGGREGATE_CLASSES))
       .collect().asList()

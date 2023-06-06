@@ -2,11 +2,14 @@ package io.eventx.http;
 
 import io.eventx.Aggregate;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonObject;
 import io.vertx.ext.healthchecks.Status;
+
+import java.util.Objects;
 
 import static io.eventx.infrastructure.bus.AggregateBus.HASH_RING_MAP;
 
-public class HashRingHealthCheck implements HealthCheck{
+public class HashRingHealthCheck implements HealthCheck {
 
   private final Class<? extends Aggregate> aggregateClass;
 
@@ -22,9 +25,14 @@ public class HashRingHealthCheck implements HealthCheck{
   // implement health check on aggregate bus
   @Override
   public Uni<Status> checkHealth() {
-    if (HASH_RING_MAP.isEmpty()) {
+    final var hashRing = HASH_RING_MAP.get(aggregateClass);
+    if (Objects.isNull(hashRing) || hashRing.getNodes().isEmpty()) {
       return Uni.createFrom().item(Status.KO());
     }
-    return Uni.createFrom().item(Status.OK());
+    final var jsonObject = new JsonObject();
+    hashRing.getNodes().forEach((value) -> jsonObject.put(value.getKey(), value.hashCode()));
+    return Uni.createFrom().item(Status.OK(
+      jsonObject
+    ));
   }
 }

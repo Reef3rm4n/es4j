@@ -34,7 +34,7 @@ public class ConfigurationHandler {
         .setOptional(false)
         .setConfig(new JsonObject()
           .put("namespace", KUBERNETES_NAMESPACE)
-          .put("name", configurationName)
+          .put("fileName", configurationName)
         );
       configRetrieverOptions.addStore(kubernetesStore);
       final var configurationRetriever = ConfigRetriever.create(vertx, configRetrieverOptions);

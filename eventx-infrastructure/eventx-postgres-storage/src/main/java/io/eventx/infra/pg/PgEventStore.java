@@ -130,7 +130,7 @@ public class PgEventStore implements EventStore {
     LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
       eventJournal.repositoryHandler(),
-      "pg-event-store.xml",
+            "pg-event-store.xml",
       Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );
   }

@@ -24,4 +24,8 @@ public class FsConfigCache {
     FS_CONFIG_CACHE.put(key, value);
   }
 
+  public static void delete(String key) {
+    FS_CONFIG_CACHE.invalidate(key);
+  }
+
 }

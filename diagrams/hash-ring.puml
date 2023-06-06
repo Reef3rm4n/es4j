@@ -1,0 +1,49 @@
+@startuml
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+
+actor Client
+participant "Event.x Node 1" as N1
+participant "Event.x Node 2" as N2
+
+
+== Worse Case Scenario ==
+
+
+note right: worse case scenario 1 network hop
+Client -> N1 : Command(aggregateId)
+N1 -> N1 : findNode(aggregateId)
+note right: returns "Event.x Node 2"
+N1 -> N2: proxyCommand(aggregateId)
+N2 -> N2: handleCommand(aggregateId)
+N2 ->> N1 : AggregateState()
+N1 ->> Client : AggregateState()
+
+
+== Best Case Scenario ==
+
+Client -> N1 : Command2(aggregateId)
+N1 -> N1 : findNode(aggregateId)
+note right: returns "Event.x Node 1"
+N1 -> N1: handleCommand(aggregateId)
+N1 ->> Client : AggregateState()
+
+
+@enduml
+
