@@ -5,28 +5,32 @@ import io.eventx.config.BusinessRule;
 import io.eventx.config.DbConfigCache;
 import io.eventx.config.FsConfigCache;
 import io.eventx.config.orm.ConfigurationKey;
+import io.eventx.core.objects.AggregateState;
+import io.eventx.infrastructure.cache.CaffeineAggregateCache;
+import io.eventx.infrastructure.cache.CaffeineWrapper;
+import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.models.AggregateKey;
+import io.eventx.infrastructure.models.AggregatePlainKey;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.smallrye.mutiny.tuples.Tuple4;
+import io.vertx.core.json.JsonObject;
 import org.junit.jupiter.api.extension.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 import static io.eventx.launcher.ConfigLauncher.parseKey;
 
 public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Extension, ParameterResolver, BeforeEachCallback, AfterEachCallback {
   private Bootstrapper<? extends Aggregate> bootstrapper;
-
   private final Logger LOGGER = LoggerFactory.getLogger(EventxExtension.class);
 
 
   @Override
-  public void beforeAll(ExtensionContext extensionContext) throws Exception {
+  public void beforeAll(ExtensionContext extensionContext) {
     extensionContext.getTestClass().ifPresent(
       testClass -> {
         EventxTest annotation = testClass.getAnnotation(EventxTest.class);
@@ -40,7 +44,7 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
   }
 
   @Override
-  public void afterAll(ExtensionContext extensionContext) throws Exception {
+  public void afterAll(ExtensionContext extensionContext) {
     if (bootstrapper != null) {
       bootstrapper.destroy();
     }
@@ -49,8 +53,10 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
 
   @Override
   public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-    return parameterContext.getParameter().getType() == AggregateEventBusPoxy.class ||
-      parameterContext.getParameter().getType() == AggregateHttpClient.class;
+    return Bootstrapper.injector.getBindings().keySet().stream().map(k -> k.getRawType()).toList()
+      .stream().anyMatch(k -> parameterContext.getParameter().getType().isAssignableFrom(k))
+      || parameterContext.getParameter().getType() == AggregateEventBusPoxy.class
+      || parameterContext.getParameter().getType() == AggregateHttpClient.class;
   }
 
   @Override
@@ -61,7 +67,7 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
       } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateHttpClient.class)) {
         return bootstrapper.httpClient;
       } else {
-        throw new IllegalArgumentException("Unsupported class");
+        return CustomClassLoader.loadFromInjector(Bootstrapper.injector, parameterContext.getParameter().getType()).stream().findFirst().orElseThrow();
       }
     }
     throw new IllegalStateException("Bootstrapper has not been initialized");
@@ -73,7 +79,7 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
     List<Tuple4<Class<? extends io.eventx.config.BusinessRule>, String, String, Integer>> configurationTuples = new ArrayList<>();
     DatabaseBusinessRule[] annotations = testMethod.getAnnotationsByType(DatabaseBusinessRule.class);
     if (annotations != null && !Arrays.stream(annotations).toList().isEmpty()) {
-      Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple4.of(a.value(), a.params(), a.tenant(), a.version())));
+      Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple4.of(a.configurationClass(), a.fileName(), a.tenant(), a.version())));
       return configurationTuples;
     }
     return new ArrayList<>();
@@ -82,16 +88,16 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
   private List<Tuple2<Class<? extends io.eventx.config.BusinessRule>, String>> fileConfigurations(Method testMethod) {
     LOGGER.debug("Getting business rules from method {}", testMethod);
     List<Tuple2<Class<? extends io.eventx.config.BusinessRule>, String>> configurationTuples = new ArrayList<>();
-    DatabaseBusinessRule[] annotations = testMethod.getAnnotationsByType(DatabaseBusinessRule.class);
+    FileBusinessRule[] annotations = testMethod.getAnnotationsByType(FileBusinessRule.class);
     if (annotations != null && !Arrays.stream(annotations).toList().isEmpty()) {
-      Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple2.of(a.value(), a.params())));
+      Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple2.of(a.configurationClass(), a.fileName())));
       return configurationTuples;
     }
     return new ArrayList<>();
   }
 
   @Override
-  public void afterEach(ExtensionContext context) throws Exception {
+  public void afterEach(ExtensionContext context) {
     context.getTestMethod().ifPresent(
       testMethod -> {
         final var databaseConfigurations = databaseConfigurations(testMethod);
@@ -114,12 +120,44 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
             }
           );
         }
+        final var optionalGivenAggregate = Optional.ofNullable(testMethod.getAnnotation(GivenAggregate.class));
+        optionalGivenAggregate.ifPresent(this::dropAggregate);
       }
     );
   }
 
+  private void dropAggregate(GivenAggregate givenAggregate) {
+    final var jsonObject = Bootstrapper.vertx.fileSystem().readFileBlocking(givenAggregate.filename()).toJsonObject();
+    final var state = getState(bootstrapper.aggregateClass, jsonObject);
+    CaffeineWrapper.invalidate(bootstrapper.aggregateClass, new AggregatePlainKey(
+      bootstrapper.aggregateClass.getName(),
+      state.state().aggregateId(),
+      state.state().tenant()
+    ));
+    // todo drop events ?
+  }
+
+  private void addAggregate(GivenAggregate givenAggregate) {
+    final var jsonObject = Bootstrapper.vertx.fileSystem().readFileBlocking(givenAggregate.filename()).toJsonObject();
+    final var state = getState(bootstrapper.aggregateClass, jsonObject);
+    CaffeineWrapper.put(
+      new AggregatePlainKey(
+        bootstrapper.aggregateClass.getName(),
+        state.state().aggregateId(),
+        state.state().tenant()
+      ),
+      state
+    );
+  }
+
+
+  public <T extends Aggregate> AggregateState<T> getState(Class<T> aggregateClass, JsonObject jsonObject) {
+    final var aggregateState = new AggregateState<>(aggregateClass);
+    return aggregateState.setState(jsonObject.mapTo(aggregateClass));
+  }
+
   @Override
-  public void beforeEach(ExtensionContext context) throws Exception {
+  public void beforeEach(ExtensionContext context) {
     context.getTestMethod().ifPresent(
       testMethod -> {
         final var configs = fileConfigurations(testMethod);
@@ -135,7 +173,6 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
         }
         final var databaseConfigurations = databaseConfigurations(testMethod);
         if (!databaseConfigurations.isEmpty()) {
-
           databaseConfigurations.forEach(
             fsConfig -> {
               LOGGER.info("Adding database configuration {}", fsConfig);
@@ -144,6 +181,8 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
               DbConfigCache.put(parseKey(new ConfigurationKey(fsConfig.getItem1().getName(), 0, fsConfig.getItem3())), configuration);
             }
           );
+          final var optionalGivenAggregate = Optional.ofNullable(testMethod.getAnnotation(GivenAggregate.class));
+          optionalGivenAggregate.ifPresent(this::addAggregate);
         }
       }
     );

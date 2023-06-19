@@ -6,14 +6,14 @@ import com.cronutils.model.definition.CronDefinitionBuilder;
 import com.cronutils.parser.CronParser;
 import io.eventx.core.objects.EventJournalFilter;
 import io.smallrye.mutiny.Uni;
-import io.eventx.core.objects.PolledEvent;
+import io.eventx.core.objects.AggregateEvent;
 
 import java.util.List;
 import java.util.Optional;
 
 public interface EventProjection {
 
-  Uni<Void> apply(List<PolledEvent> events);
+  Uni<Void> apply(List<AggregateEvent> events);
 
   default Optional<EventJournalFilter> filter() {
     return Optional.empty();

@@ -47,7 +47,7 @@ public class PostgresInfrastructure extends EventxModule {
   @Provides
   @Inject
   RepositoryHandler repositoryHandler(Vertx vertx, JsonObject config) {
-    return RepositoryHandler.leasePool(config,vertx);
+    return RepositoryHandler.leasePool(config, vertx);
   }
 
 }

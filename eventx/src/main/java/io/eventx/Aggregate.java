@@ -21,10 +21,6 @@ public interface Aggregate extends Shareable, Serializable {
     return 0;
   }
 
-  default Optional<Integer> snapshotEvery() {
-    return Optional.empty();
-  }
-
   default Aggregate transformSnapshot(int schemaVersion, JsonObject snapshot) {
     throw new UnknownEvent(new EventxError(
       ErrorSource.LOGIC,

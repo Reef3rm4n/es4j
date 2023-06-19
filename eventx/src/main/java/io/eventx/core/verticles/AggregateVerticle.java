@@ -16,6 +16,7 @@ import io.eventx.infrastructure.OffsetStore;
 import io.eventx.infrastructure.bus.AggregateBus;
 import io.eventx.infrastructure.misc.CustomClassLoader;
 import io.eventx.launcher.EventxMain;
+import io.vertx.core.Promise;
 import io.vertx.mutiny.core.Vertx;
 import io.eventx.Command;
 import io.eventx.CommandBehaviour;
@@ -33,6 +34,7 @@ import org.crac.Resource;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
 import static io.eventx.core.CommandHandler.camelToKebab;
 
@@ -45,19 +47,20 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   private final Class<T> aggregateClass;
   private final String deploymentID;
   private AggregateConfiguration aggregateConfiguration;
-  private CommandHandler<T> logic;
-  private List<BehaviourWrapper> behaviourWrappers;
-  private List<AggregatorWrapper> aggregatorWrappers;
+  private CommandHandler<T> commandHandler;
+  private List<CommandBehaviourWrapper> commandBehaviourWrappers;
+  private List<EventBehaviourWrapper> eventBehaviourWrappers;
   private Infrastructure infrastructure;
 
   public AggregateVerticle(
     final Class<T> aggregateClass,
     final ModuleBuilder moduleBuilder,
-    String deploymentID
+    final String deploymentID
   ) {
     this.aggregateClass = aggregateClass;
     this.moduleBuilder = moduleBuilder;
     this.deploymentID = deploymentID;
+    org.crac.Core.getGlobalContext().register(this);
   }
 
   @Override
@@ -65,19 +68,20 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     final var injector = startInjector();
     this.aggregateConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(AggregateConfiguration.class);
     LOGGER.info("Event.x starting {}::{}", aggregateClass.getSimpleName(), this.deploymentID);
-    this.aggregatorWrappers = loadAggregators(injector, aggregateClass);
-    this.behaviourWrappers = loadBehaviours(injector, aggregateClass);
+    this.eventBehaviourWrappers = loadAggregators(injector, aggregateClass);
+    this.commandBehaviourWrappers = loadBehaviours(injector, aggregateClass);
     this.infrastructure = new Infrastructure(
-      new CaffeineAggregateCache(),
+      Optional.of(new CaffeineAggregateCache()),
       injector.getInstance(EventStore.class),
+      Optional.empty(),
       injector.getInstance(OffsetStore.class)
     );
     vertx.eventBus().addInboundInterceptor(this::addContextualData);
-    this.logic = new CommandHandler<>(
+    this.commandHandler = new CommandHandler<>(
       vertx,
       aggregateClass,
-      aggregatorWrappers,
-      behaviourWrappers,
+      eventBehaviourWrappers,
+      commandBehaviourWrappers,
       infrastructure,
       aggregateConfiguration
     );
@@ -92,7 +96,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
 
   private void processCommand(Message<JsonObject> jsonMessage) {
     LOGGER.debug("Incoming command {}", jsonMessage.body().encodePrettily());
-    logic.process(jsonMessage.body().getString("commandClass"), jsonMessage.body().getJsonObject("command"))
+    commandHandler.process(jsonMessage.body().getString("commandClass"), jsonMessage.body().getJsonObject("command"))
       .subscribe()
       .with(
         jsonMessage::reply,
@@ -120,13 +124,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     return Injector.of(moduleBuilder.build());
   }
 
-  public static <T extends Aggregate> List<BehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
+  public static <T extends Aggregate> List<CommandBehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
     final var behaviours = CustomClassLoader.loadFromInjector(injector, CommandBehaviour.class).stream()
       .filter(behaviour ->
         parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem1().isAssignableFrom(entityAggregateClass))
       .map(commandBehaviour -> {
           final var genericTypes = parseCommandBehaviourGenericTypes(commandBehaviour.getClass());
-          return new BehaviourWrapper(commandBehaviour, entityAggregateClass, genericTypes.getItem2());
+          return new CommandBehaviourWrapper(commandBehaviour, entityAggregateClass, genericTypes.getItem2());
         }
       )
       .toList();
@@ -146,11 +150,11 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     return behaviours;
   }
 
-  public static <T extends Aggregate> List<AggregatorWrapper> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
+  public static <T extends Aggregate> List<EventBehaviourWrapper> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
     final var aggregators = CustomClassLoader.loadFromInjector(injector, EventBehaviour.class).stream()
       .map(aggregator -> {
           final var genericTypes = parseAggregatorClass(aggregator.getClass());
-          return new AggregatorWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
+          return new EventBehaviourWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
         }
       )
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
@@ -226,12 +230,20 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
 
   @Override
   public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
-
+    Promise<Void> p = Promise.promise();
+    stop(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
   }
 
   @Override
   public void afterRestore(Context<? extends Resource> context) throws Exception {
-
+    Promise<Void> p = Promise.promise();
+    start(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
   }
 
 }

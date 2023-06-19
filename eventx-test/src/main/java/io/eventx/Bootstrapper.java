@@ -1,6 +1,10 @@
 package io.eventx;
 
+import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
+import io.activej.inject.module.ModuleBuilder;
+import io.eventx.infra.pg.PgEventStore;
+import io.eventx.infrastructure.misc.CustomClassLoader;
 import io.eventx.sql.misc.Constants;
 import io.vertx.core.DeploymentOptions;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
@@ -30,10 +34,13 @@ public class Bootstrapper<T extends Aggregate> {
   public static final String ZOOKEEPER_VERSION = "bitnami/zookeeper:latest";
   private final Logger LOGGER = LoggerFactory.getLogger(Bootstrapper.class);
   public PostgreSQLContainer<?> postgreSQLContainer;
+  public GenericContainer redis;
 
   public static Vertx vertx;
+
   public JsonObject config;
   public static RepositoryHandler repositoryHandler;
+  public static Injector injector;
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
   public Boolean clustered = Boolean.parseBoolean(System.getenv().getOrDefault("CLUSTERED", "false"));
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
@@ -50,10 +57,13 @@ public class Bootstrapper<T extends Aggregate> {
 
   public void bootstrap() {
     config = configuration(aggregateClass).put("schema", camelToKebab(aggregateClass.getSimpleName()));
-    if (Boolean.TRUE.equals(postgresContainer())) {
+    final var moduleBuilder = ModuleBuilder.create().install(EventxMain.MAIN_MODULES);
+    moduleBuilder.bind(Vertx.class).toInstance(vertx);
+    moduleBuilder.bind(JsonObject.class).toInstance(config);
+    injector = Injector.of(moduleBuilder.build());
+    if (Boolean.TRUE.equals(infrastructure())) {
       deployPgContainer();
     }
-    repositoryHandler = RepositoryHandler.leasePool(config, vertx);
     this.httpClient = new AggregateHttpClient<>(
       WebClient.create(vertx, new WebClientOptions()
         .setDefaultHost(HTTP_HOST)
@@ -64,6 +74,7 @@ public class Bootstrapper<T extends Aggregate> {
     vertx.deployVerticle(EventxMain::new, new DeploymentOptions().setInstances(1).setConfig(config)).await().indefinitely();
     this.eventBusPoxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
   }
+
 
   public Bootstrapper<T> addModule(Module module) {
     EventxMain.MAIN_MODULES.add(module);
@@ -85,13 +96,25 @@ public class Bootstrapper<T extends Aggregate> {
     return this;
   }
 
-  public Boolean postgresContainer() {
+  public Boolean infrastructure() {
     return postgres;
   }
 
 
   public JsonObject configuration(Class<? extends Aggregate> aggregateClass) {
     return vertx.fileSystem().readFileBlocking(aggregateClass.getSimpleName() + ".json").toJsonObject();
+  }
+
+  private void deployRedisContainer() {
+    redis = new GenericContainer(DockerImageName.parse("redis:latest"))
+      .withExposedPorts(6379)
+      .waitingFor(Wait.forListeningPort())
+      .withNetwork(network);
+    redis.start();
+    config.put("redisHost", redis.getHost());
+    config.put("redisPort", redis.getFirstMappedPort());
+    vertx.fileSystem().writeFileBlocking(aggregateClass.getSimpleName() + ".json", Buffer.newInstance(config.toBuffer()));
+    LOGGER.debug("Configuration after container bootstrap {}", config);
   }
 
   public void deployPgContainer() {
@@ -110,7 +133,7 @@ public class Bootstrapper<T extends Aggregate> {
   }
 
   public void deployZookeeper() {
-     zookeeperContainer = new GenericContainer<>(DockerImageName.parse(ZOOKEEPER_VERSION))
+    zookeeperContainer = new GenericContainer<>(DockerImageName.parse(ZOOKEEPER_VERSION))
       .withNetwork(network)
       .waitingFor(Wait.forListeningPort());
     zookeeperContainer.start();
@@ -118,7 +141,7 @@ public class Bootstrapper<T extends Aggregate> {
 
   public void destroy() {
     vertx.closeAndAwait();
-    if (Boolean.TRUE.equals(postgresContainer())) {
+    if (Boolean.TRUE.equals(infrastructure())) {
       LOGGER.info(postgreSQLContainer.getLogs());
       postgreSQLContainer.stop();
       postgreSQLContainer.close();

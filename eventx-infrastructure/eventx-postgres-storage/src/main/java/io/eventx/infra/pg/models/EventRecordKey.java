@@ -8,6 +8,6 @@ public record EventRecordKey(
 
   @Override
   public String tenantId() {
-    return null;
+    return "default";
   }
 }

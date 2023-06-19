@@ -22,11 +22,11 @@ public class CaffeineWrapper {
     .expireAfterAccess(Duration.of(20, ChronoUnit.MINUTES))
 //    .recordStats()
     .initialCapacity(500)
-    .evictionListener((key, value, reason) -> logger.debug("Aggregate evicted from cache {}", new JsonObject().put("reason", reason).put("aggregate", value).put("key", key).encodePrettily()))
-    .removalListener((key, value, reason) -> logger.debug("Aggregate removed from cache {}", new JsonObject().put("reason", reason).put("aggregate", value).put("key", key).encodePrettily()))
+    .evictionListener((key, value, reason) -> logger.info("Aggregate evicted from cache {}", new JsonObject().put("reason", reason).put("key", key).encodePrettily()))
+    .removalListener((key, value, reason) -> logger.info("Aggregate removed from cache {}", new JsonObject().put("reason", reason).put("key", key).encodePrettily()))
     .build();
 
-  public static <T extends Aggregate> AggregateState<T> get(Class<T> aggregateClass, AggregatePlainKey k) {
+  public static <T extends Aggregate> AggregateState<T> get(AggregatePlainKey k) {
     logger.debug("Fetching from cache {}", JsonObject.mapFrom(k).encodePrettily());
     final var valueObject = CAFFEINE.getIfPresent(k);
     if (valueObject != null) {
@@ -37,8 +37,13 @@ public class CaffeineWrapper {
     return null;
   }
 
-  public static <T extends Aggregate> void put(Class<T> aggregateClass, AggregatePlainKey k, AggregateState<T> v) {
-    logger.debug("Adding {} to cache {}", aggregateClass.getName(), v.toJson().encodePrettily());
+  public static <T extends Aggregate> void put(AggregatePlainKey k, AggregateState<T> v) {
+    logger.debug("Adding {}::{}", k, v);
     CAFFEINE.put(k, v);
+  }
+
+  public static <T extends Aggregate> void invalidate(Class<T> aggregateClass, AggregatePlainKey k) {
+    logger.debug("Invalidating {}::{}", aggregateClass.getName(), k);
+    CAFFEINE.invalidate(k);
   }
 }

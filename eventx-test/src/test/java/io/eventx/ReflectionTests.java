@@ -1,9 +1,6 @@
-package io.eventx.infrastructure.reflection;
+package io.eventx;
 
 
-import io.eventx.Aggregate;
-import io.eventx.CommandBehaviour;
-import io.eventx.Command;
 import io.eventx.behaviours.ChangeCommandBehaviour;
 import io.smallrye.mutiny.tuples.Tuple2;
 import org.slf4j.Logger;
@@ -20,16 +17,14 @@ import java.util.Arrays;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-@ExtendWith(VertxExtension.class)
 class ReflectionTests {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(ReflectionTests.class);
 
 
   @Test
-  void testReflection(Vertx vertx, VertxTestContext vertxTestContext) {
+  void testReflection() {
     final var classTuple = entityAggregateClass(ChangeCommandBehaviour.class);
-    vertxTestContext.completeNow();
   }
 
   public Tuple2<Class<? extends Aggregate>, Class<? extends Command>> entityAggregateClass(Class<? extends CommandBehaviour<? extends Aggregate, ? extends Command>> behaviour) {
@@ -59,11 +54,5 @@ class ReflectionTests {
     }
   }
 
-
-
-  @Test
-  void testConsistentHashing2(Vertx vertx, VertxTestContext vertxTestContext) {
-
-  }
 
 }

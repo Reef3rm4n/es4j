@@ -163,7 +163,7 @@ public class AggregateBus {
     final var aggregateKey = new AggregatePlainKey(
       aggregateClass.getName(),
       Objects.requireNonNull(command.getString("aggregateId")),
-      command.getJsonObject("headers").getString("tenantId", "default")
+      command.getString("tenantId", "default")
     );
     final var address = AggregateBus.resolveActor(aggregateClass, aggregateKey);
     LOGGER.debug("Proxying {} {}", payload.getString("commandClass"), new JsonObject()

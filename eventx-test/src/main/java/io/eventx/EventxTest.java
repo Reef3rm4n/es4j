@@ -17,6 +17,10 @@ public @interface EventxTest {
 
   boolean infrastructure() default true;
 
+  boolean cache() default true;
+
+  boolean secondaryEventStore() default false;
+
   String host() default "localhost";
 
   int port() default 8080;

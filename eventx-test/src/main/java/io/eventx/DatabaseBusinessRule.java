@@ -10,11 +10,9 @@ import java.lang.annotation.Target;
 @Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface DatabaseBusinessRule {
-  Class<? extends io.eventx.config.BusinessRule> value();
-  String params();
-
+  Class<? extends io.eventx.config.BusinessRule> configurationClass();
+  String fileName();
   String tenant() default "default";
-
   int version() default 0;
 
 }

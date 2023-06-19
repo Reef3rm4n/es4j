@@ -31,6 +31,11 @@
 
   <dependencies>
     <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-sql-client</artifactId>
+      <version>4.4.3</version>
+    </dependency>
+    <dependency>
       <groupId>io.smallrye.reactive</groupId>
       <artifactId>smallrye-mutiny-vertx-pg-client</artifactId>
     </dependency>
@@ -41,6 +46,11 @@
     <dependency>
       <groupId>io.vertx</groupId>
       <artifactId>vertx-jdbc-client</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.vertx</groupId>
+      <artifactId>vertx-sql-client</artifactId>
+      <version>${vertx.version}</version>
     </dependency>
 
     <!--  Liquibase Dependencies -->
@@ -61,7 +71,6 @@
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
     </dependency>
-
     <dependency>
       <groupId>io.soabase.record-builder</groupId>
       <artifactId>record-builder-processor</artifactId>

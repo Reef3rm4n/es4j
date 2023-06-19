@@ -1,4 +1,4 @@
-package io.eventx.infrastructure.hashing;
+package io.eventx.hashing;
 
 import org.ishugaliy.allgood.consistent.hash.ConsistentHash;
 import org.ishugaliy.allgood.consistent.hash.HashRing;

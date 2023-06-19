@@ -3,10 +3,7 @@ package io.eventx.infra.pg;
 import io.eventx.Aggregate;
 import io.eventx.infra.pg.models.EventRecordKey;
 import io.eventx.infra.pg.models.EventRecordQuery;
-import io.eventx.infrastructure.models.AggregateEventStream;
-import io.eventx.infrastructure.models.AppendInstruction;
-import io.eventx.infrastructure.models.Event;
-import io.eventx.infrastructure.models.EventStream;
+import io.eventx.infrastructure.models.*;
 import io.eventx.sql.LiquibaseHandler;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.sql.models.QueryOptions;
@@ -121,6 +118,11 @@ public class PgEventStore implements EventStore {
   }
 
   @Override
+  public <T extends Aggregate> Uni<Void> startStream(StartStream<T> appendInstruction) {
+    return Uni.createFrom().voidItem();
+  }
+
+  @Override
   public Uni<Void> close() {
     return eventJournal.repositoryHandler().close();
   }
@@ -130,9 +132,14 @@ public class PgEventStore implements EventStore {
     LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
       eventJournal.repositoryHandler(),
-            "pg-event-store.xml",
+      "pg-event-store.xml",
       Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );
+  }
+
+  @Override
+  public <T extends Aggregate> Uni<Void> trim(PruneEventStream<T> trim) {
+    return Uni.createFrom().voidItem();
   }
 
   private <T extends Aggregate> List<EventRecord> parseInstruction(AppendInstruction<T> appendInstruction) {

@@ -6,12 +6,10 @@ import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.core.objects.EventxError;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.openapi.api.models.OpenAPIImpl;
-import io.smallrye.openapi.api.models.servers.ServerImpl;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.eventx.core.projections.EventbusEventStream;
-import io.eventx.core.objects.EventbusStateProjection;
+import io.eventx.core.objects.EventbusLiveProjections;
 import io.eventx.infrastructure.bus.AggregateBus;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.eventx.launcher.EventxMain;
@@ -20,7 +18,6 @@ import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
 import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.handler.sockjs.SockJSHandler;
-import org.eclipse.microprofile.openapi.models.OpenAPI;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonArray;
@@ -102,7 +99,7 @@ public class HttpBridge implements Bridge {
     EventxMain.AGGREGATE_CLASSES.forEach(
       aClass -> bridgeOptions
         .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
-        .addOutboundPermitted(permission(EventbusStateProjection.STATE_PROJECTION, aClass))
+        .addOutboundPermitted(permission(EventbusLiveProjections.STATE_PROJECTION, aClass))
         .addOutboundPermitted(permission(EventbusEventStream.EVENT_PROJECTION, aClass))
     );
     final var subRouter = SockJSHandler.create(vertx, options).bridge(
@@ -125,9 +122,13 @@ public class HttpBridge implements Bridge {
         .consumes(Constants.APPLICATION_JSON)
         .produces(Constants.APPLICATION_JSON)
         .handler(routingContext -> {
+            final var realCommand = routingContext.body().asJsonObject().mapTo(commandClass);
             final var command = new JsonObject()
               .put("commandClass", commandClass.getName())
-              .put("command", routingContext.body().asJsonObject());
+              .put("command", routingContext.body().asJsonObject()
+                .put("aggregateId", realCommand.aggregateId())
+                .put("tenantId", realCommand.tenantId())
+              );
             proxies.get(key).forward(command)
               .subscribe()
               .with(

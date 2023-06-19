@@ -1,6 +1,7 @@
 package io.eventx.infrastructure.sql;
 
 import io.eventx.InfrastructureBootstrap;
+import io.eventx.sql.LiquibaseHandler;
 import io.eventx.sql.Repository;
 import io.eventx.sql.models.BaseRecord;
 import io.eventx.sql.models.QueryOptions;
@@ -24,19 +25,35 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(VertxExtension.class)
-public class StorageTests {
+public class SqlTest {
   public static final InfrastructureBootstrap BOOTSTRAP = new InfrastructureBootstrap()
-    .setPostgres(true)
-    .addLiquibaseRun("sql-test.xml", Map.of())
-    .setConfigurationPath("fakeaggregate.json");
+    .addLiquibaseRun("sql-test.xml",Map.of("schema", "eventx"))
+    .setPostgres(true);
 
-  private final Logger LOGGER = LoggerFactory.getLogger(StorageTests.class);
+  private final Logger LOGGER = LoggerFactory.getLogger(SqlTest.class);
 
   @AfterAll
   static void destroy() throws Exception {
     BOOTSTRAP.destroy();
   }
 
+  @BeforeAll
+  static void start() {
+    BOOTSTRAP.start();
+  }
+
+
+  @Test
+  void test_sql_migration() {
+    BOOTSTRAP.configuration();
+    BOOTSTRAP.configuration().put("schema", "eventx");
+    BOOTSTRAP.deployPgContainer();
+    LiquibaseHandler.liquibaseString(
+      InfrastructureBootstrap.REPOSITORY_HANDLER,
+      "sql-test.xml",
+      Map.of("schema", "eventx")
+    ).await().indefinitely();
+  }
 
   @Test
   void insert(Vertx vertx, VertxTestContext vertxTestContext) {
@@ -78,6 +95,8 @@ public class StorageTests {
     assertEquals(model.size(), models.size());
     vertxTestContext.completeNow();
   }
+
+
 
   private static TestModel testModel() {
     return new TestModel(

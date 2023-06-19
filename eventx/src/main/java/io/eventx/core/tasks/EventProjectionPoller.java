@@ -1,5 +1,6 @@
 package io.eventx.core.tasks;
 
+import io.eventx.core.objects.AggregateEvent;
 import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.OffsetStore;
 import io.eventx.infrastructure.models.Event;
@@ -14,7 +15,6 @@ import io.eventx.infrastructure.misc.EventParser;
 import io.eventx.infrastructure.models.EventStream;
 import io.eventx.core.objects.JournalOffset;
 import io.eventx.core.objects.JournalOffsetKey;
-import io.eventx.core.objects.PolledEvent;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,9 +92,9 @@ public class EventProjectionPoller implements CronTask {
   }
 
 
-  private List<PolledEvent> parseEvents(List<Event> events) {
+  private List<AggregateEvent> parseEvents(List<Event> events) {
     return events.stream()
-      .map(event -> new PolledEvent(
+      .map(event -> new AggregateEvent(
           event.aggregateId(),
           event.tenantId(),
           event.journalOffset(),

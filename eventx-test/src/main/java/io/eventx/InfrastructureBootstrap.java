@@ -14,9 +14,11 @@ import io.vertx.mutiny.core.buffer.Buffer;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.containers.Network;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.utility.DockerImageName;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,25 +29,25 @@ public class InfrastructureBootstrap {
   public static final String POSTGRES_VERSION = "postgres:latest";
   private final Logger LOGGER = LoggerFactory.getLogger(InfrastructureBootstrap.class);
   public PostgreSQLContainer<?> POSTGRES_CONTAINER;
+  public GenericContainer redis = new GenericContainer(DockerImageName.parse("redis:latest"))
+    .withExposedPorts(6379);
   public static Vertx vertx;
   public JsonObject CONFIGURATION = new JsonObject();
   public static RepositoryHandler REPOSITORY_HANDLER;
   public WebClient WEB_CLIENT;
   public String configurationPath = System.getenv().getOrDefault("CONFIGURATION_FILE", "config.json");
-  public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
+  public Boolean postgres = false;
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
   public Integer HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
 
-  public String schema;
+  public String schema = System.getenv().getOrDefault("SCHEMA", "eventx");
 
   private static final Map<String, Map<String, String>> liquibase = new HashMap<>();
 
-  public InfrastructureBootstrap() {
+  public void start() {
     vertx = Vertx.vertx();
     CONFIGURATION = configuration().put("schema", schema);
-    if (Boolean.TRUE.equals(postgresContainer())) {
-      deployPgContainer();
-    }
+    deployPgContainer();
     REPOSITORY_HANDLER = RepositoryHandler.leasePool(CONFIGURATION, vertx);
     if (!liquibase.isEmpty()) {
       Multi.createFrom().iterable(liquibase.entrySet())
@@ -57,7 +59,6 @@ public class InfrastructureBootstrap {
       .setDefaultHost(HTTP_HOST)
       .setDefaultPort(HTTP_PORT)
     );
-    vertx.deployVerticle(EventxMain::new, new DeploymentOptions().setInstances(1).setConfig(CONFIGURATION)).await().indefinitely();
   }
 
 

@@ -1,12 +1,14 @@
 package io.eventx.queue.models;
 
+import com.fasterxml.jackson.annotation.JsonAutoDetect;
+
+@JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class QueueConfiguration {
 
   private Boolean bootstrapQueue = true;
   private Boolean idempotency = false;
   private Integer idempotencyNumberOfDays = 2;
   private QueueImplementation queueImplementation = QueueImplementation.PG_QUEUE;
-
   private TransactionProvider transactionProvider = TransactionProvider.VERTX_PG_CLIENT;
   private Long emptyBackOffInMinutes = 5L;
   private Long throttleInMs = 100L;

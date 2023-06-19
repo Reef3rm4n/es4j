@@ -1,0 +1,25 @@
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+  http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
+>
+  <!-- EventJournal -->
+  <changeSet id="aggregate-stream-table" author="reeferman" context="vertx">
+    <createTable tableName="aggregate_stream" schemaName="${schema}">
+      <column type="text" name="aggregate_id"/>
+      <!--  Repository Entity    -->
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="aggregate-stream-indexes" author="reeferman" context="vertx">
+    <createIndex tableName="aggregate_stream" indexName="index-2" schemaName="${schema}">
+      <column name="aggregate_id"/>
+      <column name="tenant"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+
+</databaseChangeLog>

@@ -7,7 +7,7 @@ import io.eventx.Event;
 
 import java.util.List;
 
-public record BehaviourWrapper<A extends Aggregate, C extends Command>(
+public record CommandBehaviourWrapper<A extends Aggregate, C extends Command>(
   CommandBehaviour<A, C> delegate,
   Class<A> entityAggregateClass,
   Class<C> commandClass

@@ -2,7 +2,9 @@ package io.eventx.infrastructure.models;
 
 import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.shareddata.Shareable;
 
+import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
 
@@ -17,7 +19,7 @@ public record Event(
   String commandId,
   List<String> tags,
   Integer schemaVersion
-) {
+) implements Serializable, Shareable {
 
 
   public Event(String aggregateId, String eventClass, Long eventVersion, JsonObject event, String tenantId, String commandId, List<String> tags, Integer schemaVersion) {

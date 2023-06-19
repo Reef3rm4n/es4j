@@ -26,9 +26,9 @@
     <sonar-maven-plugin.version>3.6.0.1398</sonar-maven-plugin.version>
     <flatten.maven.plugin.version>1.1.0</flatten.maven.plugin.version>
     <maven.gitflow.plugin.version>1.17.0</maven.gitflow.plugin.version>
-    <netty-transport-native-epoll.version>4.1.85.Final</netty-transport-native-epoll.version>
+    <netty-transport-native-epoll.version>4.1.93.Final</netty-transport-native-epoll.version>
     <vertx.version>4.4.1</vertx.version>
-    <mutiny.vertx.version>3.2.0</mutiny.vertx.version>
+    <mutiny.vertx.version>3.4.2</mutiny.vertx.version>
   </properties>
 
   <licenses>
@@ -70,37 +70,6 @@
             </goals>
           </execution>
         </executions>
-      </plugin>
-      <plugin>
-        <groupId>org.sonarsource.scanner.maven</groupId>
-        <artifactId>sonar-maven-plugin</artifactId>
-        <version>${sonar-maven-plugin.version}</version>
-      </plugin>
-      <plugin>
-        <groupId>com.amashchenko.maven.plugin</groupId>
-        <artifactId>gitflow-maven-plugin</artifactId>
-        <version>${maven.gitflow.plugin.version}</version>
-        <configuration>
-          <verbose>true</verbose>
-          <commitDevelopmentVersionAtStart>true</commitDevelopmentVersionAtStart>
-          <useSnapshotInRelease>true</useSnapshotInRelease>
-          <pushRemote>false</pushRemote>
-          <skipTestProject>true</skipTestProject>
-          <gitFlowConfig>
-            <productionBranch>main</productionBranch>
-            <developmentBranch>develop</developmentBranch>
-            <featureBranchPrefix>feature/</featureBranchPrefix>
-            <releaseBranchPrefix>release/</releaseBranchPrefix>
-            <hotfixBranchPrefix>hotfix/</hotfixBranchPrefix>
-            <supportBranchPrefix>support/</supportBranchPrefix>
-            <versionTagPrefix>${versionTagPrefix}</versionTagPrefix>
-            <origin>origin</origin>
-          </gitFlowConfig>
-          <versionProperty>revision</versionProperty>
-          <skipUpdateVersion>true</skipUpdateVersion>
-          <versionDigitToIncrement>1</versionDigitToIncrement>
-          <commitMessagePrefix xml:space="preserve">[GITFLOW] v@{version} </commitMessagePrefix>
-        </configuration>
       </plugin>
     </plugins>
   </build>

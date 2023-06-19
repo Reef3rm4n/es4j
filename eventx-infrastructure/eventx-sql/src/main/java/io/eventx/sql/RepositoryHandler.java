@@ -7,6 +7,7 @@ import io.eventx.sql.misc.SqlError;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
+import io.vertx.core.impl.cpu.CpuCoreSensor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
@@ -80,6 +81,8 @@ public record RepositoryHandler(
       .setConnectionTimeoutUnit(TimeUnit.SECONDS)
       .setConnectionTimeout(config.getInteger("pgConnectionTimeOut", EnvVars.PG_CONNECTION_TIMEOUT))
       .setPoolCleanerPeriod(config.getInteger("pgPoolCleanerPeriod", EnvVars.PG_CLEANER_PERIOD))
+      .setMaxSize(config.getInteger("pgPoolMaxSize", CpuCoreSensor.availableProcessors() * 2))
+      .setMaxWaitQueueSize(config.getInteger("pgMaxWaitQueueSize", -1))
       .setShared(true)
       .setName(config.getString("schema", EnvVars.SCHEMA) + "-postgres-pooled");
   }

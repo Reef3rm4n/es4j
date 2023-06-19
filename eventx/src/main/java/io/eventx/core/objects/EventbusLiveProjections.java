@@ -6,9 +6,10 @@ import io.eventx.core.CommandHandler;
 import java.util.StringJoiner;
 
 
-public class EventbusStateProjection {
+public class EventbusLiveProjections {
 
   public static final String STATE_PROJECTION = "state-projection";
+  public static final String EVENT_PROJECTION = "event-projection";
 
   public static String subscriptionAddress(Class<? extends Aggregate> aggregateClass, String tenantId) {
     return new StringJoiner("/")
@@ -16,7 +17,14 @@ public class EventbusStateProjection {
       .add(CommandHandler.camelToKebab(aggregateClass.getSimpleName()))
       .add(tenantId)
       .toString();
+  }
 
+  public static String eventSubscriptionAddress(Class<? extends Aggregate> aggregateClass, String tenantId) {
+    return new StringJoiner("/")
+      .add(EVENT_PROJECTION)
+      .add(CommandHandler.camelToKebab(aggregateClass.getSimpleName()))
+      .add(tenantId)
+      .toString();
   }
 
 

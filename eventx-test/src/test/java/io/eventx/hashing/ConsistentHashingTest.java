@@ -1,4 +1,4 @@
-package io.eventx.infrastructure.hashing;
+package io.eventx.hashing;
 
 import io.eventx.infrastructure.models.AggregatePlainKey;
 import org.slf4j.Logger;

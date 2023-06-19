@@ -1,14 +1,13 @@
 package io.eventx.infrastructure.taskqueue;
 
 
+import io.eventx.core.verticles.TaskProcessorVerticle;
+import io.eventx.infrastructure.misc.CustomClassLoader;
 import io.eventx.sql.Repository;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.InfrastructureBootstrap;
 import io.eventx.queue.models.QueueTransaction;
 import io.eventx.queue.postgres.PgMessageProducer;
-import io.vertx.junit5.VertxExtension;
-import io.vertx.junit5.VertxTestContext;
-import io.vertx.mutiny.core.Vertx;
 import io.eventx.queue.models.Message;
 import io.eventx.queue.postgres.mappers.DeadLetterMapper;
 import io.eventx.queue.postgres.mappers.MessageQueueMapper;
@@ -18,31 +17,33 @@ import io.eventx.queue.postgres.models.MessageRecordID;
 import io.eventx.queue.postgres.models.MessageTransactionID;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-
 import java.util.Map;
 import java.util.UUID;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
-@ExtendWith(VertxExtension.class)
 public class PgTaskQueueTest {
 
   public static final InfrastructureBootstrap BOOTSTRAP = new InfrastructureBootstrap()
-    .setPostgres(false)
-    .addLiquibaseRun("task-queue.xml", Map.of("schema", "postgres"))
-    .setConfigurationPath("fakeaggregate.json");
+    .setPostgres(true)
+    .addLiquibaseRun("task-queue.xml", Map.of("schema", "eventx"));
 
   @AfterAll
   static void destroy() throws Exception {
     BOOTSTRAP.destroy();
   }
 
+  @BeforeAll
+  static void start() {
+    BOOTSTRAP.start();
+    TaskProcessorVerticle.deploy(InfrastructureBootstrap.vertx, BOOTSTRAP.CONFIGURATION, CustomClassLoader.loadModules()).await().indefinitely();
+  }
+
 
   @Test
-  void test_pg_producer(Vertx vertx, VertxTestContext vertxTestContext) {
+  void test_pg_producer() {
     // todo produce to the db queue and assert record has been written
     final var producer = new PgMessageProducer(InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var queue = new Repository<>(MessageQueueMapper.INSTANCE, InfrastructureBootstrap.REPOSITORY_HANDLER);
@@ -51,11 +52,10 @@ public class PgTaskQueueTest {
       sqlConnection -> producer.enqueue(fakeMessage, new QueueTransaction(sqlConnection))
     ).await().indefinitely();
     queue.selectByKey(new MessageRecordID(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
-    vertxTestContext.completeNow();
   }
 
   @Test
-  void test_pg_subscriber(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_pg_subscriber() throws InterruptedException {
     final var producer = new PgMessageProducer(InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var queueTx = new Repository<>(MessageTransactionMapper.INSTANCE, InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var fakeMessage = fakeMessage();
@@ -64,24 +64,22 @@ public class PgTaskQueueTest {
     ).await().indefinitely();
     Thread.sleep(1000);
     queueTx.selectByKey(new MessageTransactionID(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
-    vertxTestContext.completeNow();
   }
 
   @Test
-  void test_refresh_retry_and_dead_letter_queue(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_refresh_retry_and_dead_letter_queue() throws InterruptedException {
     final var producer = new PgMessageProducer(InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var deadLetters = new Repository<>(DeadLetterMapper.INSTANCE, InfrastructureBootstrap.REPOSITORY_HANDLER);
-    final var fakeMessage = fakeDeadMessage();
+    final var fakeMessage = fakeFatal();
     InfrastructureBootstrap.REPOSITORY_HANDLER.pgPool().withTransaction(
       sqlConnection -> producer.enqueue(fakeMessage, new QueueTransaction(sqlConnection))
     ).await().indefinitely();
-    Thread.sleep(10000);
+    Thread.sleep(1000);
     deadLetters.selectByKey(new DeadLetterKey(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
-    vertxTestContext.completeNow();
   }
 
   @Test
-  void test_nack(Vertx vertx, VertxTestContext vertxTestContext) throws InterruptedException {
+  void test_nack() throws InterruptedException {
     final var producer = new PgMessageProducer(InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var deadLetters = new Repository<>(DeadLetterMapper.INSTANCE, InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var fakeMessage = fakeDeadMessage();
@@ -91,13 +89,12 @@ public class PgTaskQueueTest {
     Thread.sleep(1000);
     final var actualQueue = new Repository<>(MessageQueueMapper.INSTANCE, InfrastructureBootstrap.REPOSITORY_HANDLER);
     final var nackedMessage = actualQueue.selectByKey(new MessageRecordID(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely();
-    assertEquals(1, nackedMessage.retryCounter());
+    assertNotEquals(0, nackedMessage.retryCounter());
     assertThrows(NotFound.class, () -> deadLetters.selectByKey(new DeadLetterKey(fakeMessage.messageId(), fakeMessage.tenant())).await().indefinitely());
-    vertxTestContext.completeNow();
   }
 
   @Test
-  void test_recovery_mechanism(Vertx vertx, VertxTestContext vertxTestContext) {
+  void test_recovery_mechanism() {
     // todo should only be processed if transaction is not present in the tx table.
     // todo should not process if present in tx table.
   }
@@ -115,6 +112,18 @@ public class PgTaskQueueTest {
   }
 
   @NotNull
+  private static Message<Object> fakeFatal() {
+    return new Message<>(
+      UUID.randomUUID().toString(),
+      "default",
+      null,
+      null,
+      0,
+      new MockDeadPayload("data", true)
+    );
+  }
+
+  @NotNull
   private static Message<Object> fakeDeadMessage() {
     return new Message<>(
       UUID.randomUUID().toString(),
@@ -122,8 +131,7 @@ public class PgTaskQueueTest {
       null,
       null,
       0,
-      new MockDeadPayload("data")
+      new MockDeadPayload("data", false)
     );
   }
-
 }

@@ -81,7 +81,7 @@ public record MessageProcessorManager(
 
   private <T> RawMessage retryableFailure(QueueConfiguration configuration, RawMessage messageRecord, Throwable throwable, MessageProcessor<T> processor) {
     MessageState failureState;
-    if (processor.fatalExceptions().stream().anyMatch(f -> f.isAssignableFrom(throwable.getClass()))) {
+    if (processor.fatalExceptions().stream().anyMatch(f -> f.getName().equals(throwable.getCause().getClass().getName()))) {
       LOGGER.error("Fatal failure for message {} in processor {}", JsonObject.mapFrom(messageRecord).encodePrettily(), processor.getClass().getName(), throwable.getCause());
       failureState = MessageState.FATAL_FAILURE;
     } else if (configuration.maxRetry() != null && messageRecord.retryCounter() + 1 > configuration.maxRetry()) {

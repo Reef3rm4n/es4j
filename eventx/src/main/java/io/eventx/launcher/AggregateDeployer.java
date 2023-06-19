@@ -6,12 +6,10 @@ import io.activej.inject.module.ModuleBuilder;
 import io.eventx.Aggregate;
 import io.eventx.StateProjection;
 import io.eventx.config.ConfigurationHandler;
+import io.eventx.core.objects.AggregateConfiguration;
 import io.eventx.core.tasks.AggregateHeartbeat;
 import io.eventx.core.verticles.AggregateVerticle;
-import io.eventx.infrastructure.AggregateCache;
-import io.eventx.infrastructure.EventStore;
-import io.eventx.infrastructure.Infrastructure;
-import io.eventx.infrastructure.OffsetStore;
+import io.eventx.infrastructure.*;
 import io.eventx.infrastructure.cache.CaffeineAggregateCache;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.DeploymentOptions;
@@ -32,6 +30,7 @@ import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.ArrayList;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static io.eventx.core.CommandHandler.camelToKebab;
@@ -43,7 +42,6 @@ public class AggregateDeployer<T extends Aggregate> {
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateDeployer.class);
   private final Vertx vertx;
   private final String deploymentID;
-  private final ArrayList<Module> localModules;
   private ConfigRetriever deploymentConfiguration;
   private final Class<T> aggregateClass;
   private Infrastructure infrastructure;
@@ -56,11 +54,10 @@ public class AggregateDeployer<T extends Aggregate> {
     this.aggregateClass = aggregateClass;
     this.vertx = vertx;
     this.deploymentID = deploymentID;
-    this.localModules = new ArrayList<>(MAIN_MODULES);
   }
 
   public void deploy(final Promise<Void> startPromise) {
-    final var moduleBuilder = ModuleBuilder.create().install(localModules);
+    final var moduleBuilder = ModuleBuilder.create().install(MAIN_MODULES);
     this.deploymentConfiguration = ConfigurationHandler.configure(
       vertx,
       aggregateClass.getSimpleName().toLowerCase(),
@@ -77,7 +74,7 @@ public class AggregateDeployer<T extends Aggregate> {
           .call(injector -> {
               addHeartBeat();
               addProjections(injector);
-              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(localModules), deploymentID);
+              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(MAIN_MODULES), deploymentID);
               return eventbusBridge(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
                       .setConfig(injector.getInstance(JsonObject.class))
@@ -109,8 +106,9 @@ public class AggregateDeployer<T extends Aggregate> {
 
   private Uni<Injector> infrastructure(Injector injector) {
     this.infrastructure = new Infrastructure(
-      new CaffeineAggregateCache(),
+      Optional.of(new CaffeineAggregateCache()),
       injector.getInstance(EventStore.class),
+      Optional.empty(),
       injector.getInstance(OffsetStore.class)
     );
     return infrastructure.start(aggregateClass, injector.getInstance(Vertx.class), injector.getInstance(JsonObject.class))
@@ -146,13 +144,6 @@ public class AggregateDeployer<T extends Aggregate> {
       )
       .toList();
     EVENT_PROJECTIONS.addAll(eventProjections);
-    EVENT_PROJECTIONS.add(
-      new EventProjectionPoller(
-        new EventbusEventStream(vertx, aggregateClass),
-        infrastructure.eventStore(),
-        infrastructure.offsetStore()
-      )
-    );
     STATE_PROJECTIONS.addAll(stateProjections);
   }
 

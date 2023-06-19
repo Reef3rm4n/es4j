@@ -2,70 +2,38 @@ package io.eventx.core.objects;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 
+import java.time.Duration;
+
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class AggregateConfiguration {
-  private Boolean useCache = true;
-  private Long aggregateCacheTtlInMinutes = 20L;
-  private Boolean snapshots = true;
-  private Integer snapshotEvery = 50;
-  private Integer maxNumberOfCommandsForIdempotency = 50;
-  private Boolean replication = false;
+  private Duration cacheTtl = Duration.ofMinutes(20);
+  private Integer snapshotThreshold = 500;
+  private Integer idempotencyThreshold = 50;
 
-
-  public Boolean replication() {
-    return replication;
+  public Duration aggregateCacheTtlInMinutes() {
+    return cacheTtl;
   }
 
-  public AggregateConfiguration setReplication(final Boolean replication) {
-    this.replication = replication;
+  public AggregateConfiguration setCacheTtl(final Duration cacheTtl) {
+    this.cacheTtl = cacheTtl;
     return this;
   }
 
-  public Long aggregateCacheTtlInMinutes() {
-    return aggregateCacheTtlInMinutes;
+  public Integer snapshotThreshold() {
+    return snapshotThreshold;
   }
 
-  public AggregateConfiguration setAggregateCacheTtlInMinutes(final Long aggregateCacheTtlInMinutes) {
-    this.aggregateCacheTtlInMinutes = aggregateCacheTtlInMinutes;
+  public AggregateConfiguration setSnapshotThreshold(final Integer snapshotThreshold) {
+    this.snapshotThreshold = snapshotThreshold;
     return this;
   }
 
-  public AggregateConfiguration() {
+  public Integer idempotencyThreshold() {
+    return idempotencyThreshold;
   }
 
-  public Boolean snapshots() {
-    return snapshots;
-  }
-
-  public AggregateConfiguration setSnapshots(final Boolean snapshots) {
-    this.snapshots = snapshots;
-    return this;
-  }
-
-  public Boolean useCache() {
-    return useCache;
-  }
-
-  public AggregateConfiguration setUseCache(final Boolean useCache) {
-    this.useCache = useCache;
-    return this;
-  }
-
-  public Integer snapshotEvery() {
-    return snapshotEvery;
-  }
-
-  public AggregateConfiguration setSnapshotEvery(final Integer snapshotEvery) {
-    this.snapshotEvery = snapshotEvery;
-    return this;
-  }
-
-  public Integer maxNumberOfCommandsForIdempotency() {
-    return maxNumberOfCommandsForIdempotency;
-  }
-
-  public AggregateConfiguration setMaxNumberOfCommandsForIdempotency(final Integer maxNumberOfCommandsForIdempotency) {
-    this.maxNumberOfCommandsForIdempotency = maxNumberOfCommandsForIdempotency;
+  public AggregateConfiguration setIdempotencyThreshold(final Integer idempotencyThreshold) {
+    this.idempotencyThreshold = idempotencyThreshold;
     return this;
   }
 }

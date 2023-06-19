@@ -13,16 +13,18 @@ public class CaffeineAggregateCache implements AggregateCache {
 
   @Override
   public <T extends Aggregate> AggregateState<T> get(AggregateKey<T> aggregateKey) {
-    return CaffeineWrapper.get(aggregateKey.aggregateClass(), key(aggregateKey));
+    return CaffeineWrapper.get(key(aggregateKey));
   }
 
   @NotNull
-  private static <T extends Aggregate> AggregatePlainKey key(AggregateKey<T> aggregateKey) {
+  public static <T extends Aggregate> AggregatePlainKey key(AggregateKey<T> aggregateKey) {
     return new AggregatePlainKey(aggregateKey.aggregateClass().getName(), aggregateKey.aggregateId(), aggregateKey.tenantId());
   }
 
   @Override
   public <T extends Aggregate> void put(AggregateKey<T> aggregateKey, AggregateState<T> aggregate) {
-    CaffeineWrapper.put(aggregate.aggregateClass(), key(aggregateKey), aggregate);
+    CaffeineWrapper.put(key(aggregateKey), aggregate);
   }
+
+
 }

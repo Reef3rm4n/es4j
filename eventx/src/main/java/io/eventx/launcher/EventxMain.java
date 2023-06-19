@@ -1,5 +1,6 @@
 package io.eventx.launcher;
 
+import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.eventx.Aggregate;

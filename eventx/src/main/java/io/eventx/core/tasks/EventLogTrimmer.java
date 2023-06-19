@@ -8,7 +8,7 @@ import io.eventx.task.CronTask;
 import io.eventx.task.CronTaskConfiguration;
 import io.eventx.task.CronTaskConfigurationBuilder;
 
-public class EventStoreCompression implements CronTask {
+public class EventLogTrimmer implements CronTask {
 
   // todo implement a log compression mechanism that implements the following
   // 1) marks the id offset in the event-journal where it is safe to chop

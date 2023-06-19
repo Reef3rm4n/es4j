@@ -6,7 +6,9 @@ import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
+import io.vertx.core.Promise;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
+
 import org.crac.Context;
 import org.crac.Resource;
 import org.slf4j.Logger;
@@ -29,39 +31,50 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 
-import static io.eventx.launcher.EventxMain.MAIN_MODULES;
 import static java.util.stream.Collectors.groupingBy;
 
 public class TaskProcessorVerticle extends AbstractVerticle implements Resource {
+  private final ModuleBuilder moduleBuilder;
+
   @Override
   public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
-
+    Promise<Void> p = Promise.promise();
+    stop(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
   }
 
   @Override
   public void afterRestore(Context<? extends Resource> context) throws Exception {
-
+    Promise<Void> p = Promise.promise();
+    start(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
   }
+
   private static final Logger LOGGER = LoggerFactory.getLogger(TaskProcessorVerticle.class);
-  private final Collection<Module> modules;
   private TaskSubscriber subscriber;
   private Injector injector;
-  private QueueTransactionManager queueTransactionManager;
   private QueueConfiguration taskConfiguration;
 
-  public TaskProcessorVerticle(Collection<Module> modules) {
-    this.modules = modules;
+  public TaskProcessorVerticle(ModuleBuilder modules) {
+    this.moduleBuilder = modules;
+    org.crac.Core.getGlobalContext().register(this);
   }
 
 
   public static Uni<Void> deploy(
     final Vertx vertx,
-    final JsonObject newConfiguration
+    final JsonObject newConfiguration,
+    final Collection<Module> modules
   ) {
-    if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, MAIN_MODULES)) {
+    if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, modules)) {
       return vertx.deployVerticle(
-        () -> new TaskProcessorVerticle(MAIN_MODULES),
+        () -> new TaskProcessorVerticle(ModuleBuilder.create().install(modules)),
         new DeploymentOptions()
           .setInstances(CpuCoreSensor.availableProcessors() * 2)
           .setConfig(newConfiguration)
@@ -77,14 +90,14 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
 
   @Override
   public Uni<Void> asyncStart() {
-    this.taskConfiguration = config().getJsonObject("task-queue", JsonObject.mapFrom(new QueueConfiguration())).mapTo(QueueConfiguration.class);
-    this.injector = bindModules(modules);
-    this.queueTransactionManager = getTransactionManager();
+    this.taskConfiguration = config().getJsonObject("task-queue", new JsonObject()).mapTo(QueueConfiguration.class);
+    this.injector = bindModules();
+    QueueTransactionManager queueTransactionManager = getTransactionManager();
     this.subscriber = getSubscriber();
     return subscriber.subscribe(new MessageProcessorManager(
           taskConfiguration,
           bootstrapProcessors(this.deploymentID(), injector),
-          queueTransactionManager,
+        queueTransactionManager,
           vertx
         )
       )
@@ -107,8 +120,7 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
     };
   }
 
-  private Injector bindModules(Collection<Module> modules) {
-    final var moduleBuilder = ModuleBuilder.create().install(modules);
+  private Injector bindModules() {
     moduleBuilder.bind(Vertx.class).toInstance(vertx);
     moduleBuilder.bind(JsonObject.class).toInstance(config());
     moduleBuilder.bind(QueueConfiguration.class).toInstance(taskConfiguration);

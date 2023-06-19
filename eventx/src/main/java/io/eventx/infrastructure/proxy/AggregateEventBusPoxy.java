@@ -79,7 +79,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
   public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer) {
-    final var address = EventbusStateProjection.subscriptionAddress(aggregateClass, "default");
+    final var address = EventbusLiveProjections.subscriptionAddress(aggregateClass, "default");
     LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
@@ -91,7 +91,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
   public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer, String tenantId) {
-    final var address = EventbusStateProjection.subscriptionAddress(aggregateClass, tenantId);
+    final var address = EventbusLiveProjections.subscriptionAddress(aggregateClass, tenantId);
     LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
@@ -102,19 +102,19 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
       .completionHandler();
   }
 
-  public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer, String tenantId) {
+  public Uni<Void> eventSubscribe(Consumer<AggregateEvent> consumer, String tenantId) {
     final var address = EventbusEventStream.eventbusAddress(aggregateClass, tenantId);
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
-        final var aggregateState = jsonObjectMessage.body().mapTo(PolledEvent.class);
+        final var aggregateState = jsonObjectMessage.body().mapTo(AggregateEvent.class);
         consumer.accept(aggregateState);
       })
       .exceptionHandler(this::subscriptionError)
       .completionHandler();
   }
 
-  public Uni<Void> eventSubscribe(Consumer<PolledEvent> consumer) {
+  public Uni<Void> eventSubscribe(Consumer<AggregateEvent> consumer) {
     final var address = EventbusEventStream.eventbusAddress(aggregateClass, "default");
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {

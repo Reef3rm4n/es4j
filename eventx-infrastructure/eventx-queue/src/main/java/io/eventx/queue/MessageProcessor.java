@@ -16,7 +16,7 @@ import java.util.List;
 public interface MessageProcessor<T> {
   Uni<Void> process(T payload, QueueTransaction queueTransaction);
 
-  default List<Class<Throwable>> fatalExceptions() {
+  default List<Class<? extends Throwable>> fatalExceptions() {
     return List.of();
   }
 

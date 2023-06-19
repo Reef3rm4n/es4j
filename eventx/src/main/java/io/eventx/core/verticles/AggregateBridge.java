@@ -6,6 +6,7 @@ import io.activej.inject.module.ModuleBuilder;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
+import io.vertx.core.Promise;
 import org.crac.Context;
 import org.crac.Core;
 import org.crac.Resource;
@@ -24,13 +25,20 @@ import static io.eventx.launcher.EventxMain.*;
 public class AggregateBridge extends AbstractVerticle implements Resource {
   @Override
   public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
-    final var countDownLatch = new CountDownLatch(1);
-
+    Promise<Void> p = Promise.promise();
+    stop(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
   }
 
   @Override
   public void afterRestore(Context<? extends Resource> context) throws Exception {
-
+    Promise<Void> p = Promise.promise();
+    start(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
   }
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateBridge.class);
