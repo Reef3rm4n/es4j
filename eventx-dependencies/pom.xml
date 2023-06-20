@@ -172,7 +172,6 @@
         <groupId>io.soabase.record-builder</groupId>
         <artifactId>record-builder-processor</artifactId>
         <version>36</version>
-        <scope>provided</scope>
       </dependency>
       <!---->
     </dependencies>

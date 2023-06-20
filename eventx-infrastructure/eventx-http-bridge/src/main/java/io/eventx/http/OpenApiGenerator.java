@@ -59,13 +59,9 @@ public class OpenApiGenerator extends AbstractProcessor {
     if (!generated) {
       System.out.println(typeArgumentsMap);
       final var interfaceSource = generateJavaInterfaceWithSwagger(typeArgumentsMap);
-//      final var implementationSource = generateJavaInterfaceImplementation(typeArgumentsMap);
       interfaceSource.forEach(
         tuple -> writeFile(tuple.getItem1(), tuple.getItem2())
       );
-//      implementationSource.forEach(
-//        tuple -> writeFile(tuple.getItem1(), tuple.getItem2())
-//      );
       generated = true;
       return true;
     }
@@ -121,8 +117,10 @@ public class OpenApiGenerator extends AbstractProcessor {
             final var commandSimpleName = commandTypeElement.getSimpleName().toString();
             builder.append("    @POST\n");
             builder.append("    @Path(\"/").append(camelToKebab(commandSimpleName)).append("\")\n");
-            builder.append("    @Operation(summary = \"Process command\", description = \"Processes a command\")\n");
-            builder.append("    @APIResponse(responseCode = \"200\", description = \"Success\", content = @Content(schema = @Schema(implementation = ").append(aggregate).append(".class)))\n");
+            builder.append("    @Operation(summary = \"Submits command to " + aggregateSimpleName + " aggregate, it will be either processed or rejected \")\n");
+            builder.append("    @APIResponse(responseCode = \"200\", description = \"Command Processed\", content = @Content(schema = @Schema(implementation = ").append(aggregate).append(".class)))\n");
+            builder.append("    @APIResponse(responseCode = \"400\", description = \"Command Rejected\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
+            builder.append("    @APIResponse(responseCode = \"500\", description = \"Command Rejected\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
             builder.append("    ").append("default io.eventx.core.objects.AggregateState<").append(aggregate).append("> " + camelToSnake(commandSimpleName) + "(").append(command).append(" command){return null;}\n\n");
           }
         );
