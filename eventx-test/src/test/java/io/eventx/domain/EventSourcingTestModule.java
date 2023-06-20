@@ -1,5 +1,6 @@
 package io.eventx.domain;
 
+import com.google.auto.service.AutoService;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
 import io.eventx.behaviours.*;
@@ -8,8 +9,8 @@ import io.eventx.config.FileBusinessRule;
 import io.eventx.core.objects.EventxModule;
 import io.eventx.sql.RepositoryHandler;
 
+@AutoService(EventxModule.class)
 public class EventSourcingTestModule extends EventxModule {
-
 
   @Provides
   @Inject

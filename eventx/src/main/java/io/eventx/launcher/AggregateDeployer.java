@@ -1,12 +1,10 @@
 package io.eventx.launcher;
 
 import io.activej.inject.Injector;
-import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.eventx.Aggregate;
 import io.eventx.StateProjection;
 import io.eventx.config.ConfigurationHandler;
-import io.eventx.core.objects.AggregateConfiguration;
 import io.eventx.core.tasks.AggregateHeartbeat;
 import io.eventx.core.verticles.AggregateVerticle;
 import io.eventx.infrastructure.*;
@@ -16,14 +14,13 @@ import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.Verticle;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
-import io.eventx.core.projections.EventbusEventStream;
 import io.eventx.core.tasks.EventProjectionPoller;
 import io.eventx.core.tasks.StateProjectionPoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.eventx.EventProjection;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.eventx.core.objects.StateProjectionWrapper;
 import io.vertx.mutiny.config.ConfigRetriever;
@@ -119,8 +116,8 @@ public class AggregateDeployer<T extends Aggregate> {
   private void addProjections(Injector injector) {
     final var vertx = injector.getInstance(Vertx.class);
     final var aggregateProxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
-    final var stateProjections = CustomClassLoader.loadFromInjector(injector, StateProjection.class).stream()
-      .filter(cc -> CustomClassLoader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
+    final var stateProjections = Loader.loadFromInjector(injector, StateProjection.class).stream()
+      .filter(cc -> Loader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
       .map(cc -> new StateProjectionWrapper<T>(
         cc,
         aggregateClass,
@@ -134,8 +131,8 @@ public class AggregateDeployer<T extends Aggregate> {
         infrastructure.offsetStore()
       ))
       .toList();
-    final var eventProjections = CustomClassLoader.loadFromInjector(injector, EventProjection.class).stream()
-      .filter(cc -> CustomClassLoader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
+    final var eventProjections = Loader.loadFromInjector(injector, EventProjection.class).stream()
+      .filter(cc -> Loader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
       .map(eventProjection -> new EventProjectionPoller(
           eventProjection,
           infrastructure.eventStore(),

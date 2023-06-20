@@ -1,6 +1,5 @@
 package io.eventx.launcher;
 
-import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
 import io.eventx.Aggregate;
@@ -10,7 +9,7 @@ import io.eventx.core.tasks.AggregateHeartbeat;
 import io.eventx.core.tasks.EventProjectionPoller;
 import io.eventx.core.tasks.StateProjectionPoller;
 import io.eventx.core.verticles.AggregateBridge;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.task.CronTaskDeployer;
 import io.eventx.task.TimerTaskDeployer;
 import io.reactiverse.contextual.logging.ContextualData;
@@ -32,8 +31,8 @@ import java.util.*;
 public class EventxMain extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
-  public static final Collection<Module> MAIN_MODULES = new ArrayList<>(CustomClassLoader.loadModules());
-  public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = CustomClassLoader.getSubTypes(Aggregate.class);
+  public static final Collection<Module> MAIN_MODULES = Loader.eventxModules();
+  public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = Loader.loadAggregates();
   private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
   public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
@@ -49,6 +48,7 @@ public class EventxMain extends AbstractVerticle {
     LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
     Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x]  had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
+
     this.cronTaskDeployer = new CronTaskDeployer(vertx);
     this.timerTaskDeployer = new TimerTaskDeployer(vertx);
     addEventBusInterceptors();

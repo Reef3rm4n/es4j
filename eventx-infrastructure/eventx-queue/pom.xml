@@ -25,10 +25,6 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>org.reflections</groupId>
-      <artifactId>reflections</artifactId>
-    </dependency>
-    <dependency>
       <groupId>io.activej</groupId>
       <artifactId>activej-inject</artifactId>
     </dependency>

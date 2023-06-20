@@ -14,7 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.eventx.infrastructure.Bridge;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.List;
@@ -59,7 +59,7 @@ public class AggregateBridge extends AbstractVerticle implements Resource {
   @Override
   public Uni<Void> asyncStart() {
     final var injector = startInjector();
-    this.bridges = CustomClassLoader.loadFromInjector(injector, Bridge.class);
+    this.bridges = Loader.loadFromInjector(injector, Bridge.class);
     return Multi.createFrom().iterable(bridges)
       .onItem().transformToUniAndMerge(bridge -> bridge.start(vertx, config(), AGGREGATE_CLASSES))
       .collect().asList()

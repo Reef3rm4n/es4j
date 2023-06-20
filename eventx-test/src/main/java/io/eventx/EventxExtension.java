@@ -6,10 +6,8 @@ import io.eventx.config.DbConfigCache;
 import io.eventx.config.FsConfigCache;
 import io.eventx.config.orm.ConfigurationKey;
 import io.eventx.core.objects.AggregateState;
-import io.eventx.infrastructure.cache.CaffeineAggregateCache;
 import io.eventx.infrastructure.cache.CaffeineWrapper;
-import io.eventx.infrastructure.misc.CustomClassLoader;
-import io.eventx.infrastructure.models.AggregateKey;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.infrastructure.models.AggregatePlainKey;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -67,7 +65,7 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
       } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateHttpClient.class)) {
         return bootstrapper.httpClient;
       } else {
-        return CustomClassLoader.loadFromInjector(Bootstrapper.injector, parameterContext.getParameter().getType()).stream().findFirst().orElseThrow();
+        return Loader.loadFromInjector(Bootstrapper.injector, parameterContext.getParameter().getType()).stream().findFirst().orElseThrow();
       }
     }
     throw new IllegalStateException("Bootstrapper has not been initialized");

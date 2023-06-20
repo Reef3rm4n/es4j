@@ -14,7 +14,7 @@ import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.Infrastructure;
 import io.eventx.infrastructure.OffsetStore;
 import io.eventx.infrastructure.bus.AggregateBus;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.launcher.EventxMain;
 import io.vertx.core.Promise;
 import io.vertx.mutiny.core.Vertx;
@@ -125,7 +125,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   }
 
   public static <T extends Aggregate> List<CommandBehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
-    final var behaviours = CustomClassLoader.loadFromInjector(injector, CommandBehaviour.class).stream()
+    final var behaviours = Loader.loadFromInjector(injector, CommandBehaviour.class).stream()
       .filter(behaviour ->
         parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem1().isAssignableFrom(entityAggregateClass))
       .map(commandBehaviour -> {
@@ -151,7 +151,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   }
 
   public static <T extends Aggregate> List<EventBehaviourWrapper> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
-    final var aggregators = CustomClassLoader.loadFromInjector(injector, EventBehaviour.class).stream()
+    final var aggregators = Loader.loadFromInjector(injector, EventBehaviour.class).stream()
       .map(aggregator -> {
           final var genericTypes = parseAggregatorClass(aggregator.getClass());
           return new EventBehaviourWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());

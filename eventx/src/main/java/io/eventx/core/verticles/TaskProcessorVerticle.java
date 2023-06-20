@@ -14,7 +14,7 @@ import org.crac.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.queue.MessageProcessor;
 import io.eventx.queue.TaskSubscriber;
 import io.eventx.queue.QueueTransactionManager;
@@ -72,7 +72,7 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
     final JsonObject newConfiguration,
     final Collection<Module> modules
   ) {
-    if (CustomClassLoader.checkPresenceInModules(MessageProcessor.class, modules)) {
+    if (Loader.checkPresenceInModules(MessageProcessor.class, modules)) {
       return vertx.deployVerticle(
         () -> new TaskProcessorVerticle(ModuleBuilder.create().install(modules)),
         new DeploymentOptions()
@@ -129,11 +129,11 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
 
 
   public List<MessageProcessorWrapper> bootstrapProcessors(String deploymentId, Injector injector) {
-    final var singleProcessMessageConsumers = CustomClassLoader.loadFromInjector(injector, MessageProcessor.class);
+    final var singleProcessMessageConsumers = Loader.loadFromInjector(injector, MessageProcessor.class);
     final var queueMap = new HashMap<Class<?>, List<MessageProcessor>>();
     singleProcessMessageConsumers.forEach(
       impl -> {
-        final var tClass = CustomClassLoader.getFirstGenericType(impl);
+        final var tClass = Loader.getFirstGenericType(impl);
         if (queueMap.containsKey(tClass)) {
           queueMap.get(tClass).add(impl);
         } else {

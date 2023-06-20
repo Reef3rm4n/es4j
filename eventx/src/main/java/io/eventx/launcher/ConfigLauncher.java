@@ -13,7 +13,7 @@ import io.smallrye.mutiny.Uni;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.sql.Repository;
 import io.eventx.sql.RepositoryHandler;
 import io.vertx.mutiny.config.ConfigRetriever;
@@ -39,11 +39,11 @@ public class ConfigLauncher {
   public static Uni<Void> addConfigurations(Injector injector) {
     final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, RepositoryHandler.leasePool(injector.getInstance(JsonObject.class), injector.getInstance(Vertx.class)));
     final var configUni = new ArrayList<Uni<Void>>();
-    if (CustomClassLoader.checkPresence(injector, FileBusinessRule.class)) {
+    if (Loader.checkPresence(injector, FileBusinessRule.class)) {
       LOGGER.info("File-System configuration detected");
       configUni.add(fsConfigurations(injector));
     }
-    if (CustomClassLoader.checkPresence(injector, DatabaseBusinessRule.class)) {
+    if (Loader.checkPresence(injector, DatabaseBusinessRule.class)) {
       LOGGER.info("Database configuration detected");
       configUni.add(dbConfigurations(injector.getInstance(RepositoryHandler.class), repository));
     }
@@ -55,7 +55,7 @@ public class ConfigLauncher {
 
   private static Uni<Void> fsConfigurations(Injector injector) {
     final var vertx = injector.getInstance(Vertx.class);
-    final var fsConfigs = CustomClassLoader.loadFromInjectorClass(injector, FileBusinessRule.class);
+    final var fsConfigs = Loader.loadFromInjectorClass(injector, FileBusinessRule.class);
     final var promiseMap = fsConfigs.stream().map(cfg -> Map.entry(cfg.fileName(), Promise.promise()))
       .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     CONFIG_RETRIEVERS.addAll(

@@ -3,8 +3,6 @@ package io.eventx;
 import io.activej.inject.Injector;
 import io.activej.inject.module.Module;
 import io.activej.inject.module.ModuleBuilder;
-import io.eventx.infra.pg.PgEventStore;
-import io.eventx.infrastructure.misc.CustomClassLoader;
 import io.eventx.sql.misc.Constants;
 import io.vertx.core.DeploymentOptions;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;

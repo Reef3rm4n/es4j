@@ -2,7 +2,7 @@ package io.eventx.infrastructure.taskqueue;
 
 
 import io.eventx.core.verticles.TaskProcessorVerticle;
-import io.eventx.infrastructure.misc.CustomClassLoader;
+import io.eventx.infrastructure.misc.Loader;
 import io.eventx.sql.Repository;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.InfrastructureBootstrap;
@@ -38,7 +38,7 @@ public class PgTaskQueueTest {
   @BeforeAll
   static void start() {
     BOOTSTRAP.start();
-    TaskProcessorVerticle.deploy(InfrastructureBootstrap.vertx, BOOTSTRAP.CONFIGURATION, CustomClassLoader.loadModules()).await().indefinitely();
+    TaskProcessorVerticle.deploy(InfrastructureBootstrap.vertx, BOOTSTRAP.CONFIGURATION, Loader.eventxModules()).await().indefinitely();
   }
 
 

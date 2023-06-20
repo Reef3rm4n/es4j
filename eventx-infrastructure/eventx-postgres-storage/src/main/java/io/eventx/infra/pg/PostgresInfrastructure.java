@@ -1,5 +1,6 @@
 package io.eventx.infra.pg;
 
+import com.google.auto.service.AutoService;
 import io.activej.inject.annotation.Inject;
 import io.activej.inject.annotation.Provides;
 import io.eventx.core.objects.EventxModule;
@@ -14,6 +15,8 @@ import io.eventx.sql.Repository;
 import io.eventx.sql.RepositoryHandler;
 import io.vertx.mutiny.core.Vertx;
 
+
+@AutoService(EventxModule.class)
 public class PostgresInfrastructure extends EventxModule {
 
   @Provides
