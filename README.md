@@ -31,7 +31,7 @@ public record Account(String id, String owner, BigDecimal balance) implements Ag
   }
 
   @Override
-  public String tenantID() {
+  public String tenant() {
     return owner();
   }
 

@@ -1,11 +1,10 @@
 package io.eventx.behaviours;
 
 
-import io.eventx.EventBehaviour;
+import io.eventx.Aggregator;
 import io.eventx.domain.FakeAggregate;
 import io.eventx.events.DataCreated;
-
-public class CreateEventBehaviour implements EventBehaviour<FakeAggregate, DataCreated> {
+public class CreateAggregator implements Aggregator<FakeAggregate, DataCreated> {
   @Override
   public FakeAggregate apply(FakeAggregate aggregateState, DataCreated event) {
    return new FakeAggregate(

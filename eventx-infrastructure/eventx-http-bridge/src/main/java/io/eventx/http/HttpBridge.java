@@ -6,9 +6,9 @@ import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.core.objects.EventxError;
 import io.smallrye.mutiny.Uni;
+
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
-import io.eventx.core.projections.EventbusEventStream;
 import io.eventx.core.objects.EventbusLiveProjections;
 import io.eventx.infrastructure.bus.AggregateBus;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
@@ -100,7 +100,7 @@ public class HttpBridge implements Bridge {
       aClass -> bridgeOptions
         .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
         .addOutboundPermitted(permission(EventbusLiveProjections.STATE_PROJECTION, aClass))
-        .addOutboundPermitted(permission(EventbusEventStream.EVENT_PROJECTION, aClass))
+        .addOutboundPermitted(permission(EventbusLiveProjections.EVENT_PROJECTION, aClass))
     );
     final var subRouter = SockJSHandler.create(vertx, options).bridge(
       bridgeOptions,
@@ -122,13 +122,7 @@ public class HttpBridge implements Bridge {
         .consumes(Constants.APPLICATION_JSON)
         .produces(Constants.APPLICATION_JSON)
         .handler(routingContext -> {
-            final var realCommand = routingContext.body().asJsonObject().mapTo(commandClass);
-            final var command = new JsonObject()
-              .put("commandClass", commandClass.getName())
-              .put("command", routingContext.body().asJsonObject()
-                .put("aggregateId", realCommand.aggregateId())
-                .put("tenantId", realCommand.tenantId())
-              );
+            final var command = routingContext.body().asJsonObject().mapTo(commandClass);
             proxies.get(key).forward(command)
               .subscribe()
               .with(

@@ -144,7 +144,7 @@ class ConsistentHashingTest {
     hashRing.printStandardDeviation();
     hashRing.printExtrema();
 //    final var key = keys.stream().findFirst().get();
-//    final var location = hashRing.locate(key.aggregateId() + "::" + key.tenantId());
+//    final var location = hashRing.locate(key.aggregateId() + "::" + key.tenant());
 //    iterate(hashRing, key, location);
 //    final var nodeToRemove = hashRing.members().stream().findFirst().get();
 //    hashRing.removeMember(nodeToRemove);

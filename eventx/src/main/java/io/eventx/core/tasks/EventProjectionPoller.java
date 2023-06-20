@@ -10,7 +10,7 @@ import io.eventx.task.CronTaskConfiguration;
 import io.eventx.task.CronTaskConfigurationBuilder;
 import io.eventx.task.LockLevel;
 import io.smallrye.mutiny.Uni;
-import io.eventx.EventProjection;
+import io.eventx.PollingEventProjection;
 import io.eventx.infrastructure.misc.EventParser;
 import io.eventx.infrastructure.models.EventStream;
 import io.eventx.core.objects.JournalOffset;
@@ -26,16 +26,16 @@ import java.util.concurrent.atomic.AtomicReference;
 public class EventProjectionPoller implements CronTask {
 
   private static final Logger logger = LoggerFactory.getLogger(EventProjectionPoller.class);
-  private final EventProjection eventProjection;
+  private final PollingEventProjection pollingEventProjection;
   private final EventStore eventStore;
   private final OffsetStore offsetStore;
 
   public EventProjectionPoller(
-    EventProjection eventProjections,
+    PollingEventProjection pollingEventProjections,
     EventStore eventStore,
     OffsetStore offsetStore
   ) {
-    this.eventProjection = eventProjections;
+    this.pollingEventProjection = pollingEventProjections;
     this.eventStore = eventStore;
     this.offsetStore = offsetStore;
   }
@@ -43,28 +43,28 @@ public class EventProjectionPoller implements CronTask {
   @Override
   public Uni<Void> performTask() {
     return offsetStore.get(getOffset())
-      .flatMap(journalOffset -> eventStore.fetch(streamStatement(eventProjection, journalOffset))
-        .flatMap(events -> eventProjection.apply(parseEvents(events))
+      .flatMap(journalOffset -> eventStore.fetch(streamStatement(pollingEventProjection, journalOffset))
+        .flatMap(events -> pollingEventProjection.apply(parseEvents(events))
           .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
         )
       )
-      .onFailure().invoke(throwable -> logger.error("Unable to update projection {}", eventProjection.getClass().getName(), throwable))
+      .onFailure().invoke(throwable -> logger.error("Unable to update projection {}", pollingEventProjection.getClass().getName(), throwable))
       .replaceWithVoid();
   }
 
   private JournalOffsetKey getOffset() {
-    return new JournalOffsetKey(eventProjection.getClass().getName(), eventProjection.tenantID());
+    return new JournalOffsetKey(pollingEventProjection.getClass().getName(), pollingEventProjection.tenant());
   }
 
-  private static EventStream streamStatement(EventProjection eventProjection, JournalOffset journalOffset) {
+  private static EventStream streamStatement(PollingEventProjection pollingEventProjection, JournalOffset journalOffset) {
     AtomicReference<EventStream> eventStream = new AtomicReference<>();
-    eventProjection.filter().ifPresentOrElse(
+    pollingEventProjection.filter().ifPresentOrElse(
       filter -> eventStream.set(new EventStream(
         null,
         filter.events(),
         null,
         filter.tags(),
-        eventProjection.tenantID(),
+        pollingEventProjection.tenant(),
         journalOffset.idOffSet(),
         1000,
         null,
@@ -78,7 +78,7 @@ public class EventProjectionPoller implements CronTask {
           null,
           null,
           null,
-          eventProjection.tenantID(),
+          pollingEventProjection.tenant(),
           journalOffset.idOffSet(),
           1000,
           null,
@@ -110,7 +110,7 @@ public class EventProjectionPoller implements CronTask {
     return CronTaskConfigurationBuilder.builder()
       .knownInterruptions(List.of(NotFound.class))
       .lockLevel(LockLevel.CLUSTER_WIDE)
-      .cron(eventProjection.pollingPolicy())
+      .cron(pollingEventProjection.pollingPolicy())
       .build();
   }
 

@@ -71,9 +71,10 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
             .onItem().transformToUniAndMerge(
               tuple2 -> proxy.forward(new LoadAggregate(
                     tuple2.getItem1(),
+                  tuple2.getItem2(),
                     null,
                     null,
-                    CommandHeaders.defaultHeaders(tuple2.getItem2())
+                    CommandHeaders.defaultHeaders()
                   )
                 )
                 .flatMap(stateProjectionWrapper::update)

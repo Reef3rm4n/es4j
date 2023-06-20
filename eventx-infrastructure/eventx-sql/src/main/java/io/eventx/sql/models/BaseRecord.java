@@ -13,7 +13,7 @@ import java.util.Objects;
 
 @RecordBuilder
 public record BaseRecord(
-    String tenantId,
+    String tenant,
     Integer version,
     Instant creationDate,
     Instant lastUpdate
@@ -30,7 +30,7 @@ public record BaseRecord(
     public Map<String, Object> params() {
         final var map = new HashMap<String, Object>();
         map.put(Constants.VERSION, version);
-        map.put(Constants.TENANT, tenantId);
+        map.put(Constants.TENANT, tenant);
         if (creationDate != null)
             map.put(Constants.CREATION_DATE, LocalDateTime.ofInstant(creationDate, ZoneOffset.UTC));
         if (lastUpdate != null)
@@ -49,14 +49,14 @@ public record BaseRecord(
     }
 
     public BaseRecord withId(Long i) {
-        return new BaseRecord(tenantId, version, creationDate, lastUpdate);
+        return new BaseRecord(tenant, version, creationDate, lastUpdate);
     }
 
     public BaseRecord withVersion(Integer c) {
-        return new BaseRecord(tenantId, c, creationDate, lastUpdate);
+        return new BaseRecord(tenant, c, creationDate, lastUpdate);
     }
 
     public BaseRecord withLastUpdate(Instant i) {
-        return new BaseRecord(tenantId, version, creationDate, i);
+        return new BaseRecord(tenant, version, creationDate, i);
     }
 }

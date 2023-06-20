@@ -1,14 +1,14 @@
 package io.eventx.core.objects;
 
-import io.eventx.CommandBehaviour;
+import io.eventx.Behaviour;
 import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.Event;
 
 import java.util.List;
 
-public record CommandBehaviourWrapper<A extends Aggregate, C extends Command>(
-  CommandBehaviour<A, C> delegate,
+public record BehaviourWrap<A extends Aggregate, C extends Command>(
+  Behaviour<A, C> delegate,
   Class<A> entityAggregateClass,
   Class<C> commandClass
 ) {

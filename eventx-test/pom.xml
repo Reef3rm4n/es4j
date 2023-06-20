@@ -40,8 +40,28 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.1.2</version>
       </plugin>
+      <plugin>
+        <groupId>io.smallrye</groupId>
+        <artifactId>smallrye-open-api-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>install</phase>
+            <goals>
+              <goal>generate-schema</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+
+          <infoTitle>Fake Aggregate API</infoTitle>
+          <includeDependenciesScopes>compile,provided,system,test,import</includeDependenciesScopes>
+          <scanClasses>*</scanClasses>
+          <scanPackages>*</scanPackages>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
+
   <dependencies>
     <dependency>
       <groupId>io.eventx</groupId>

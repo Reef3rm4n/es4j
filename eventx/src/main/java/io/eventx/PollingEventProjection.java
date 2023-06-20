@@ -11,7 +11,7 @@ import io.eventx.core.objects.AggregateEvent;
 import java.util.List;
 import java.util.Optional;
 
-public interface EventProjection {
+public interface PollingEventProjection {
 
   Uni<Void> apply(List<AggregateEvent> events);
 
@@ -19,7 +19,7 @@ public interface EventProjection {
     return Optional.empty();
   }
 
-  default String tenantID() {
+  default String tenant() {
     return "default";
   }
   //

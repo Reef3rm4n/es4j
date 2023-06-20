@@ -1,21 +1,22 @@
 package io.eventx.behaviours;
 
 
-import io.eventx.CommandBehaviour;
+import io.eventx.Behaviour;
 import io.eventx.Event;
 import io.eventx.config.DatabaseBusinessRule;
 import io.eventx.domain.FakeAggregate;
 import io.eventx.events.DataChanged;
 import io.eventx.commands.ChangeDataWithDbConfig;
 import io.eventx.domain.DataBusinessRule;
+import io.eventx.http.OpenApiDocs;
 
 import java.util.List;
-
-public class ChangeCommandBehaviourWithDatabaseConfig implements CommandBehaviour<FakeAggregate, ChangeDataWithDbConfig> {
+@OpenApiDocs
+public class ChangeBehaviourWithDatabaseConfig implements Behaviour<FakeAggregate, ChangeDataWithDbConfig> {
 
   private final DatabaseBusinessRule<DataBusinessRule> dataConfiguration;
 
-  public ChangeCommandBehaviourWithDatabaseConfig(DatabaseBusinessRule<DataBusinessRule> dataConfiguration) {
+  public ChangeBehaviourWithDatabaseConfig(DatabaseBusinessRule<DataBusinessRule> dataConfiguration) {
     this.dataConfiguration = dataConfiguration;
   }
 

@@ -6,6 +6,8 @@ import io.activej.inject.module.ModuleBuilder;
 import io.eventx.core.objects.*;
 import io.eventx.infrastructure.cache.CaffeineAggregateCache;
 import io.reactiverse.contextual.logging.ContextualData;
+import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.subscription.Cancellable;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.eventx.Event;
 import io.eventx.core.CommandHandler;
@@ -19,9 +21,9 @@ import io.eventx.launcher.EventxMain;
 import io.vertx.core.Promise;
 import io.vertx.mutiny.core.Vertx;
 import io.eventx.Command;
-import io.eventx.CommandBehaviour;
+import io.eventx.Behaviour;
 import io.eventx.Aggregate;
-import io.eventx.EventBehaviour;
+import io.eventx.Aggregator;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.mutiny.core.eventbus.Message;
@@ -31,6 +33,7 @@ import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
 import org.crac.Resource;
+
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
@@ -48,8 +51,8 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   private final String deploymentID;
   private AggregateConfiguration aggregateConfiguration;
   private CommandHandler<T> commandHandler;
-  private List<CommandBehaviourWrapper> commandBehaviourWrappers;
-  private List<EventBehaviourWrapper> eventBehaviourWrappers;
+  private List<BehaviourWrap> behaviourWraps;
+  private List<AggregatorWrap> aggregatorWraps;
   private Infrastructure infrastructure;
 
   public AggregateVerticle(
@@ -68,8 +71,8 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     final var injector = startInjector();
     this.aggregateConfiguration = config().getJsonObject(aggregateClass.getSimpleName(), new JsonObject()).mapTo(AggregateConfiguration.class);
     LOGGER.info("Event.x starting {}::{}", aggregateClass.getSimpleName(), this.deploymentID);
-    this.eventBehaviourWrappers = loadAggregators(injector, aggregateClass);
-    this.commandBehaviourWrappers = loadBehaviours(injector, aggregateClass);
+    this.aggregatorWraps = loadAggregators(injector, aggregateClass);
+    this.behaviourWraps = loadBehaviours(injector, aggregateClass);
     this.infrastructure = new Infrastructure(
       Optional.of(new CaffeineAggregateCache()),
       injector.getInstance(EventStore.class),
@@ -80,36 +83,63 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     this.commandHandler = new CommandHandler<>(
       vertx,
       aggregateClass,
-      eventBehaviourWrappers,
-      commandBehaviourWrappers,
+      aggregatorWraps,
+      behaviourWraps,
       infrastructure,
       aggregateConfiguration
     );
-    return AggregateBus.registerCommandConsumer(
-        vertx,
-        aggregateClass,
-        deploymentID,
-        this::processCommand
+    // todo as behaviours are loaded also register consumer in order to avoid unsafe operation ?
+    return Multi.createFrom().iterable(behaviourWraps)
+      .onItem().transformToUniAndMerge(
+        cmdBehaviour -> AggregateBus.registerCommandConsumer(
+          vertx,
+          aggregateClass,
+          deploymentID,
+          message -> messageHandler(cmdBehaviour, message),
+          cmdBehaviour.commandClass()
+        )
       )
-      .flatMap(avoid -> AggregateBus.waitForRegistration(deploymentID, aggregateClass));
+      .collect().asList()
+      .flatMap(avoid -> AggregateBus.waitForRegistration(deploymentID, aggregateClass))
+      .replaceWithVoid();
   }
 
-  private void processCommand(Message<JsonObject> jsonMessage) {
-    LOGGER.debug("Incoming command {}", jsonMessage.body().encodePrettily());
-    commandHandler.process(jsonMessage.body().getString("commandClass"), jsonMessage.body().getJsonObject("command"))
+  private Cancellable messageHandler(BehaviourWrap cmdBehaviour, Message<JsonObject> message) {
+    // todo add command name to contextual data
+    return commandHandler.process(parseCommand(cmdBehaviour.commandClass(), message))
       .subscribe()
       .with(
-        jsonMessage::reply,
+        message::reply,
         throwable -> {
           if (throwable instanceof EventxException vertxServiceException) {
-            jsonMessage.fail(vertxServiceException.error().externalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
+            message.fail(vertxServiceException.error().externalErrorCode(), JsonObject.mapFrom(vertxServiceException.error()).encodePrettily());
           } else {
             LOGGER.error("Unexpected exception raised", throwable);
-            jsonMessage.fail(500, JsonObject.mapFrom(new EventxError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
+            message.fail(500, JsonObject.mapFrom(new EventxError(throwable.getMessage(), throwable.getLocalizedMessage(), 500)).encode());
           }
         }
       );
   }
+
+  private static Command parseCommand(Class<? extends Command> cmdClass, Message<JsonObject> message) {
+    try {
+      LOGGER.debug("Incoming command {} {}", cmdClass.getName(), message.body().encodePrettily());
+      return message.body().mapTo(cmdClass);
+    } catch (Exception e) {
+      message.fail(400, JsonObject.mapFrom(
+          EventxErrorBuilder.builder()
+            .cause("Invalid message body")
+            .errorSource(ErrorSource.UNKNOWN)
+            .hint(e.getMessage())
+            .externalErrorCode(400)
+            .internalCode("400L")
+            .build()
+        ).encode()
+      );
+      throw new IllegalArgumentException();
+    }
+  }
+
 
   private void addContextualData(DeliveryContext<Object> event) {
     ContextualData.put("AGGREGATE", aggregateClass.getSimpleName());
@@ -124,13 +154,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     return Injector.of(moduleBuilder.build());
   }
 
-  public static <T extends Aggregate> List<CommandBehaviourWrapper> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
-    final var behaviours = Loader.loadFromInjector(injector, CommandBehaviour.class).stream()
+  public static <T extends Aggregate> List<BehaviourWrap> loadBehaviours(final Injector injector, Class<T> entityAggregateClass) {
+    final var behaviours = Loader.loadFromInjector(injector, Behaviour.class).stream()
       .filter(behaviour ->
         parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem1().isAssignableFrom(entityAggregateClass))
       .map(commandBehaviour -> {
           final var genericTypes = parseCommandBehaviourGenericTypes(commandBehaviour.getClass());
-          return new CommandBehaviourWrapper(commandBehaviour, entityAggregateClass, genericTypes.getItem2());
+          return new BehaviourWrap(commandBehaviour, entityAggregateClass, genericTypes.getItem2());
         }
       )
       .toList();
@@ -150,11 +180,11 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     return behaviours;
   }
 
-  public static <T extends Aggregate> List<EventBehaviourWrapper> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
-    final var aggregators = Loader.loadFromInjector(injector, EventBehaviour.class).stream()
+  public static <T extends Aggregate> List<AggregatorWrap> loadAggregators(final Injector injector, Class<T> entityAggregateClass) {
+    final var aggregators = Loader.loadFromInjector(injector, Aggregator.class).stream()
       .map(aggregator -> {
           final var genericTypes = parseAggregatorClass(aggregator.getClass());
-          return new EventBehaviourWrapper(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
+          return new AggregatorWrap(aggregator, genericTypes.getItem1(), genericTypes.getItem2());
         }
       )
       .filter(behaviour -> behaviour.entityAggregateClass().isAssignableFrom(entityAggregateClass))
@@ -170,13 +200,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     return aggregators;
   }
 
-  public static Tuple2<Class<? extends Aggregate>, Class<?>> parseAggregatorClass(Class<? extends EventBehaviour> behaviour) {
+  public static Tuple2<Class<? extends Aggregate>, Class<?>> parseAggregatorClass(Class<? extends Aggregator> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
-      throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
+      throw new IllegalArgumentException(behaviour.getName() + " should only implement Aggregator interface");
     } else if (genericInterfaces.length == 0) {
       // should not happen ever.
-      throw new IllegalArgumentException("Any event behaviour should implement EventBehaviour interface -> " + behaviour.getName());
+      throw new IllegalArgumentException(behaviour.getName() + " should implement Aggregator interface");
     }
     final var genericInterface = genericInterfaces[0];
     if (genericInterface instanceof ParameterizedType parameterizedType) {
@@ -187,20 +217,20 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
         entityClass = (Class<? extends Aggregate>) Class.forName(genericTypes[0].getTypeName());
         eventClass = Class.forName(genericTypes[1].getTypeName());
       } catch (ClassNotFoundException e) {
-        throw new IllegalArgumentException("Unable to get behaviour generic types -> ", e);
+        throw new IllegalArgumentException("Unable to parse generic type", e);
       }
       return Tuple2.of(entityClass, eventClass);
     } else {
-      throw new IllegalArgumentException("Invalid genericInterface -> " + genericInterface.getClass());
+      throw new IllegalArgumentException("Invalid Interface -> " + genericInterface.getClass());
     }
   }
 
-  public static Tuple2<Class<? extends Aggregate>, Class<? extends Command>> parseCommandBehaviourGenericTypes(Class<? extends CommandBehaviour> behaviour) {
+  public static Tuple2<Class<? extends Aggregate>, Class<? extends Command>> parseCommandBehaviourGenericTypes(Class<? extends Behaviour> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
-      throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());
+      throw new IllegalArgumentException(behaviour.getName() + "should only implement Behaviour interface");
     } else if (genericInterfaces.length == 0) {
-      throw new IllegalArgumentException("Behaviours should implement BehaviourCommand interface -> " + behaviour.getName());
+      throw new IllegalArgumentException(behaviour.getName() + " should implement Behaviour interface");
     }
     final var genericInterface = genericInterfaces[0];
     if (genericInterface instanceof ParameterizedType parameterizedType) {
@@ -215,7 +245,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
       }
       return Tuple2.of(entityClass, commandClass);
     } else {
-      throw new IllegalArgumentException("Invalid genericInterface -> " + genericInterface.getClass());
+      throw new IllegalArgumentException("Invalid interface -> " + genericInterface.getClass());
     }
   }
 

@@ -149,7 +149,7 @@ public class ConfigLauncher {
 
   public static String parseKey(ConfigurationRecord record) {
     return new StringJoiner("::")
-      .add(record.baseRecord().tenantId())
+      .add(record.baseRecord().tenant())
       .add(record.tClass())
       .toString();
   }
@@ -165,7 +165,7 @@ public class ConfigLauncher {
 
   private static Uni<Void> warmCaches(final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
     return repository.stream(configurationRecord -> {
-        final var key = new ConfigurationKey(configurationRecord.tClass(), configurationRecord.revision(), configurationRecord.baseRecord().tenantId());
+        final var key = new ConfigurationKey(configurationRecord.tClass(), configurationRecord.revision(), configurationRecord.baseRecord().tenant());
         handleMessage(key, configurationRecord, null);
       }
       ,

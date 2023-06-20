@@ -1,11 +1,11 @@
 package io.eventx.core.objects;
 
 import io.eventx.Aggregate;
-import io.eventx.EventBehaviour;
+import io.eventx.Aggregator;
 import io.eventx.Event;
 
-public record EventBehaviourWrapper<T extends Aggregate, E extends Event> (
-  EventBehaviour<T, E> delegate,
+public record AggregatorWrap<T extends Aggregate, E extends Event> (
+  Aggregator<T, E> delegate,
   Class<T> entityAggregateClass,
   Class<?> eventClass
 ){

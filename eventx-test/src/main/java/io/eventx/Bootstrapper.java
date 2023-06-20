@@ -100,7 +100,7 @@ public class Bootstrapper<T extends Aggregate> {
 
 
   public JsonObject configuration(Class<? extends Aggregate> aggregateClass) {
-    return vertx.fileSystem().readFileBlocking(aggregateClass.getSimpleName() + ".json").toJsonObject();
+    return vertx.fileSystem().readFileBlocking(camelToKebab(aggregateClass.getSimpleName()) + ".json").toJsonObject();
   }
 
   private void deployRedisContainer() {
@@ -111,7 +111,7 @@ public class Bootstrapper<T extends Aggregate> {
     redis.start();
     config.put("redisHost", redis.getHost());
     config.put("redisPort", redis.getFirstMappedPort());
-    vertx.fileSystem().writeFileBlocking(aggregateClass.getSimpleName() + ".json", Buffer.newInstance(config.toBuffer()));
+    vertx.fileSystem().writeFileBlocking(camelToKebab(aggregateClass.getSimpleName()) + ".json", Buffer.newInstance(config.toBuffer()));
     LOGGER.debug("Configuration after container bootstrap {}", config);
   }
 
@@ -126,7 +126,7 @@ public class Bootstrapper<T extends Aggregate> {
       .put(Constants.PG_PASSWORD, postgreSQLContainer.getPassword())
       .put(Constants.PG_DATABASE, postgreSQLContainer.getDatabaseName())
       .put(Constants.JDBC_URL, postgreSQLContainer.getJdbcUrl());
-    vertx.fileSystem().writeFileBlocking(aggregateClass.getSimpleName() + ".json", Buffer.newInstance(config.toBuffer()));
+    vertx.fileSystem().writeFileBlocking(camelToKebab(aggregateClass.getSimpleName()) + ".json", Buffer.newInstance(config.toBuffer()));
     LOGGER.debug("Configuration after container bootstrap {}", config);
   }
 

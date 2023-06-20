@@ -26,65 +26,44 @@ import java.util.*;
 import java.util.stream.IntStream;
 
 public class CommandHandler<T extends Aggregate> {
-  private final List<CommandBehaviourWrapper> behaviours;
-  private final List<EventBehaviourWrapper> aggregators;
+  private final List<BehaviourWrap> behaviours;
+  private final List<AggregatorWrap> aggregators;
   private final Infrastructure infrastructure;
   private static final Logger LOGGER = LoggerFactory.getLogger(CommandHandler.class);
   private final Class<T> aggregateClass;
-  private final Map<String, String> commandClassMap = new HashMap<>();
   private final AggregateConfiguration aggregateConfiguration;
   private final Vertx vertx;
 
   public CommandHandler(
     final Vertx vertx,
     final Class<T> aggregateClass,
-    final List<EventBehaviourWrapper> eventBehaviourWrappers,
-    final List<CommandBehaviourWrapper> commandBehaviourWrappers,
+    final List<AggregatorWrap> aggregatorWraps,
+    final List<BehaviourWrap> behaviourWraps,
     final Infrastructure infrastructure,
     final AggregateConfiguration aggregateConfiguration
   ) {
     this.vertx = vertx;
     this.infrastructure = infrastructure;
     this.aggregateClass = aggregateClass;
-    this.aggregators = eventBehaviourWrappers;
-    this.behaviours = commandBehaviourWrappers;
-    if (commandBehaviourWrappers.isEmpty()) {
+    this.aggregators = aggregatorWraps;
+    this.behaviours = behaviourWraps;
+    if (behaviourWraps.isEmpty()) {
       throw new IllegalStateException("Empty behaviours");
     }
-    if (eventBehaviourWrappers.isEmpty()) {
+    if (aggregatorWraps.isEmpty()) {
       throw new IllegalStateException("Empty behaviours");
     }
-    populateCommandClassMap(commandBehaviourWrappers);
     this.aggregateConfiguration = aggregateConfiguration;
-  }
-
-  private void populateCommandClassMap(List<CommandBehaviourWrapper> commandBehaviours) {
-    commandBehaviours.stream().map(
-      cmd -> Tuple4.of(
-        cmd.commandClass().getName(),
-        cmd.commandClass().getSimpleName(),
-        camelToSnake(cmd.commandClass().getSimpleName()
-        ),
-        cmd.commandClass().getSimpleName().toLowerCase()
-      )
-    ).forEach(tuple -> {
-        commandClassMap.put(tuple.getItem1(), tuple.getItem1());
-        commandClassMap.put(tuple.getItem2(), tuple.getItem1());
-        commandClassMap.put(tuple.getItem3(), tuple.getItem1());
-        commandClassMap.put(tuple.getItem4(), tuple.getItem1());
-      }
-    );
   }
 
   private Uni<JsonObject> replay(LoadAggregate loadAggregate) {
     if (Objects.nonNull(loadAggregate.dateTo()) || Objects.nonNull(loadAggregate.versionTo())) {
       return replayAndAggregate(loadAggregate).map(AggregateState::toJson);
     }
-    return replayAggregateAndCache(loadAggregate.aggregateId(), loadAggregate.tenantId()).map(AggregateState::toJson);
+    return replayAggregateAndCache(loadAggregate.aggregateId(), loadAggregate.tenant()).map(AggregateState::toJson);
   }
 
-  public Uni<JsonObject> process(String commandClass, JsonObject jsonCommand) {
-    final var command = parseCommand(commandClass, jsonCommand);
+  public Uni<JsonObject> process(Command command) {
     if (command instanceof LoadAggregate loadAggregate) {
       return replay(loadAggregate);
     }
@@ -94,11 +73,12 @@ public class CommandHandler<T extends Aggregate> {
     return replayAndAppend(command);
   }
 
+
   private Uni<JsonObject> replayAndAppend(Command command) {
-    return replayAggregateAndCache(command.aggregateId(), command.tenantId())
+    return replayAggregateAndCache(command.aggregateId(), command.tenant())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
         .onFailure(Conflict.class).recoverWithUni(
-          () -> playFromLastJournalOffset(command.aggregateId(), command.tenantId(), aggregateState)
+          () -> playFromLastJournalOffset(command.aggregateId(), command.tenant(), aggregateState)
             .flatMap(reconstructedState -> processCommand(reconstructedState, command))
             .onFailure(Conflict.class).retry().atMost(5)
         )
@@ -108,7 +88,7 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   private Uni<JsonObject> replayAndSimulate(Command command) {
-    return replayAggregateAndCache(command.aggregateId(), command.tenantId())
+    return replayAggregateAndCache(command.aggregateId(), command.tenant())
       .map(aggregateState -> {
           checkCommandId(aggregateState, command);
           final var events = applyCommandBehaviour(aggregateState, command);
@@ -131,17 +111,17 @@ public class CommandHandler<T extends Aggregate> {
     return newAggregateState;
   }
 
-  private EventBehaviourWrapper defaultAggregator(Event event) {
+  private AggregatorWrap defaultAggregator(Event event) {
     return aggregators.stream()
-      .filter(behaviour -> Objects.equals(behaviour.delegate().tenantId(), "default"))
+      .filter(behaviour -> Objects.equals(behaviour.delegate().tenant(), "default"))
       .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
       .findFirst()
       .orElseThrow(() -> UnknownEvent.unknown(event.getClass()));
   }
 
-  private EventBehaviourWrapper customAggregator(Event event) {
+  private AggregatorWrap customAggregator(Event event) {
     return aggregators.stream()
-      .filter(behaviour -> !Objects.equals(behaviour.delegate().tenantId(), "default"))
+      .filter(behaviour -> !Objects.equals(behaviour.delegate().tenant(), "default"))
       .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
       .findFirst()
       .orElse(null);
@@ -156,17 +136,17 @@ public class CommandHandler<T extends Aggregate> {
   }
 
 
-  private CommandBehaviourWrapper defaultBehaviour(Command command) {
+  private BehaviourWrap defaultBehaviour(Command command) {
     return behaviours.stream()
-      .filter(behaviour -> Objects.equals(behaviour.delegate().tenantID(), "default"))
+      .filter(behaviour -> Objects.equals(behaviour.delegate().tenant(), "default"))
       .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
       .findFirst()
       .orElseThrow(() -> UnknownCommand.unknown(command.getClass()));
   }
 
-  private CommandBehaviourWrapper customBehaviour(Command command) {
+  private BehaviourWrap customBehaviour(Command command) {
     return behaviours.stream()
-      .filter(behaviour -> !Objects.equals(behaviour.delegate().tenantID(), "default"))
+      .filter(behaviour -> !Objects.equals(behaviour.delegate().tenant(), "default"))
       .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
       .findFirst()
       .orElse(null);
@@ -211,7 +191,7 @@ public class CommandHandler<T extends Aggregate> {
       .builder()
       .aggregates(List.of(aggregateClass))
       .aggregateIds(List.of(loadAggregate.aggregateId()))
-      .tenantId(loadAggregate.tenantId())
+      .tenantId(loadAggregate.tenant())
       .offset(0L)
       .to(loadAggregate.dateTo())
       .versionTo(loadAggregate.versionTo())
@@ -312,7 +292,7 @@ public class CommandHandler<T extends Aggregate> {
             ev.getClass().getName(),
             eventVersion,
             JsonObject.mapFrom(ev),
-            finalCommand.tenantId(),
+            finalCommand.tenant(),
             finalCommand.headers().commandId(),
             ev.tags(),
             ev.schemaVersion()
@@ -339,7 +319,7 @@ public class CommandHandler<T extends Aggregate> {
           state.currentVersion(),
           JsonObject.mapFrom(
             snapshotEvent),
-          finalCommand.tenantId(),
+          finalCommand.tenant(),
           finalCommand.headers().commandId(),
           List.of("system"),
           state.state().schemaVersion()
@@ -373,7 +353,7 @@ public class CommandHandler<T extends Aggregate> {
         } catch (Exception exception) {
           LOGGER.error("Unable to publish state update for {}::{} on address {}", state.aggregateClass().getSimpleName(), state.state().aggregateId(), address);
         }
-        LOGGER.debug("State update published for {}::{} to address {}", state.aggregateClass().getSimpleName(), state.state().aggregateId(), address);
+        LOGGER.debug("Event stream published for {}::{} to address {}", state.aggregateClass().getSimpleName(), state.state().aggregateId(), address);
       }
     );
   }
@@ -508,52 +488,6 @@ public class CommandHandler<T extends Aggregate> {
     LOGGER.error("{} command rejected {}", command.getClass().getName(), JsonObject.mapFrom(command).encodePrettily(), throwable);
   }
 
-
-  private Command parseCommand(final String commandType, final JsonObject jsonCommand) {
-    try {
-      final var clazz = Class.forName(Objects.requireNonNullElse(commandClassMap.get(commandType), commandType));
-      final var object = jsonCommand.mapTo(clazz);
-      if (object instanceof Command command) {
-        return command;
-      } else {
-        throw new CommandRejected(new EventxError(
-          ErrorSource.LOGIC,
-          JsonObject.mapFrom(object).encode(),
-          "Command is not an instance of AggregateCommand",
-          "Unable to parse command " + commandType + jsonCommand.encodePrettily(),
-          "command.parser",
-          500
-        ));
-      }
-    } catch (Exception e) {
-      LOGGER.error("Error casting to {} {}", commandType, jsonCommand.encodePrettily(), e);
-      throw new CommandRejected(new EventxError(
-        ErrorSource.LOGIC,
-        this.getClass().getName(),
-        "Unable to parse command",
-        "Unable to parse command " + commandType + jsonCommand.encodePrettily(),
-        "command.parser",
-        500
-      )
-      );
-    }
-  }
-
-  public static String camelToSnake(String str) {
-    // Regular Expression
-    String regex = "([a-z])([A-Z]+)";
-
-    // Replacement string
-    String replacement = "$1_$2";
-
-    // Replace the given regex
-    // with replacement string
-    // and convert it to lower case.
-    str = str.replaceAll(regex, replacement).toLowerCase();
-
-    // return string
-    return str;
-  }
 
   public static String camelToKebab(String str) {
     // Regular Expression

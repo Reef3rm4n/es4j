@@ -1,15 +1,11 @@
 package io.eventx;
 
 
-import io.eventx.behaviours.ChangeCommandBehaviour;
+import io.eventx.behaviours.ChangeBehaviour;
 import io.smallrye.mutiny.tuples.Tuple2;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.vertx.junit5.VertxExtension;
-import io.vertx.junit5.VertxTestContext;
-import io.vertx.mutiny.core.Vertx;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -24,10 +20,10 @@ class ReflectionTests {
 
   @Test
   void testReflection() {
-    final var classTuple = entityAggregateClass(ChangeCommandBehaviour.class);
+    final var classTuple = entityAggregateClass(ChangeBehaviour.class);
   }
 
-  public Tuple2<Class<? extends Aggregate>, Class<? extends Command>> entityAggregateClass(Class<? extends CommandBehaviour<? extends Aggregate, ? extends Command>> behaviour) {
+  public Tuple2<Class<? extends Aggregate>, Class<? extends Command>> entityAggregateClass(Class<? extends Behaviour<? extends Aggregate, ? extends Command>> behaviour) {
     Type[] genericInterfaces = behaviour.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
       throw new IllegalArgumentException("Behaviours cannot implement more than one interface -> " + behaviour.getName());

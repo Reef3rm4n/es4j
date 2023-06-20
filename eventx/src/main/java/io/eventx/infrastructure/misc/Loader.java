@@ -10,6 +10,7 @@ import io.eventx.Bootstrap;
 import io.eventx.core.objects.EventxModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
@@ -17,7 +18,9 @@ import java.util.*;
 
 public class Loader {
 
+
   protected static final Logger LOGGER = LoggerFactory.getLogger(Loader.class);
+
   public static Collection<Module> eventxModules() {
     return ServiceLoader.load(EventxModule.class).stream().map(
         ServiceLoader.Provider::get
@@ -54,11 +57,15 @@ public class Loader {
   }
 
   public static <T> Class<?> getSecondGenericType(T object) {
-    Type[] genericInterfaces = object.getClass().getGenericInterfaces();
+    return getSecondGenericType(object.getClass());
+  }
+
+  public static <T> Class<?> getSecondGenericType(Class<T> tClass) {
+    Type[] genericInterfaces = tClass.getGenericInterfaces();
     if (genericInterfaces.length > 1) {
-      throw new IllegalArgumentException("Behaviour " + object.getClass().getName() + " implements more than one interface");
+      throw new IllegalArgumentException("Behaviour " + tClass.getName() + " implements more than one interface");
     } else if (genericInterfaces.length == 0) {
-      throw new IllegalArgumentException("Behaviour " + object.getClass().getName() + " should implement one interface");
+      throw new IllegalArgumentException("Behaviour " + tClass.getName() + " should implement one interface");
     }
     final var genericInterface = genericInterfaces[1];
     if (genericInterface instanceof ParameterizedType parameterizedType) {
@@ -72,6 +79,8 @@ public class Loader {
       throw new IllegalArgumentException("Invalid generic interface" + genericInterface.getClass());
     }
   }
+
+
   public static <T> List<T> loadFromInjector(final Injector injector, final Class<T> tClass) {
     return injector.getBindings().entrySet().stream()
       .filter(entry -> checkPresenceInBinding(tClass, entry))

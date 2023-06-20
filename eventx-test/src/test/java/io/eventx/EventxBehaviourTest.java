@@ -5,9 +5,9 @@ import io.eventx.commands.ChangeData;
 import io.eventx.commands.ChangeDataWithConfig;
 import io.eventx.commands.ChangeDataWithDbConfig;
 import io.eventx.commands.CreateData;
+import io.eventx.core.objects.AggregateEvent;
 import io.eventx.core.objects.AggregateState;
 import io.eventx.core.objects.CommandHeaders;
-import io.eventx.core.projections.EventbusEventStream;
 import io.eventx.core.tasks.EventProjectionPoller;
 import io.eventx.domain.DataBusinessRule;
 import io.eventx.domain.FakeAggregate;
@@ -20,12 +20,12 @@ import io.eventx.sql.Repository;
 import io.eventx.sql.RepositoryHandler;
 import io.smallrye.mutiny.Uni;
 import io.eventx.core.objects.LoadAggregate;
-import io.vertx.core.Future;
 import io.vertx.junit5.VertxTestContext;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,9 +50,11 @@ public class EventxBehaviourTest {
   void test_projection_poller(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy, RepositoryHandler repositoryHandler) {
     eventBusPoxy.eventSubscribe(fakeAggregateAggregateState -> LOGGER.info("Incoming event {}", fakeAggregateAggregateState.toJson().encodePrettily()))
       .await().indefinitely();
-    final var aggregate = createAggregate(eventBusPoxy);
     final var poller = new EventProjectionPoller(
-      new EventbusEventStream(Bootstrapper.vertx, FakeAggregate.class),
+      events -> {
+        LOGGER.info("events {}", events);
+        return Uni.createFrom().voidItem();
+      },
       new PgEventStore(new Repository<>(EventStoreMapper.INSTANCE, repositoryHandler)),
       new PgOffsetStore(new Repository<>(JournalOffsetMapper.INSTANCE, repositoryHandler))
     );
@@ -90,6 +92,7 @@ public class EventxBehaviourTest {
     Assertions.assertEquals(10L, resultingState.currentVersion());
     final var replayedState = eventBusPoxy.forward(new LoadAggregate(
       aggregate.state().aggregateId(),
+      "default",
       5L,
       null,
       CommandHeaders.defaultHeaders()
@@ -98,6 +101,7 @@ public class EventxBehaviourTest {
 
     final var stateAfterReplayCommand = eventBusPoxy.forward(new LoadAggregate(
       aggregate.state().aggregateId(),
+      "default",
       null,
       null,
       CommandHeaders.defaultHeaders()

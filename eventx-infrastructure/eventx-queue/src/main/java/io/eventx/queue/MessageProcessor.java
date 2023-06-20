@@ -8,8 +8,8 @@ import java.util.List;
 
 /**
  * When using mono consumer the queue entry will be processed only ONCE by either the default implementation
- * which is the one that returns tenantId null or the tenantId specific implementation which is the implementation that
- * returns a matching tenantId in the tenants() method
+ * which is the one that returns tenant null or the tenant specific implementation which is the implementation that
+ * returns a matching tenant in the tenants() method
  *
  * @param <T> The payload, queue entry type
  */

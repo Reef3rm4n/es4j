@@ -14,7 +14,7 @@ import java.util.List;
 public interface Command extends Shareable, Serializable {
   String aggregateId();
 
-  default String tenantId() {
+  default String tenant() {
     return "default";
   }
 

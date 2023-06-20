@@ -10,7 +10,7 @@ import io.smallrye.mutiny.Uni;
 public interface StateProjection<T extends Aggregate> {
 
   Uni<Void> update(AggregateState<T> currentState);
-  default String tenantID() {
+  default String tenant() {
     return "default";
   }
 

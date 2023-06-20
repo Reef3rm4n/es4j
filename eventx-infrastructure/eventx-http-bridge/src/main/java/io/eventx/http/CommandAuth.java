@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface CommandAuth {
   Uni<Void> validateCommand(Command command, MultiMap headers);
-  default List<String> tenantId() {
+  default List<String> tenant() {
     return List.of("default");
   }
 

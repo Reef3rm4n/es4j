@@ -31,10 +31,21 @@
   </dependencyManagement>
 
   <dependencies>
+    <!-- https://mvnrepository.com/artifact/com.google.auto.service/auto-service -->
+    <dependency>
+      <groupId>com.google.auto.service</groupId>
+      <artifactId>auto-service</artifactId>
+      <version>1.1.1</version>
+    </dependency>
     <dependency>
       <groupId>io.eventx</groupId>
       <artifactId>eventx</artifactId>
       <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.13.4</version>
     </dependency>
     <dependency>
       <groupId>io.smallrye.reactive</groupId>
@@ -68,11 +79,22 @@
     </dependency>
     <dependency>
       <groupId>io.smallrye</groupId>
+      <artifactId>smallrye-open-api-core</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.smallrye</groupId>
       <artifactId>smallrye-open-api-jaxrs</artifactId>
+      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>javax.ws.rs</groupId>
       <artifactId>javax.ws.rs-api</artifactId>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.smallrye</groupId>
+      <artifactId>smallrye-open-api-maven-plugin</artifactId>
+      <version>3.1.0</version>
     </dependency>
   </dependencies>
 </project>

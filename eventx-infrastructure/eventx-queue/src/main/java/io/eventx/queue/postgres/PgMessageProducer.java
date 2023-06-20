@@ -90,7 +90,7 @@ public class PgMessageProducer implements MessageProducer {
     return queue.selectByKey(new MessageRecordID(messageID.id(), messageID.tenant()))
       .map(entry -> new Message<>(
           entry.id(),
-          entry.baseRecord().tenantId(),
+          entry.baseRecord().tenant(),
           entry.scheduled(),
           entry.expiration(),
           entry.priority(),
@@ -104,7 +104,7 @@ public class PgMessageProducer implements MessageProducer {
       .map(entries -> entries.stream()
         .map(entry -> new Message<>(
           entry.id(),
-          entry.baseRecord().tenantId(),
+          entry.baseRecord().tenant(),
           entry.scheduled(),
           entry.expiration(),
           entry.priority(),
@@ -116,7 +116,7 @@ public class PgMessageProducer implements MessageProducer {
     return queue.stream(entry -> {
         final var msg = new Message<>(
           entry.id(),
-          entry.baseRecord().tenantId(),
+          entry.baseRecord().tenant(),
           entry.scheduled(),
           entry.expiration(),
           entry.priority(),

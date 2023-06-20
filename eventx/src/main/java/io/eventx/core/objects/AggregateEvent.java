@@ -19,7 +19,7 @@ public record AggregateEvent(
   public JsonObject toJson() {
     return new JsonObject()
       .put("aggregateId", aggregateId)
-      .put("tenantId", tenantId)
+      .put("tenant", tenantId)
       .put("journalOffset", journalOffset)
       .put("aggregateOffset", aggregateOffset)
       .put("event", JsonObject.mapFrom(event));

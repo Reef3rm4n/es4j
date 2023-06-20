@@ -44,7 +44,7 @@ public class PgEventStore implements EventStore {
             eventRecord.eventClass(),
             eventRecord.eventVersion(),
             eventRecord.event(),
-            eventRecord.baseRecord().tenantId(),
+            eventRecord.baseRecord().tenant(),
             eventRecord.commandId(),
             eventRecord.tags(),
             eventRecord.schemaVersion()
@@ -63,7 +63,7 @@ public class PgEventStore implements EventStore {
           eventRecord.eventClass(),
           eventRecord.eventVersion(),
           eventRecord.event(),
-          eventRecord.baseRecord().tenantId(),
+          eventRecord.baseRecord().tenant(),
           eventRecord.commandId(),
           eventRecord.tags(),
           eventRecord.schemaVersion()
@@ -83,7 +83,7 @@ public class PgEventStore implements EventStore {
           eventRecord.eventClass(),
           eventRecord.eventVersion(),
           eventRecord.event(),
-          eventRecord.baseRecord().tenantId(),
+          eventRecord.baseRecord().tenant(),
           eventRecord.commandId(),
           eventRecord.tags(),
           eventRecord.schemaVersion()
@@ -103,7 +103,7 @@ public class PgEventStore implements EventStore {
             eventRecord.eventClass(),
             eventRecord.eventVersion(),
             eventRecord.event(),
-            eventRecord.baseRecord().tenantId(),
+            eventRecord.baseRecord().tenant(),
             eventRecord.commandId(),
             eventRecord.tags(),
             eventRecord.schemaVersion()

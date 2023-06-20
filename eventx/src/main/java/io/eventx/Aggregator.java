@@ -5,11 +5,11 @@ import io.vertx.core.json.JsonObject;
 import io.eventx.core.exceptions.UnknownEvent;
 import io.eventx.core.objects.ErrorSource;
 
-public interface EventBehaviour<T extends Aggregate, E extends Event> {
+public interface Aggregator<T extends Aggregate, E extends Event> {
 
   T apply(T aggregateState, E event);
 
-  default String tenantId() {
+  default String tenant() {
     return "default";
   }
 
@@ -20,7 +20,7 @@ public interface EventBehaviour<T extends Aggregate, E extends Event> {
   default E transformFrom(int schemaVersion, JsonObject event) {
     throw new UnknownEvent(new EventxError(
       ErrorSource.LOGIC,
-      EventBehaviour.class.getName(),
+      Aggregator.class.getName(),
       "missing schema versionTo " + schemaVersion,
       "could not transform event",
       "aggregate.event.transform",

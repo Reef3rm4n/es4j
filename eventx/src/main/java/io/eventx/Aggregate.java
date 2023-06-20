@@ -7,7 +7,6 @@ import io.eventx.core.exceptions.UnknownEvent;
 import io.eventx.core.objects.ErrorSource;
 
 import java.io.Serializable;
-import java.util.Optional;
 
 public interface Aggregate extends Shareable, Serializable {
 
@@ -24,7 +23,7 @@ public interface Aggregate extends Shareable, Serializable {
   default Aggregate transformSnapshot(int schemaVersion, JsonObject snapshot) {
     throw new UnknownEvent(new EventxError(
       ErrorSource.LOGIC,
-      EventBehaviour.class.getName(),
+      Aggregator.class.getName(),
       "missing schema versionTo " + schemaVersion,
       "could not transform event",
       "aggregate.event.transform",

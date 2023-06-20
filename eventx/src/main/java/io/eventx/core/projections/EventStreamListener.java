@@ -1,7 +1,7 @@
 package io.eventx.core.projections;
 
 import io.eventx.Aggregate;
-import io.eventx.LiveEventStream;
+import io.eventx.LiveEventProjection;
 import io.eventx.core.objects.EventbusLiveProjections;
 import io.eventx.infrastructure.models.Event;
 import io.smallrye.mutiny.Multi;
@@ -16,20 +16,25 @@ public class EventStreamListener {
 
   private final Vertx vertx;
   private final Class<? extends Aggregate> aggregateClass;
-  private final List<LiveEventStream> liveEventStreamConsumer;
+  private final List<LiveEventProjection> liveEventProjectionConsumer;
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventStreamListener.class);
 
 
-  public EventStreamListener(Vertx vertx, Class<? extends Aggregate> aggregateClass, List<LiveEventStream> liveEventStreamConsumer) {
+  public EventStreamListener(Vertx vertx, Class<? extends Aggregate> aggregateClass, List<LiveEventProjection> liveEventProjectionConsumer) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
-    this.liveEventStreamConsumer = liveEventStreamConsumer;
+    this.liveEventProjectionConsumer = liveEventProjectionConsumer;
   }
 
 
   public Uni<Void> start() {
-    return Multi.createFrom().iterable(liveEventStreamConsumer)
+    // todo implement a catch-up mechanism
+    // each aggregate stream must have an offset based on it's versioning
+    // if current live stream version is higher than the event received than ignore
+    // if current live stream version is lower than event received than shall replay previous before consuming current
+    // should be able to force aggregate live stream to be reset in the database
+    return Multi.createFrom().iterable(liveEventProjectionConsumer)
       .onItem().transformToUniAndMerge(consumer -> vertx.eventBus().<Event>localConsumer(EventbusLiveProjections.eventSubscriptionAddress(aggregateClass, consumer.tenant()))
         .exceptionHandler(throwable -> handle(throwable, consumer))
         .handler(eventMessage -> consumer.apply(eventMessage.body()))
@@ -38,7 +43,7 @@ public class EventStreamListener {
       .replaceWithVoid();
   }
 
-  public static void handle(Throwable throwable, LiveEventStream consumer) {
+  public static void handle(Throwable throwable, LiveEventProjection consumer) {
     LOGGER.error("Error in live event stream {}::{}", consumer.getClass().getName(), consumer.tenant(), throwable);
   }
 

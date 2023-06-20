@@ -9,7 +9,7 @@ import java.util.StringJoiner;
 public class EventbusLiveProjections {
 
   public static final String STATE_PROJECTION = "state-projection";
-  public static final String EVENT_PROJECTION = "event-projection";
+  public static final String EVENT_PROJECTION = "event-stream";
 
   public static String subscriptionAddress(Class<? extends Aggregate> aggregateClass, String tenantId) {
     return new StringJoiner("/")

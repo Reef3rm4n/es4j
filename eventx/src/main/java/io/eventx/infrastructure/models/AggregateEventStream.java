@@ -19,7 +19,7 @@ public record AggregateEventStream<T extends Aggregate>(
     return new JsonObject()
       .put("aggregate", aggregate)
       .put("aggregateId", aggregateId)
-      .put("tenantId", tenantId)
+      .put("tenant", tenantId)
       .put("eventVersionOffset", eventVersionOffset)
       .put("journalOffset", journalOffset)
       .put("startFrom", startFrom)

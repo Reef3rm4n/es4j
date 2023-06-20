@@ -26,6 +26,6 @@ public class ScheduledCommandHandler implements MessageProcessor<ScheduledComman
     final var proxy = proxies.stream()
       .filter(p -> p.aggregateClass.getName().equals(jsonCommand.getString("aggregateClass")))
       .findFirst().orElseThrow();
-    return proxy.forward(jsonCommand).replaceWithVoid();
+    return null;
   }
 }

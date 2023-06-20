@@ -72,7 +72,7 @@ public class PgOffsetStore implements OffsetStore {
       .consumer(offset.consumer())
       .eventVersionOffset(offset.eventVersionOffset())
       .idOffSet(offset.idOffSet())
-      .tenantId(offset.baseRecord().tenantId())
+      .tenantId(offset.baseRecord().tenant())
       .build();
   }
 

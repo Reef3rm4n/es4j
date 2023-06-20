@@ -120,7 +120,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
       messageRecord.payloadClass(),
       messageRecord.payload(),
       messageRecord.failedProcessors(),
-      messageRecord.baseRecord().tenantId()
+      messageRecord.baseRecord().tenant()
     );
   }
 
@@ -184,7 +184,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
         message.messageState() == MessageState.RETRIES_EXHAUSTED ||
         message.messageState() == MessageState.EXPIRED
       )
-      .collect(groupingBy(q -> q.baseRecord().tenantId()));
+      .collect(groupingBy(q -> q.baseRecord().tenant()));
     final var queries = messagesToAckOrNack.entrySet().stream()
       .map(this::messageDropQuery)
       .toList();
@@ -204,7 +204,7 @@ public class PgTaskSubscriber implements TaskSubscriber {
         messageRecord.payload(),
         messageRecord.failedProcessors(),
         messageRecord.verticleId(),
-        BaseRecord.newRecord(messageRecord.baseRecord().tenantId())
+        BaseRecord.newRecord(messageRecord.baseRecord().tenant())
       ))
       .toList();
     if (!queries.isEmpty()) {

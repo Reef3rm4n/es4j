@@ -3,16 +3,13 @@ package io.eventx.infrastructure.proxy;
 import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.core.objects.*;
-import io.eventx.core.projections.EventbusEventStream;
 import io.eventx.infrastructure.bus.AggregateBus;
 import io.smallrye.mutiny.Uni;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.eventx.core.exceptions.CommandRejected;
 import io.vertx.mutiny.core.Vertx;
 
-import java.util.Objects;
 import java.util.function.Consumer;
 
 
@@ -34,48 +31,8 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
     return AggregateBus.request(
       vertx,
       aggregateClass,
-      JsonObject.mapFrom(new CommandWrapper(command.getClass().getName(), command))
-    );
-  }
-
-  public Uni<AggregateState<T>> forward(final JsonObject command) {
-    validateClass(command);
-    validateCommand(command);
-    return AggregateBus.request(
-      vertx,
-      aggregateClass,
       command
     );
-  }
-
-  private static void validateCommand(JsonObject command) {
-    if (Objects.isNull(command.getString("command"))) {
-      throw new CommandRejected(
-        new EventxError(
-          ErrorSource.LOGIC,
-          "command",
-          "command is null",
-          "command must define command",
-          "missing.param",
-          400
-        )
-      );
-    }
-  }
-
-  private static void validateClass(JsonObject command) {
-    if (Objects.isNull(command.getString("commandClass"))) {
-      throw new CommandRejected(
-        new EventxError(
-          ErrorSource.LOGIC,
-          "command",
-          "commandClass is null",
-          "command must specify commandClass",
-          "missing.param",
-          400
-        )
-      );
-    }
   }
 
   public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer) {
@@ -103,7 +60,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
   public Uni<Void> eventSubscribe(Consumer<AggregateEvent> consumer, String tenantId) {
-    final var address = EventbusEventStream.eventbusAddress(aggregateClass, tenantId);
+    final var address = EventbusLiveProjections.eventSubscriptionAddress(aggregateClass, tenantId);
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
@@ -115,7 +72,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
   public Uni<Void> eventSubscribe(Consumer<AggregateEvent> consumer) {
-    final var address = EventbusEventStream.eventbusAddress(aggregateClass, "default");
+    final var address = EventbusLiveProjections.eventSubscriptionAddress(aggregateClass, "default");
     LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
     return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
         LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());

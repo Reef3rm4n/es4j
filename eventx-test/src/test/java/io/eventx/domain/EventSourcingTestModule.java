@@ -14,26 +14,26 @@ public class EventSourcingTestModule extends EventxModule {
 
   @Provides
   @Inject
-  ChangedEventBehaviour changeData1Aggregator() {
-    return new ChangedEventBehaviour();
+  ChangedAggregator changeData1Aggregator() {
+    return new ChangedAggregator();
   }
 
   @Provides
   @Inject
-  ChangeCommandBehaviour changeData1BehaviourEntity() {
-    return new ChangeCommandBehaviour();
+  ChangeBehaviour changeData1BehaviourEntity() {
+    return new ChangeBehaviour();
   }
 
   @Provides
   @Inject
-  ChangeCommandBehaviourWithConfiguration changeData1BehaviourEntity(FileBusinessRule<DataBusinessRule> dataConfiguration) {
-    return new ChangeCommandBehaviourWithConfiguration(dataConfiguration);
+  ChangeBehaviourWithConfiguration changeData1BehaviourEntity(FileBusinessRule<DataBusinessRule> dataConfiguration) {
+    return new ChangeBehaviourWithConfiguration(dataConfiguration);
   }
 
   @Provides
   @Inject
-  ChangeCommandBehaviourWithDatabaseConfig changeData1BehaviourEntity(DatabaseBusinessRule<DataBusinessRule> dataConfiguration) {
-    return new ChangeCommandBehaviourWithDatabaseConfig(dataConfiguration);
+  ChangeBehaviourWithDatabaseConfig changeData1BehaviourEntity(DatabaseBusinessRule<DataBusinessRule> dataConfiguration) {
+    return new ChangeBehaviourWithDatabaseConfig(dataConfiguration);
   }
 
 
@@ -49,14 +49,14 @@ public class EventSourcingTestModule extends EventxModule {
 
   @Provides
   @Inject
-  CreateCommandBehaviour createEntityBehaviour() {
-    return new CreateCommandBehaviour();
+  CreateBehaviour createEntityBehaviour() {
+    return new CreateBehaviour();
   }
 
   @Provides
   @Inject
-  CreateEventBehaviour entityBehaviour() {
-    return new CreateEventBehaviour();
+  CreateAggregator entityBehaviour() {
+    return new CreateAggregator();
   }
 
 }

@@ -175,7 +175,7 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
       .collect(groupingBy(MessageProcessor::tenants))
       .forEach((key, value) -> {
           if (value.size() > 1) {
-            throw new IllegalStateException("More than one custom implementation for tenantId " + key + " queue -> " + tClass);
+            throw new IllegalStateException("More than one custom implementation for tenant " + key + " queue -> " + tClass);
           }
         }
       );
