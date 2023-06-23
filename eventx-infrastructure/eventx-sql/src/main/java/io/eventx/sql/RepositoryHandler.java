@@ -219,14 +219,14 @@ public record RepositoryHandler(
 
   private Throwable mapError(final Throwable throwable) {
     if (throwable instanceof PgException pgException) {
-      if (pgException.getCode().startsWith("22")) {
+      if (pgException.getSqlState().startsWith("22")) {
 //        Class 22 — Data Exception
         return new DataException(pgException);
       }
-      if (pgException.getCode().startsWith("23")) {
+      if (pgException.getSqlState().startsWith("23")) {
 //        Class 23 — Integrity Constraint Violation
         return new IntegrityContraintViolation(pgException);
-      } else if (pgException.getCode().startsWith("5") || pgException.getCode().startsWith("08")) {
+      } else if (pgException.getSqlState().startsWith("5") || pgException.getSqlState().startsWith("08")) {
 //        Class 53 — Insufficient Resources
 //        Class 54 — Program Limit Exceeded
 //        Class 55 — Object Not In Prerequisite State
@@ -363,7 +363,7 @@ public record RepositoryHandler(
 
   private boolean checkError(Throwable throwable, final Class<?> tClass) {
     if (throwable instanceof final PgException pgException) {
-      boolean b = pgException.getCode().startsWith("5") || pgException.getCode().startsWith("08");
+      boolean b = pgException.getSqlState().startsWith("5") || pgException.getSqlState().startsWith("08");
       if (b) {
         logger.debug("Recoverable failure handling type for" + tClass + " , repository will retry", pgException);
       } else {

@@ -1,13 +1,9 @@
 package io.eventx;
 
-import io.activej.inject.Injector;
-import io.activej.inject.module.Module;
-import io.activej.inject.module.ModuleBuilder;
 import io.eventx.sql.misc.Constants;
 import io.vertx.core.DeploymentOptions;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.eventx.launcher.EventxMain;
-import io.eventx.sql.RepositoryHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
@@ -37,8 +33,6 @@ public class Bootstrapper<T extends Aggregate> {
   public static Vertx vertx;
 
   public JsonObject config;
-  public static RepositoryHandler repositoryHandler;
-  public static Injector injector;
   public Boolean postgres = Boolean.parseBoolean(System.getenv().getOrDefault("POSTGRES", "false"));
   public Boolean clustered = Boolean.parseBoolean(System.getenv().getOrDefault("CLUSTERED", "false"));
   public String HTTP_HOST = System.getenv().getOrDefault("HTTP_HOST", "localhost");
@@ -55,10 +49,6 @@ public class Bootstrapper<T extends Aggregate> {
 
   public void bootstrap() {
     config = configuration(aggregateClass).put("schema", camelToKebab(aggregateClass.getSimpleName()));
-    final var moduleBuilder = ModuleBuilder.create().install(EventxMain.MAIN_MODULES);
-    moduleBuilder.bind(Vertx.class).toInstance(vertx);
-    moduleBuilder.bind(JsonObject.class).toInstance(config);
-    injector = Injector.of(moduleBuilder.build());
     if (Boolean.TRUE.equals(infrastructure())) {
       deployPgContainer();
     }
@@ -74,10 +64,6 @@ public class Bootstrapper<T extends Aggregate> {
   }
 
 
-  public Bootstrapper<T> addModule(Module module) {
-    EventxMain.MAIN_MODULES.add(module);
-    return this;
-  }
 
   public Bootstrapper<T> setRemoteHost(String host) {
     this.HTTP_HOST = host;

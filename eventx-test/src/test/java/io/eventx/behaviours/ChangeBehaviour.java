@@ -1,6 +1,7 @@
 package io.eventx.behaviours;
 
 
+import com.google.auto.service.AutoService;
 import io.eventx.Behaviour;
 import io.eventx.Event;
 import io.eventx.domain.FakeAggregate;
@@ -10,6 +11,8 @@ import io.eventx.http.OpenApiDocs;
 
 import java.util.List;
 @OpenApiDocs
+@AutoService(Behaviour.class)
+@SuppressWarnings("rawtypes")
 public class ChangeBehaviour implements Behaviour<FakeAggregate, ChangeData> {
 
 

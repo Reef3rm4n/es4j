@@ -2,8 +2,10 @@ package io.eventx.http;
 
 import io.eventx.core.objects.EventxError;
 import io.eventx.core.objects.PublicQueryOptions;
+import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.Router;
 import io.vertx.mutiny.ext.web.RoutingContext;
 
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.Objects;
 
 public interface HttpRoute {
+
+  Uni<Void> start(Vertx vertx, JsonObject configuration);
   void registerRoutes(Router router);
 
   default void ok(RoutingContext routingContext, Object o) {

@@ -14,12 +14,12 @@ import io.vertx.mutiny.core.Vertx;
 
 import java.util.*;
 
-public class DatabaseBusinessRule<T extends BusinessRule> {
+class DatabaseConfigurationInternalService<T extends DatabaseConfiguration> {
   private final Vertx vertx;
   private final Class<T> tClass;
   private final Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository;
 
-  public DatabaseBusinessRule(
+  public DatabaseConfigurationInternalService(
     final Class<T> tClass,
     final RepositoryHandler repositoryHandler
   ) {
@@ -29,7 +29,7 @@ public class DatabaseBusinessRule<T extends BusinessRule> {
   }
 
   public Optional<T> fetch(String tenant) {
-    final var data = DbConfigCache.get(parseKey(tenant, tClass));
+    final var data = DatabaseConfigurationCache.get(parseKey(tenant, tClass));
     if (Objects.nonNull(data)) {
       return Optional.of(data.mapTo(tClass));
     }
@@ -53,12 +53,12 @@ public class DatabaseBusinessRule<T extends BusinessRule> {
       .map(configuration -> configuration.data().mapTo(tClass));
   }
 
-  public Uni<Void> addAll(List<? extends BusinessRule> configurationEntries) {
+  public Uni<Void> addAll(List<? extends DatabaseConfiguration> configurationEntries) {
     final var entries = configurationEntries.stream().map(this::map).toList();
     return repository.insertBatch(entries);
   }
 
-  private ConfigurationRecord map(BusinessRule data) {
+  private ConfigurationRecord map(DatabaseConfiguration data) {
     return new ConfigurationRecord(
       data.description(),
       data.revision(),
@@ -69,7 +69,7 @@ public class DatabaseBusinessRule<T extends BusinessRule> {
     );
   }
 
-  public Uni<Void> updateAll(List<? extends BusinessRule> configurationEntries) {
+  public Uni<Void> updateAll(List<? extends DatabaseConfiguration> configurationEntries) {
     final var entries = configurationEntries.stream().map(this::map).toList();
     return repository.updateByKeyBatch(entries);
   }

@@ -25,10 +25,6 @@
       <version>${project.version}</version>
     </dependency>
     <dependency>
-      <groupId>io.activej</groupId>
-      <artifactId>activej-inject</artifactId>
-    </dependency>
-    <dependency>
       <groupId>io.soabase.record-builder</groupId>
       <artifactId>record-builder-processor</artifactId>
     </dependency>

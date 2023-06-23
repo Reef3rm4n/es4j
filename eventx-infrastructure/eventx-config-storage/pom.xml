@@ -29,26 +29,9 @@
   </dependencyManagement>
   <dependencies>
     <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-config-kubernetes-configmap</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.vertx</groupId>
-      <artifactId>vertx-config-yaml</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.fasterxml.jackson.dataformat</groupId>
-      <artifactId>jackson-dataformat-yaml</artifactId>
-      <version>2.14.0</version>
-    </dependency>
-    <dependency>
-      <groupId>io.smallrye.reactive</groupId>
-      <artifactId>smallrye-mutiny-vertx-config</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>com.github.ben-manes.caffeine</groupId>
-      <artifactId>caffeine</artifactId>
-      <version>3.0.6</version>
+      <groupId>io.eventx</groupId>
+      <artifactId>eventx</artifactId>
+      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.eventx</groupId>
@@ -59,10 +42,6 @@
       <groupId>org.apache.commons</groupId>
       <artifactId>commons-compress</artifactId>
       <version>${commons-compress.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.activej</groupId>
-      <artifactId>activej-inject</artifactId>
     </dependency>
     <dependency>
       <groupId>io.soabase.record-builder</groupId>

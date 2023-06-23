@@ -1,6 +1,6 @@
 package io.eventx.queue.postgres;
 
-import io.activej.inject.Injector;
+
 import io.eventx.queue.postgres.mappers.DeadLetterMapper;
 import io.eventx.queue.postgres.mappers.MessageQueueMapper;
 import io.eventx.queue.postgres.mappers.PgQueueLiquibase;
@@ -17,7 +17,10 @@ import io.eventx.queue.models.QueueConfiguration;
 import io.eventx.queue.models.RawMessage;
 import io.eventx.queue.models.MessageProcessorManager;
 import io.smallrye.mutiny.Uni;
+
 import io.vertx.core.impl.NoStackTraceThrowable;
+import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.core.Vertx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.eventx.queue.TaskSubscriber;
@@ -36,8 +39,8 @@ public class PgTaskSubscriber implements TaskSubscriber {
   private final io.vertx.mutiny.pgclient.pubsub.PgSubscriber pgSubscriber;
   private static final Logger LOGGER = LoggerFactory.getLogger(PgTaskSubscriber.class);
 
-  public PgTaskSubscriber(Injector injector) {
-    final var repositoryHandler = injector.getInstance(RepositoryHandler.class);
+  public PgTaskSubscriber(Vertx vertx, JsonObject configuration) {
+    final var repositoryHandler = RepositoryHandler.leasePool(configuration, vertx);
     this.messageQueue = new Repository<>(MessageQueueMapper.INSTANCE, repositoryHandler);
     this.deadLetterQueue = new Repository<>(DeadLetterMapper.INSTANCE, repositoryHandler);
     this.pgSubscriber = io.vertx.mutiny.pgclient.pubsub.PgSubscriber.subscriber(

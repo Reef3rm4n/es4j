@@ -1,11 +1,9 @@
 package io.eventx;
 
-import io.activej.inject.module.Module;
 import io.eventx.sql.LiquibaseHandler;
 import io.eventx.sql.RepositoryHandler;
 import io.eventx.sql.misc.Constants;
 import io.smallrye.mutiny.Multi;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.json.JsonObject;
 import io.eventx.launcher.EventxMain;
 import io.vertx.ext.web.client.WebClientOptions;
@@ -64,11 +62,6 @@ public class InfrastructureBootstrap {
 
   public InfrastructureBootstrap addLiquibaseRun(String liquibaseChangelog, Map<String, String> params) {
     liquibase.put(liquibaseChangelog, params);
-    return this;
-  }
-
-  public InfrastructureBootstrap addModule(Module module) {
-    EventxMain.MAIN_MODULES.add(module);
     return this;
   }
 

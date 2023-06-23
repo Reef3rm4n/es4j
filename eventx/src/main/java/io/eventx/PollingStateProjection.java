@@ -7,7 +7,7 @@ import com.cronutils.parser.CronParser;
 import io.eventx.core.objects.AggregateState;
 import io.smallrye.mutiny.Uni;
 
-public interface StateProjection<T extends Aggregate> {
+public interface PollingStateProjection<T extends Aggregate> {
 
   Uni<Void> update(AggregateState<T> currentState);
   default String tenant() {

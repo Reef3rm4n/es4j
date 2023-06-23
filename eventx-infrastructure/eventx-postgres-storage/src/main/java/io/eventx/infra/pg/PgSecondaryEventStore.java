@@ -9,6 +9,7 @@ import io.eventx.infrastructure.SecondaryEventStore;
 import io.eventx.infrastructure.models.*;
 import io.eventx.sql.LiquibaseHandler;
 import io.eventx.sql.Repository;
+import io.eventx.sql.RepositoryHandler;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.sql.models.BaseRecord;
 import io.eventx.sql.models.QueryOptions;
@@ -27,12 +28,9 @@ import static io.eventx.core.CommandHandler.camelToKebab;
 
 public class PgSecondaryEventStore implements SecondaryEventStore {
 
-  private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
+  private Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
   private final Logger LOGGER = LoggerFactory.getLogger(PgEventStore.class);
 
-  public PgSecondaryEventStore(Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal) {
-    this.eventJournal = eventJournal;
-  }
 
   @Override
   public <T extends Aggregate> Uni<List<Event>> fetch(AggregateEventStream<T> aggregateEventStream) {
@@ -118,12 +116,18 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
   }
 
   @Override
-  public Uni<Void> close() {
+  public Uni<Void> stop() {
     return eventJournal.repositoryHandler().close();
   }
 
   @Override
-  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+    this.eventJournal = new Repository<>(EventStoreMapper.INSTANCE, RepositoryHandler.leasePool(configuration, vertx));
+
+  }
+
+  @Override
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
       eventJournal.repositoryHandler(),

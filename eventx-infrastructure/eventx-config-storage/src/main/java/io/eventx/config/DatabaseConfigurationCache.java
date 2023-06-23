@@ -6,8 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 
-public class DbConfigCache {
-  private static final Logger LOGGER = LoggerFactory.getLogger(DbConfigCache.class);
+public class DatabaseConfigurationCache {
+  private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseConfigurationCache.class);
   public static final Cache<String, JsonObject> DB_CONFIGURATIONS = Caffeine.newBuilder()
 //    .executor(cmd -> context.runOnContext(cmd))
 //    .recordStats()
@@ -17,14 +17,14 @@ public class DbConfigCache {
     .build();
 
   public static JsonObject get(String key) {
-   return DB_CONFIGURATIONS.getIfPresent(key);
+    return DB_CONFIGURATIONS.getIfPresent(key);
   }
 
   public static void put(String key, JsonObject value) {
     DB_CONFIGURATIONS.put(key, value);
   }
 
-  public static void delete(String parseKey) {
+  public static void invalidate(String parseKey) {
     DB_CONFIGURATIONS.invalidate(parseKey);
   }
 }

@@ -4,7 +4,7 @@ import io.vertx.core.shareddata.Shareable;
 
 import java.io.Serializable;
 
-public interface BusinessRule extends Shareable, Serializable {
+public interface DatabaseConfiguration extends Shareable, Serializable {
 
   default String tenant() {
     return "default";
@@ -21,4 +21,5 @@ public interface BusinessRule extends Shareable, Serializable {
   default Boolean active() {
     return true;
   }
+
 }

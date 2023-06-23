@@ -1,10 +1,12 @@
 package io.eventx.infra.pg;
 
+import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
 import io.eventx.infra.pg.models.EventRecordKey;
 import io.eventx.infra.pg.models.EventRecordQuery;
 import io.eventx.infrastructure.models.*;
 import io.eventx.sql.LiquibaseHandler;
+import io.eventx.sql.RepositoryHandler;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.sql.models.QueryOptions;
 import io.smallrye.mutiny.Uni;
@@ -25,13 +27,17 @@ import java.util.function.Consumer;
 
 import static io.eventx.core.CommandHandler.camelToKebab;
 
+
+@AutoService(EventStore.class)
 public class PgEventStore implements EventStore {
 
-  private final Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
+  private Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal;
   private final Logger LOGGER = LoggerFactory.getLogger(PgEventStore.class);
 
-  public PgEventStore(Repository<EventRecordKey, EventRecord, EventRecordQuery> eventJournal) {
-    this.eventJournal = eventJournal;
+
+  @Override
+  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+    this.eventJournal = new Repository<>(EventStoreMapper.INSTANCE, RepositoryHandler.leasePool(configuration, vertx));
   }
 
   @Override
@@ -123,15 +129,17 @@ public class PgEventStore implements EventStore {
   }
 
   @Override
-  public Uni<Void> close() {
+  public Uni<Void> stop() {
     return eventJournal.repositoryHandler().close();
   }
 
+
   @Override
-  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
-      eventJournal.repositoryHandler(),
+      vertx,
+      configuration,
       "pg-event-store.xml",
       Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );

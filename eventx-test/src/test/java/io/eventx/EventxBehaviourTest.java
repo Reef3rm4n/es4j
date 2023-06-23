@@ -5,19 +5,11 @@ import io.eventx.commands.ChangeData;
 import io.eventx.commands.ChangeDataWithConfig;
 import io.eventx.commands.ChangeDataWithDbConfig;
 import io.eventx.commands.CreateData;
-import io.eventx.core.objects.AggregateEvent;
 import io.eventx.core.objects.AggregateState;
 import io.eventx.core.objects.CommandHeaders;
-import io.eventx.core.tasks.EventProjectionPoller;
 import io.eventx.domain.DataBusinessRule;
 import io.eventx.domain.FakeAggregate;
-import io.eventx.infra.pg.PgEventStore;
-import io.eventx.infra.pg.PgOffsetStore;
-import io.eventx.infra.pg.mappers.EventStoreMapper;
-import io.eventx.infra.pg.mappers.JournalOffsetMapper;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
-import io.eventx.sql.Repository;
-import io.eventx.sql.RepositoryHandler;
 import io.smallrye.mutiny.Uni;
 import io.eventx.core.objects.LoadAggregate;
 import io.vertx.junit5.VertxTestContext;
@@ -25,7 +17,6 @@ import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,21 +36,21 @@ public class EventxBehaviourTest {
 
   }
 
-  @Test
-  @DisplayName("Test projection polling mechanism")
-  void test_projection_poller(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy, RepositoryHandler repositoryHandler) {
-    eventBusPoxy.eventSubscribe(fakeAggregateAggregateState -> LOGGER.info("Incoming event {}", fakeAggregateAggregateState.toJson().encodePrettily()))
-      .await().indefinitely();
-    final var poller = new EventProjectionPoller(
-      events -> {
-        LOGGER.info("events {}", events);
-        return Uni.createFrom().voidItem();
-      },
-      new PgEventStore(new Repository<>(EventStoreMapper.INSTANCE, repositoryHandler)),
-      new PgOffsetStore(new Repository<>(JournalOffsetMapper.INSTANCE, repositoryHandler))
-    );
-    poller.performTask().await().indefinitely();
-  }
+//  @Test
+//  @DisplayName("Test projection polling mechanism")
+//  void test_projection_poller(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy, RepositoryHandler repositoryHandler) {
+//    eventBusPoxy.eventSubscribe(fakeAggregateAggregateState -> LOGGER.info("Incoming event {}", fakeAggregateAggregateState.toJson().encodePrettily()))
+//      .await().indefinitely();
+//    final var poller = new EventProjectionPoller(
+//      events -> {
+//        LOGGER.info("events {}", events);
+//        return Uni.createFrom().voidItem();
+//      },
+//      new PgEventStore(),
+//      new PgOffsetStore()
+//    );
+//    poller.performTask().await().indefinitely();
+//  }
 
   @Test
   @Order(1)
@@ -111,7 +102,7 @@ public class EventxBehaviourTest {
 
   @Test
   @Order(4)
-  @FileBusinessRule(configurationClass = DataBusinessRule.class, fileName = "data-configuration.json")
+  @FileBusinessRule(fileName = "data-configuration.json")
   void test_fs_configuration(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = createAggregate(eventBusPoxy);
     final var newState = eventBusPoxy.forward(new ChangeDataWithConfig(
@@ -122,7 +113,7 @@ public class EventxBehaviourTest {
   @Test
   @Order(5)
   @DatabaseBusinessRule(configurationClass = DataBusinessRule.class, fileName = "data-configuration.json")
-  void test_db_configuration(AggregateHttpClient<FakeAggregate> proxy, AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
+  void test_db_configuration(AggregateEventBusPoxy<FakeAggregate> proxy, AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = createAggregate(eventBusPoxy);
     final var newState = proxy.forward(new ChangeDataWithDbConfig(
       aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders()

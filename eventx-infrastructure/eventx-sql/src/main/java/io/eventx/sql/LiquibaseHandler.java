@@ -201,6 +201,22 @@ public class LiquibaseHandler {
   }
 
   public static Uni<Void> liquibaseString(
+    Vertx vertx,
+    JsonObject configuration,
+    String fileName,
+    Map<String, String> params
+  ) {
+    return vertx.fileSystem().readFile(fileName)
+      .flatMap(buffer -> runliquibaseChangeLogString(
+          vertx,
+          configuration,
+          replacePlaceHolders(buffer.toString(), params),
+          fileName
+        )
+      );
+  }
+
+  public static Uni<Void> liquibaseString(
     RepositoryHandler repositoryHandler,
     String fileName,
     Map<String, String> params

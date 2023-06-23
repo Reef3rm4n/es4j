@@ -7,7 +7,6 @@ import io.eventx.core.objects.*;
 import io.eventx.infrastructure.Infrastructure;
 import io.eventx.infrastructure.models.*;
 import io.eventx.sql.exceptions.Conflict;
-import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.tracing.TracingPolicy;
@@ -17,7 +16,6 @@ import io.eventx.core.exceptions.UnknownCommand;
 import io.eventx.core.exceptions.UnknownEvent;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
@@ -469,7 +467,6 @@ public class CommandHandler<T extends Aggregate> {
     }
   }
 
-  @NotNull
   private static List<io.eventx.infrastructure.models.Event> getEventsToTrim(List<io.eventx.infrastructure.models.Event> eventsThatCanBeTrimmed, Long snapshotVersion) {
     return eventsThatCanBeTrimmed.stream()
       .filter(event -> event.eventVersion() < snapshotVersion)

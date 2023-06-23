@@ -1,15 +1,15 @@
 package io.eventx.launcher;
 
-import io.activej.inject.Injector;
-import io.activej.inject.module.ModuleBuilder;
 import io.eventx.Aggregate;
-import io.eventx.StateProjection;
-import io.eventx.config.ConfigurationHandler;
+
+
 import io.eventx.core.tasks.AggregateHeartbeat;
 import io.eventx.core.verticles.AggregateVerticle;
 import io.eventx.infrastructure.*;
 import io.eventx.infrastructure.cache.CaffeineAggregateCache;
+import io.eventx.infrastructure.config.EventxConfigurationHandler;
 import io.eventx.infrastructure.misc.Loader;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
@@ -20,13 +20,12 @@ import io.eventx.core.tasks.StateProjectionPoller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.eventx.PollingEventProjection;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.eventx.core.objects.StateProjectionWrapper;
-import io.vertx.mutiny.config.ConfigRetriever;
 import io.vertx.mutiny.core.Vertx;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -39,47 +38,56 @@ public class AggregateDeployer<T extends Aggregate> {
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateDeployer.class);
   private final Vertx vertx;
   private final String deploymentID;
-  private ConfigRetriever deploymentConfiguration;
   private final Class<T> aggregateClass;
+  private final List<String> files;
   private Infrastructure infrastructure;
+  private List<AggregateServices> aggregateServices;
 
   public AggregateDeployer(
+    List<String> files,
     Class<T> aggregateClass,
     Vertx vertx,
     String deploymentID
   ) {
+    this.files = files;
     this.aggregateClass = aggregateClass;
     this.vertx = vertx;
     this.deploymentID = deploymentID;
   }
 
   public void deploy(final Promise<Void> startPromise) {
-    final var moduleBuilder = ModuleBuilder.create().install(MAIN_MODULES);
-    this.deploymentConfiguration = ConfigurationHandler.configure(
+    EventxConfigurationHandler.configure(
       vertx,
       camelToKebab(aggregateClass.getSimpleName()),
       newConfiguration -> {
         newConfiguration.put("schema", camelToKebab(aggregateClass.getSimpleName()));
-        LOGGER.info("--- Event.x starting {}::{}--- {}", aggregateClass.getSimpleName(), this.deploymentID, newConfiguration.encodePrettily());
+        LOGGER.info("--- Event.x starting {}::{} --- {}", aggregateClass.getSimpleName(), this.deploymentID, newConfiguration.encodePrettily());
         close()
-          .flatMap(avoid -> {
-              moduleBuilder.bind(Vertx.class).toInstance(vertx);
-              moduleBuilder.bind(JsonObject.class).toInstance(newConfiguration);
-              return infrastructure(Injector.of(moduleBuilder.build()));
-            }
+          .flatMap(avoid -> infrastructure(vertx, newConfiguration)
           )
           .call(injector -> {
               addHeartBeat();
-              addProjections(injector);
-              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, ModuleBuilder.create().install(MAIN_MODULES), deploymentID);
+              addProjections();
+              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(aggregateClass, deploymentID);
               return startChannel(vertx, aggregateClass, deploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
-                      .setConfig(injector.getInstance(JsonObject.class))
+                      .setConfig(newConfiguration)
                       .setInstances(CpuCoreSensor.availableProcessors() * 2)
                     )
                     .replaceWithVoid()
                 )
-                .call(avoid -> ConfigLauncher.addConfigurations(injector));
+                .call(avoid -> {
+                    this.aggregateServices = Loader.loadAggregateServices();
+                    return EventxConfigurationHandler.fsConfigurations(vertx, files)
+                      .flatMap(av -> Multi.createFrom().iterable(aggregateServices)
+                        .onItem().transformToUniAndMerge(
+                          service -> service.start(aggregateClass, vertx, newConfiguration)
+                        )
+                        .collect().asList()
+                        .replaceWithVoid()
+                      );
+                  }
+                );
             }
           )
           .subscribe()
@@ -101,22 +109,21 @@ public class AggregateDeployer<T extends Aggregate> {
     HEARTBEATS.add(new AggregateHeartbeat<>(vertx, aggregateClass));
   }
 
-  private Uni<Injector> infrastructure(Injector injector) {
+  private Uni<Void> infrastructure(Vertx vertx, JsonObject configuration) {
     this.infrastructure = new Infrastructure(
       Optional.of(new CaffeineAggregateCache()),
-      injector.getInstance(EventStore.class),
+      Loader.loadEventStore(),
       Optional.empty(),
-      injector.getInstance(OffsetStore.class)
+      Loader.loadOffsetStore()
+
     );
-    return infrastructure.start(aggregateClass, injector.getInstance(Vertx.class), injector.getInstance(JsonObject.class))
-      .replaceWith(injector);
+    return infrastructure.setup(aggregateClass, vertx, configuration);
   }
 
 
-  private void addProjections(Injector injector) {
-    final var vertx = injector.getInstance(Vertx.class);
+  private void addProjections() {
     final var aggregateProxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
-    final var stateProjections = Loader.loadFromInjector(injector, StateProjection.class).stream()
+    final var stateProjections = Loader.stateProjections().stream()
       .filter(cc -> Loader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
       .map(cc -> new StateProjectionWrapper<T>(
         cc,
@@ -131,7 +138,7 @@ public class AggregateDeployer<T extends Aggregate> {
         infrastructure.offsetStore()
       ))
       .toList();
-    final var eventProjections = Loader.loadFromInjector(injector, PollingEventProjection.class).stream()
+    final var eventProjections = Loader.pollingEventProjections().stream()
       .filter(cc -> Loader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
       .map(eventProjection -> new EventProjectionPoller(
           eventProjection,
@@ -146,12 +153,6 @@ public class AggregateDeployer<T extends Aggregate> {
 
   public Uni<Void> close() {
     final var closeUnis = new ArrayList<Uni<Void>>();
-    if (!ConfigLauncher.CONFIG_RETRIEVERS.isEmpty()) {
-      closeUnis.add(ConfigLauncher.close());
-    }
-    if (deploymentConfiguration != null) {
-      deploymentConfiguration.close();
-    }
     if (infrastructure != null) {
       closeUnis.add(infrastructure.stop());
     }

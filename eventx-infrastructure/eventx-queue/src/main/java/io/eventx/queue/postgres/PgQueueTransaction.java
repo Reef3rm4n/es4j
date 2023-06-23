@@ -1,6 +1,6 @@
 package io.eventx.queue.postgres;
 
-import io.activej.inject.Injector;
+
 import io.eventx.queue.postgres.mappers.MessageTransactionMapper;
 import io.eventx.queue.postgres.models.MessageTransaction;
 import io.eventx.queue.postgres.models.MessageTransactionID;
@@ -12,14 +12,16 @@ import io.smallrye.mutiny.Uni;
 import io.eventx.queue.QueueTransactionManager;
 import io.eventx.queue.models.Message;
 import io.eventx.queue.models.QueueTransaction;
+import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.core.Vertx;
 
 import java.util.function.BiFunction;
 
 public class PgQueueTransaction implements QueueTransactionManager {
   private final Repository<MessageTransactionID, MessageTransaction, MessageTransactionQuery> transactionStore;
 
-  public PgQueueTransaction(Injector injector) {
-    this.transactionStore = new Repository<>(MessageTransactionMapper.INSTANCE, injector.getInstance(RepositoryHandler.class));
+  public PgQueueTransaction(Vertx vertx, JsonObject configuration) {
+    this.transactionStore = new Repository<>(MessageTransactionMapper.INSTANCE, RepositoryHandler.leasePool(configuration, vertx));
   }
 
 

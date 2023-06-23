@@ -18,20 +18,26 @@ public record Infrastructure(
   public Uni<Void> stop() {
     final var list = new ArrayList<Uni<Void>>();
     cache.ifPresent(cache -> list.add(cache.close()));
-    secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.close()));
-    list.add(eventStore.close());
-    list.add(offsetStore.close());
+    secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.stop()));
+    list.add(eventStore.stop());
+    list.add(offsetStore.stop());
     return Uni.join().all(list).andFailFast().replaceWithVoid();
   }
 
-  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     final var list = new ArrayList<Uni<Void>>();
-    cache.ifPresent(cache -> list.add(cache.start(aggregateClass)));
-    secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.start(aggregateClass, vertx, configuration)));
-    list.add(eventStore.start(aggregateClass, vertx, configuration));
-    list.add(offsetStore.start(aggregateClass, vertx, configuration));
+    cache.ifPresent(cache -> list.add(cache.setup(aggregateClass)));
+    secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.setup(aggregateClass, vertx, configuration)));
+    list.add(eventStore.setup(aggregateClass, vertx, configuration));
+    list.add(offsetStore.setup(aggregateClass, vertx, configuration));
     return Uni.join().all(list).andFailFast().replaceWithVoid();
   }
 
 
+  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+    eventStore.start(aggregateClass, vertx, configuration);
+    offsetStore.start(aggregateClass, vertx, configuration);
+    cache.ifPresent(cache -> cache.start(aggregateClass));
+    secondaryEventStore.ifPresent(ses -> ses.start(aggregateClass, vertx, configuration));
+  }
 }

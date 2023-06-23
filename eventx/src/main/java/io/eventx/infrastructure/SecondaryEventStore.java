@@ -15,17 +15,21 @@ import java.util.function.Consumer;
 public interface SecondaryEventStore {
 
   <T extends Aggregate> Uni<List<Event>> fetch(AggregateEventStream<T> aggregateEventStream);
+
   <T extends Aggregate> Uni<Void> stream(AggregateEventStream<T> aggregateEventStream, Consumer<Event> consumer);
+
   Uni<List<Event>> fetch(EventStream eventStream);
+
   Uni<Void> stream(EventStream eventStream, Consumer<Event> consumer);
 
   // todo make this return the last eventID so that journal might be used more efficiently from the start.
   <T extends Aggregate> Uni<Void> append(AppendInstruction<T> appendInstruction);
 
-  Uni<Void> close();
-  Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  Uni<Void> stop();
 
+  void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
 
+  Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
 
 
 }

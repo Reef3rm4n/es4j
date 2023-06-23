@@ -4,7 +4,6 @@ import io.eventx.Aggregate;
 import io.eventx.core.objects.CommandHeaders;
 import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.OffsetStore;
-import io.eventx.infrastructure.models.EventStream;
 import io.eventx.infrastructure.models.EventStreamBuilder;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.task.CronTask;
@@ -51,7 +50,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     // polling will have to be moved to a queue
     // a new entry must be inserted in the queue for each one of the updated streams
     stateProjectionWrapper.logger().debug("Polling events");
-    return offsetStore.get(new JournalOffsetKey(stateProjectionWrapper.stateProjection().getClass().getName(), "default"))
+    return offsetStore.get(new JournalOffsetKey(stateProjectionWrapper.pollingStateProjection().getClass().getName(), "default"))
       .flatMap(journalOffset -> {
           stateProjectionWrapper.logger().debug("Journal offset at {}", journalOffset.idOffSet());
           return eventStore.fetch(EventStreamBuilder.builder()
@@ -91,7 +90,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     return CronTaskConfigurationBuilder.builder()
       .knownInterruptions(List.of(NotFound.class))
       .lockLevel(LockLevel.CLUSTER_WIDE)
-      .cron(stateProjectionWrapper.stateProjection().pollingPolicy())
+      .cron(stateProjectionWrapper.pollingStateProjection().pollingPolicy())
       .build();
   }
 

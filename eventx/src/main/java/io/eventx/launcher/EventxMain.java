@@ -1,14 +1,14 @@
 package io.eventx.launcher;
 
-import io.activej.inject.module.Module;
-import io.activej.inject.module.ModuleBuilder;
-import io.eventx.Aggregate;
-import io.eventx.Command;
-import io.eventx.Event;
+import io.eventx.*;
+import io.eventx.infrastructure.AggregateServices;
 import io.eventx.core.tasks.AggregateHeartbeat;
 import io.eventx.core.tasks.EventProjectionPoller;
 import io.eventx.core.tasks.StateProjectionPoller;
 import io.eventx.core.verticles.AggregateBridge;
+import io.eventx.infrastructure.EventStore;
+import io.eventx.infrastructure.OffsetStore;
+import io.eventx.infrastructure.config.EventxConfigurationHandler;
 import io.eventx.infrastructure.misc.Loader;
 import io.eventx.task.CronTaskDeployer;
 import io.eventx.task.TimerTaskDeployer;
@@ -21,30 +21,56 @@ import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
+import org.crac.Context;
+import org.crac.Core;
+import org.crac.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
 
 import java.util.*;
+import java.util.concurrent.CountDownLatch;
 
-public class EventxMain extends AbstractVerticle {
+public class EventxMain extends AbstractVerticle implements Resource {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
-  public static final Collection<Module> MAIN_MODULES = Loader.eventxModules();
-  public static final List<Class<? extends Aggregate>> AGGREGATE_CLASSES = Loader.loadAggregates();
-  private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
-  public static final List<StateProjectionPoller<? extends Aggregate>> STATE_PROJECTIONS = new ArrayList<>();
-  public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
-  public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
+  public static final List<Bootstrap> AGGREGATES = Loader.bootstrapList();
   private CronTaskDeployer cronTaskDeployer;
   private TimerTaskDeployer timerTaskDeployer;
+  public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
+  public static final List<StateProjectionPoller> STATE_PROJECTIONS = new ArrayList<>();
+  private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final Map<Class<? extends Aggregate>, List<Class<? extends Command>>> AGGREGATE_COMMANDS = new HashMap<>();
   public static final Map<Class<? extends Aggregate>, List<Class<Event>>> AGGREGATE_EVENTS = new HashMap<>();
+  public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
+
+  public EventxMain() {
+    Core.getGlobalContext().register(this);
+  }
+
+  @Override
+  public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
+    Promise<Void> p = Promise.promise();
+    stop(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
+  }
+
+  @Override
+  public void afterRestore(Context<? extends Resource> context) throws Exception {
+    Promise<Void> p = Promise.promise();
+    start(p);
+    CountDownLatch latch = new CountDownLatch(1);
+    p.future().onComplete(event -> latch.countDown());
+    latch.await();
+  }
 
 
   @Override
   public void start(final Promise<Void> startPromise) {
+
     LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
     Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x]  had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
@@ -73,9 +99,10 @@ public class EventxMain extends AbstractVerticle {
   }
 
   private void startAggregateResources(final Promise<Void> startPromise) {
-    AGGREGATE_CLASSES.stream()
+    AGGREGATES.stream()
       .map(aClass -> new AggregateDeployer<>(
-          aClass,
+          aClass.fileConfigurations(),
+          aClass.aggregateClass(),
           vertx,
           context.deploymentID()
         )
@@ -121,7 +148,7 @@ public class EventxMain extends AbstractVerticle {
 
   private Uni<Void> deployBridges() {
     return vertx.deployVerticle(
-        () -> new AggregateBridge(ModuleBuilder.create().install(MAIN_MODULES)),
+        AggregateBridge::new,
         new DeploymentOptions()
           .setInstances(CpuCoreSensor.availableProcessors() * 2)
       )
@@ -142,6 +169,7 @@ public class EventxMain extends AbstractVerticle {
 
 
   private Uni<Void> undeployComponent() {
+    EventxConfigurationHandler.close();
     timerTaskDeployer.close();
     cronTaskDeployer.close();
     return Multi.createFrom().iterable(AGGREGATE_DEPLOYERS)

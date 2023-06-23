@@ -1,13 +1,9 @@
 package io.eventx.core.verticles;
 
-import io.activej.inject.Injector;
-import io.activej.inject.module.Module;
-import io.activej.inject.module.ModuleBuilder;
+
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
-import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Promise;
-import io.vertx.core.impl.cpu.CpuCoreSensor;
 
 import org.crac.Context;
 import org.crac.Resource;
@@ -27,16 +23,13 @@ import io.eventx.queue.postgres.PgTaskSubscriber;
 import io.eventx.queue.postgres.PgQueueTransaction;
 import io.vertx.mutiny.core.Vertx;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 import static java.util.stream.Collectors.groupingBy;
 
 public class TaskProcessorVerticle extends AbstractVerticle implements Resource {
-  private final ModuleBuilder moduleBuilder;
+  private final List<MessageProcessor> messageProcessors;
 
   @Override
   public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
@@ -58,28 +51,19 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
 
   private static final Logger LOGGER = LoggerFactory.getLogger(TaskProcessorVerticle.class);
   private TaskSubscriber subscriber;
-  private Injector injector;
   private QueueConfiguration taskConfiguration;
 
-  public TaskProcessorVerticle(ModuleBuilder modules) {
-    this.moduleBuilder = modules;
+  public TaskProcessorVerticle() {
+    this.messageProcessors = ServiceLoader.load(MessageProcessor.class).stream().map(ServiceLoader.Provider::get).toList();
+    ;
     org.crac.Core.getGlobalContext().register(this);
   }
 
 
   public static Uni<Void> deploy(
     final Vertx vertx,
-    final JsonObject newConfiguration,
-    final Collection<Module> modules
+    final JsonObject newConfiguration
   ) {
-    if (Loader.checkPresenceInModules(MessageProcessor.class, modules)) {
-      return vertx.deployVerticle(
-        () -> new TaskProcessorVerticle(ModuleBuilder.create().install(modules)),
-        new DeploymentOptions()
-          .setInstances(CpuCoreSensor.availableProcessors() * 2)
-          .setConfig(newConfiguration)
-      ).replaceWithVoid();
-    }
     return Uni.createFrom().voidItem();
   }
 
@@ -91,13 +75,12 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
   @Override
   public Uni<Void> asyncStart() {
     this.taskConfiguration = config().getJsonObject("task-queue", new JsonObject()).mapTo(QueueConfiguration.class);
-    this.injector = bindModules();
     QueueTransactionManager queueTransactionManager = getTransactionManager();
     this.subscriber = getSubscriber();
     return subscriber.subscribe(new MessageProcessorManager(
           taskConfiguration,
-          bootstrapProcessors(this.deploymentID(), injector),
-        queueTransactionManager,
+          bootstrapProcessors(this.deploymentID()),
+          queueTransactionManager,
           vertx
         )
       )
@@ -106,13 +89,13 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
 
   private QueueTransactionManager getTransactionManager() {
     return switch (taskConfiguration.transactionManagerImplementation()) {
-      case VERTX_PG_CLIENT -> new PgQueueTransaction(injector);
+      case VERTX_PG_CLIENT -> new PgQueueTransaction(vertx, config());
     };
   }
 
   private TaskSubscriber getSubscriber() {
     return switch (taskConfiguration.queueImplementation()) {
-      case PG_QUEUE -> new PgTaskSubscriber(injector);
+      case PG_QUEUE -> new PgTaskSubscriber(vertx, config());
       case RABBITMQ ->
         throw new MessageException(new QueueError("queue type not supported", "rabbit task queue is not yet implemented", 999));
       case SOLACE ->
@@ -120,18 +103,10 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
     };
   }
 
-  private Injector bindModules() {
-    moduleBuilder.bind(Vertx.class).toInstance(vertx);
-    moduleBuilder.bind(JsonObject.class).toInstance(config());
-    moduleBuilder.bind(QueueConfiguration.class).toInstance(taskConfiguration);
-    return Injector.of(moduleBuilder.build());
-  }
 
-
-  public List<MessageProcessorWrapper> bootstrapProcessors(String deploymentId, Injector injector) {
-    final var singleProcessMessageConsumers = Loader.loadFromInjector(injector, MessageProcessor.class);
+  public List<MessageProcessorWrapper> bootstrapProcessors(String deploymentId) {
     final var queueMap = new HashMap<Class<?>, List<MessageProcessor>>();
-    singleProcessMessageConsumers.forEach(
+    messageProcessors.forEach(
       impl -> {
         final var tClass = Loader.getFirstGenericType(impl);
         if (queueMap.containsKey(tClass)) {

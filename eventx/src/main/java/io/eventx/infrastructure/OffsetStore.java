@@ -12,8 +12,9 @@ public interface OffsetStore {
   Uni<JournalOffset> put(JournalOffset journalOffset);
   Uni<JournalOffset> get(JournalOffsetKey journalOffset);
 
-  Uni<Void> close();
+  Uni<Void> stop();
 
 
-  Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
 }

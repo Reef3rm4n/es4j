@@ -1,5 +1,6 @@
 package io.eventx.core.tasks;
 
+import io.eventx.Aggregate;
 import io.eventx.core.objects.AggregateEvent;
 import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.OffsetStore;

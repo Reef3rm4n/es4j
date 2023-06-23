@@ -4,6 +4,7 @@ import io.eventx.Aggregate;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.healthchecks.Status;
+import io.vertx.mutiny.core.Vertx;
 
 import java.util.Objects;
 
@@ -15,6 +16,11 @@ public class HashRingHealthCheck implements HealthCheck {
 
   public HashRingHealthCheck(Class<? extends Aggregate> aggregateClass) {
     this.aggregateClass = aggregateClass;
+  }
+
+  @Override
+  public Uni<Void> start(Vertx vertx, JsonObject configuration) {
+    return null;
   }
 
   @Override

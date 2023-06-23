@@ -1,13 +1,8 @@
 package io.eventx.infrastructure.misc;
 
 
-import io.activej.inject.Injector;
-import io.activej.inject.Key;
-import io.activej.inject.binding.Binding;
-import io.activej.inject.module.Module;
-import io.eventx.Aggregate;
-import io.eventx.Bootstrap;
-import io.eventx.core.objects.EventxModule;
+import io.eventx.*;
+import io.eventx.infrastructure.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,11 +16,59 @@ public class Loader {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(Loader.class);
 
-  public static Collection<Module> eventxModules() {
-    return ServiceLoader.load(EventxModule.class).stream().map(
-        ServiceLoader.Provider::get
-      )
-      .map(eventxModule -> (Module) eventxModule)
+  public static List<Behaviour> loadBehaviours() {
+    return ServiceLoader.load(Behaviour.class).stream()
+      .map(ServiceLoader.Provider::get)
+      .toList();
+  }
+
+  public static Optional<AggregateCache> loadCache() {
+    return ServiceLoader.load(AggregateCache.class).stream()
+      .findFirst()
+      .map(ServiceLoader.Provider::get);
+  }
+
+  public static EventStore loadEventStore() {
+    return ServiceLoader.load(EventStore.class).stream()
+      .findFirst()
+      .map(ServiceLoader.Provider::get)
+      .orElseThrow(() -> new IllegalStateException("EventStore not found"));
+  }
+
+  public static List<PollingStateProjection> stateProjections() {
+    return ServiceLoader.load(PollingStateProjection.class).stream()
+      .map(ServiceLoader.Provider::get)
+      .toList();
+  }
+
+  public static List<PollingEventProjection> pollingEventProjections() {
+    return ServiceLoader.load(PollingEventProjection.class).stream()
+      .map(ServiceLoader.Provider::get)
+      .toList();
+  }
+
+  public static List<LiveEventProjection> liveEventProjections() {
+    return ServiceLoader.load(LiveEventProjection.class).stream()
+      .map(ServiceLoader.Provider::get)
+      .toList();
+  }
+
+  public static List<LiveStateProjection> liveStateProjections() {
+    return ServiceLoader.load(LiveStateProjection.class).stream()
+      .map(ServiceLoader.Provider::get)
+      .toList();
+  }
+
+  public static OffsetStore loadOffsetStore() {
+    return ServiceLoader.load(OffsetStore.class).stream()
+      .findFirst()
+      .map(ServiceLoader.Provider::get)
+      .orElseThrow(() -> new IllegalStateException("OffsetStore not found"));
+  }
+
+  public static List<Aggregator> loadAggregators() {
+    return ServiceLoader.load(Aggregator.class).stream()
+      .map(ServiceLoader.Provider::get)
       .toList();
   }
 
@@ -33,8 +76,19 @@ public class Loader {
     final List<Class<? extends Aggregate>> classes = new ArrayList<>();
     ServiceLoader.load(Bootstrap.class).stream()
       .map(ServiceLoader.Provider::get)
-      .forEach(eventxModule -> classes.add(eventxModule.aggregateClass()));
+      .forEach(eventxModule -> {
+        classes.add(eventxModule.aggregateClass());
+      });
     return classes;
+  }
+
+  public static List<Bootstrap> bootstrapList() {
+    return ServiceLoader.load(Bootstrap.class).stream()
+      .map(ServiceLoader.Provider::get)
+      .peek(aggregate -> {
+        LOGGER.info("Bootstrapper found {}", aggregate);
+      })
+      .toList();
   }
 
   public static <T> Class<?> getFirstGenericType(T object) {
@@ -81,39 +135,15 @@ public class Loader {
   }
 
 
-  public static <T> List<T> loadFromInjector(final Injector injector, final Class<T> tClass) {
-    return injector.getBindings().entrySet().stream()
-      .filter(entry -> checkPresenceInBinding(tClass, entry))
-      .map(entry -> injector.getInstance(Key.of(entry.getKey().getRawType(), entry.getKey().getQualifier())))
-      .map(tClass::cast)
+  public static List<AggregateServices> loadAggregateServices() {
+    return ServiceLoader.load(AggregateServices.class).stream()
+      .map(ServiceLoader.Provider::get)
       .toList();
   }
 
-  public static <T> List<T> loadFromInjectorClass(final Injector injector, final Class<T> tClass) {
-    return injector.getBindings().entrySet().stream()
-      .filter(entry -> checkPresenceInBinding(tClass, entry))
-      .map(entry -> injector.getInstance(entry.getKey()))
-      .map(tClass::cast)
+  public static List<Bridge> loadBridges() {
+    return ServiceLoader.load(Bridge.class)
+      .stream().map(ServiceLoader.Provider::get)
       .toList();
   }
-
-  public static <T> boolean checkPresence(final Injector injector, final Class<T> tClass) {
-    return injector.getBindings().entrySet().stream().anyMatch(entry -> checkPresenceInBinding(tClass, entry));
-  }
-
-  public static <T> boolean checkPresenceInBinding(final Class<T> tClass, final Map.Entry<Key<?>, Binding<?>> entry) {
-    return Arrays.stream(entry.getKey().getRawType().getInterfaces()).anyMatch(i -> i.isAssignableFrom(tClass))
-      || entry.getKey().getRawType().isAssignableFrom(tClass);
-  }
-
-  public static <T> boolean checkPresenceInModules(final Class<T> tClass, final Collection<Module> modules) {
-    return modules.stream().anyMatch(m -> checkPresenceInModule(tClass, m));
-  }
-
-  public static <T> boolean checkPresenceInModule(final Class<T> tClass, final Module module) {
-    return module.getBindings().get().entrySet().stream().anyMatch(b ->
-      b.getValue().stream().anyMatch(bb -> checkPresenceInBinding(tClass, Map.entry(b.getKey(), bb)))
-    );
-  }
-
 }

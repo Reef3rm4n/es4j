@@ -1,8 +1,11 @@
 package io.eventx.domain;
 
+import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
+import io.eventx.Bootstrap;
 
 import java.util.Map;
+
 
 public record FakeAggregate(
   String aggregateId,

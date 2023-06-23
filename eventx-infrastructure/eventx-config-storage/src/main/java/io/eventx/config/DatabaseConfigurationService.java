@@ -1,91 +1,52 @@
-package io.eventx.launcher;
+package io.eventx.config;
 
-import io.activej.inject.Injector;
-import io.eventx.config.*;
+
+import com.google.auto.service.AutoService;
+import io.eventx.Aggregate;
 import io.eventx.config.orm.ConfigurationKey;
 import io.eventx.config.orm.ConfigurationQuery;
 import io.eventx.config.orm.ConfigurationRecord;
 import io.eventx.config.orm.ConfigurationRecordMapper;
-import io.eventx.core.CommandHandler;
+import io.eventx.infrastructure.AggregateServices;
 import io.eventx.sql.LiquibaseHandler;
-import io.eventx.sql.models.QueryOptions;
-import io.smallrye.mutiny.Uni;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import io.vertx.core.json.JsonObject;
-import io.eventx.infrastructure.misc.Loader;
 import io.eventx.sql.Repository;
 import io.eventx.sql.RepositoryHandler;
-import io.vertx.mutiny.config.ConfigRetriever;
-import io.vertx.mutiny.core.Promise;
+import io.eventx.sql.models.QueryOptions;
+import io.smallrye.mutiny.Uni;
+
+import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.pgclient.pubsub.PgSubscriber;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.StringJoiner;
-import java.util.stream.Collectors;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
-public class ConfigLauncher {
+import static io.eventx.core.CommandHandler.camelToKebab;
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(ConfigLauncher.class);
-  public static final List<ConfigRetriever> CONFIG_RETRIEVERS = new ArrayList<>();
+
+@AutoService(AggregateServices.class)
+public class DatabaseConfigurationService implements AggregateServices {
+
+  private static final AtomicBoolean LIQUIBASE = new AtomicBoolean(false);
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseConfigurationService.class);
   public static PgSubscriber PG_SUBSCRIBER;
+  private Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository;
 
-  private ConfigLauncher() {
-  }
-
-  public static Uni<Void> addConfigurations(Injector injector) {
-    final var repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, RepositoryHandler.leasePool(injector.getInstance(JsonObject.class), injector.getInstance(Vertx.class)));
+  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     final var configUni = new ArrayList<Uni<Void>>();
-    if (Loader.checkPresence(injector, FileBusinessRule.class)) {
-      LOGGER.info("File-System configuration detected");
-      configUni.add(fsConfigurations(injector));
-    }
-    if (Loader.checkPresence(injector, DatabaseBusinessRule.class)) {
-      LOGGER.info("Database configuration detected");
-      configUni.add(dbConfigurations(injector.getInstance(RepositoryHandler.class), repository));
-    }
-    if (!configUni.isEmpty()) {
-      return Uni.join().all(configUni).andFailFast().replaceWithVoid();
-    }
-    return Uni.createFrom().voidItem();
+    final var repositoryHandler = RepositoryHandler.leasePool(configuration, vertx);
+    this.repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, repositoryHandler);
+    configUni.add(dbConfigurations(repositoryHandler, repository));
+    return Uni.join().all(configUni).andFailFast().replaceWithVoid();
   }
 
-  private static Uni<Void> fsConfigurations(Injector injector) {
-    final var vertx = injector.getInstance(Vertx.class);
-    final var fsConfigs = Loader.loadFromInjectorClass(injector, FileBusinessRule.class);
-    final var promiseMap = fsConfigs.stream().map(cfg -> Map.entry(cfg.fileName(), Promise.promise()))
-      .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-    CONFIG_RETRIEVERS.addAll(
-      fsConfigs.stream()
-        .map(fileConfiguration -> ConfigurationHandler.configure(
-            vertx,
-            fileConfiguration.fileName(),
-            newConfiguration -> {
-              try {
-                LOGGER.info("Caching file configuration {} {}", fileConfiguration.fileName(), newConfiguration);
-                FsConfigCache.put(fileConfiguration.fileName(), newConfiguration);
-                final var promise = promiseMap.get(fileConfiguration.fileName());
-                if (promise != null) {
-                  promise.complete();
-                }
-              } catch (Exception e) {
-                LOGGER.error("Unable to consume file configuration {} {}", fileConfiguration.fileName(), newConfiguration, e);
-                final var promise = promiseMap.get(fileConfiguration.fileName());
-                if (promise != null) {
-                  promise.complete();
-                }
-              }
-            }
-          )
-        )
-        .toList()
-    );
-    return Uni.join().all(promiseMap.values().stream().map(Promise::future).toList())
-      .andFailFast().invoke(avoid -> promiseMap.clear())
-      .replaceWithVoid();
+  @Override
+  public Uni<Void> stop() {
+    return PG_SUBSCRIBER.close()
+      .flatMap(avoid -> repository.repositoryHandler().close());
   }
 
   private static Uni<Void> dbConfigurations(RepositoryHandler repositoryHandler, Repository<ConfigurationKey, ConfigurationRecord, ConfigurationQuery> repository) {
@@ -93,7 +54,7 @@ public class ConfigLauncher {
       RepositoryHandler.connectionOptions(repositoryHandler.configuration())
     );
     PG_SUBSCRIBER.reconnectPolicy(integer -> 0L);
-    final var pgChannel = PG_SUBSCRIBER.channel(CommandHandler.camelToKebab(repositoryHandler.configuration().getString("schema")) + "_configuration_channel");
+    final var pgChannel = PG_SUBSCRIBER.channel(camelToKebab(repositoryHandler.configuration().getString("schema")) + "_configuration_channel");
     pgChannel.handler(id -> {
           final ConfigurationKey key = configurationKey(id);
           LOGGER.info("Updating configuration {} ", JsonObject.mapFrom(key).encodePrettily());
@@ -107,8 +68,8 @@ public class ConfigLauncher {
         }
       )
       .endHandler(() -> subscriptionStopped(PG_SUBSCRIBER))
-      .subscribeHandler(ConfigLauncher::handleSubscription)
-      .exceptionHandler(ConfigLauncher::handleSubscriberError);
+      .subscribeHandler(DatabaseConfigurationService::handleSubscription)
+      .exceptionHandler(DatabaseConfigurationService::handleSubscriberError);
     return liquibase(repositoryHandler)
       .call(avoid -> warmCaches(repository))
       .call(avoid -> PG_SUBSCRIBER.connect())
@@ -116,9 +77,9 @@ public class ConfigLauncher {
   }
 
   private static Object handleMessage(final ConfigurationKey key, final ConfigurationRecord updatedConfig, final Throwable failure) {
-    final var currentCachedEntry = DbConfigCache.get(parseKey(updatedConfig));
+    final var currentCachedEntry = DatabaseConfigurationCache.get(parseKey(updatedConfig));
     // if updated config active
-    BusinessRule currentConfigState = null;
+    DatabaseConfiguration currentConfigState = null;
     if (currentCachedEntry != null) {
       currentConfigState = mapData(currentCachedEntry, updatedConfig.tClass());
     }
@@ -126,15 +87,15 @@ public class ConfigLauncher {
     if (failure != null) {
       if (currentConfigState != null && currentConfigState.revision().equals(updatedConfig.revision())) {
         LOGGER.info("Deleting configuration {}", JsonObject.mapFrom(key).encodePrettily());
-        DbConfigCache.delete(parseKey(key));
+        DatabaseConfigurationCache.invalidate(parseKey(key));
       }
     } else {
       if (updatedConfig.active()) {
         LOGGER.info("Loading configuration {}", JsonObject.mapFrom(key).encodePrettily());
-        DbConfigCache.put(parseKey(key), updatedConfig.data());
+        DatabaseConfigurationCache.put(parseKey(key), updatedConfig.data());
       } else if (currentConfigState != null && currentConfigState.revision().equals(updatedConfig.revision())) {
         LOGGER.info("Deactivating configuration {} ", JsonObject.mapFrom(key));
-        DbConfigCache.delete(parseKey(key));
+        DatabaseConfigurationCache.invalidate(parseKey(key));
       }
     }
     return updatedConfig;
@@ -177,11 +138,14 @@ public class ConfigLauncher {
   }
 
   private static Uni<Void> liquibase(final RepositoryHandler repositoryHandler) {
-    return LiquibaseHandler.liquibaseString(
-      repositoryHandler,
-      "config.xml",
-      Map.of("schema", repositoryHandler.configuration().getString("schema"))
-    );
+    if (LIQUIBASE.compareAndSet(false, true)) {
+      return LiquibaseHandler.liquibaseString(
+        repositoryHandler,
+        "config.xml",
+        Map.of("schema", repositoryHandler.configuration().getString("schema"))
+      );
+    }
+    return Uni.createFrom().voidItem();
   }
 
   private static void handleSubscriberError(final Throwable throwable) {
@@ -189,36 +153,29 @@ public class ConfigLauncher {
   }
 
   private static void handleSubscription() {
-    LOGGER.info("PgSubscribed to channel");
+    LOGGER.info("subscription started");
   }
 
   private static void subscriptionStopped(final PgSubscriber pgSubscriber) {
-    LOGGER.info("Pg subscription dropped");
+    LOGGER.info("subscription stopped");
   }
 
-  private static BusinessRule mapData(final ConfigurationRecord item) {
+  private static DatabaseConfiguration mapData(final ConfigurationRecord item) {
     try {
-      return (BusinessRule) item.data().mapTo(Class.forName(item.tClass()));
+      return (DatabaseConfiguration) item.data().mapTo(Class.forName(item.tClass()));
     } catch (ClassNotFoundException e) {
       LOGGER.error("Unable to cast configuration using class for fileName");
       throw new IllegalArgumentException(e);
     }
   }
 
-  private static BusinessRule mapData(final JsonObject item, final String tClass) {
+  private static DatabaseConfiguration mapData(final JsonObject item, final String tClass) {
     try {
-      return (BusinessRule) item.mapTo(Class.forName(tClass));
+      return (DatabaseConfiguration) item.mapTo(Class.forName(tClass));
     } catch (ClassNotFoundException e) {
       LOGGER.error("Unable to cast configuration using class for {} to class {}", item.encodePrettily(), tClass, e);
       throw new IllegalArgumentException(e);
     }
   }
 
-  public static Uni<Void> close() {
-    if (!CONFIG_RETRIEVERS.isEmpty()) {
-      CONFIG_RETRIEVERS.forEach(ConfigRetriever::close);
-      return PG_SUBSCRIBER.close();
-    }
-    return Uni.createFrom().voidItem();
-  }
 }

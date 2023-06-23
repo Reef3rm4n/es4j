@@ -1,5 +1,6 @@
 package io.eventx.infra.redis;
 
+import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
 import io.eventx.core.objects.ErrorSource;
 import io.eventx.core.objects.EventxErrorBuilder;
@@ -17,13 +18,14 @@ import io.vertx.mutiny.redis.client.RedisAPI;
 import io.vertx.mutiny.redis.client.Response;
 import io.vertx.redis.client.RedisOptions;
 import io.vertx.redis.client.ResponseType;
-import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.Consumer;
 
+
+@AutoService(EventStore.class)
 public class RedisEventStore implements EventStore {
   public static final String TENANT_ID = "tenant-id";
   public static final String EVENT_CLASS = "event-class";
@@ -80,7 +82,7 @@ public class RedisEventStore implements EventStore {
       .replaceWithVoid();
   }
 
-  @NotNull
+
   private static Response checkResponse(Response response) {
     if (response.type() == ResponseType.ERROR) {
       throw new RedisEventStoreException(response.toBuffer().toString());
@@ -88,7 +90,7 @@ public class RedisEventStore implements EventStore {
     return response;
   }
 
-  @NotNull
+
   private List<String> mapArgs(Event event, String streamName) {
     return Arrays.asList(
       streamName, String.valueOf(event.eventVersion()),
@@ -102,7 +104,7 @@ public class RedisEventStore implements EventStore {
     );
   }
 
-  @NotNull
+
   private <T extends Aggregate> String aggregateStream(StartStream<T> appendInstruction) {
     return aggregateClass.getSimpleName() + "-" + appendInstruction.aggregateId() + "-" + appendInstruction.tenantId();
   }
@@ -154,13 +156,13 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public Uni<Void> close() {
+  public Uni<Void> stop() {
     redisApi.close();
     return Uni.createFrom().voidItem();
   }
 
   @Override
-  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     this.aggregateClass = aggregateClass;
     this.redisClient = Redis.createClient(vertx,
       new RedisOptions()
@@ -176,8 +178,13 @@ public class RedisEventStore implements EventStore {
         ))
     );
     this.redisApi = RedisAPI.api(redisClient);
-    return redisClient.connect()
-      .replaceWithVoid();
+//    return redisClient.connect()
+//      .replaceWithVoid();
+  }
+
+  @Override
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+    return null;
   }
 
   @Override

@@ -7,6 +7,8 @@ import com.cronutils.parser.CronParser;
 import io.eventx.core.objects.EventJournalFilter;
 import io.smallrye.mutiny.Uni;
 import io.eventx.core.objects.AggregateEvent;
+import io.vertx.core.json.JsonObject;
+import io.vertx.mutiny.core.Vertx;
 
 import java.util.List;
 import java.util.Optional;
@@ -30,6 +32,10 @@ public interface PollingEventProjection {
     )
       .parse("*/1 * * * *");
   }
+
+  Uni<Void> setup(Vertx vertx, JsonObject configuration);
+
+  Class<? extends Aggregate> aggregateClass();
 
 
 }

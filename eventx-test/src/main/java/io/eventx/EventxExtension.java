@@ -1,16 +1,14 @@
 package io.eventx;
 
 
-import io.eventx.config.BusinessRule;
-import io.eventx.config.DbConfigCache;
-import io.eventx.config.FsConfigCache;
+import io.eventx.config.DatabaseConfiguration;
+import io.eventx.config.DatabaseConfigurationCache;
 import io.eventx.config.orm.ConfigurationKey;
 import io.eventx.core.objects.AggregateState;
 import io.eventx.infrastructure.cache.CaffeineWrapper;
-import io.eventx.infrastructure.misc.Loader;
+import io.eventx.infrastructure.config.FileConfigurationCache;
 import io.eventx.infrastructure.models.AggregatePlainKey;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
-import io.smallrye.mutiny.tuples.Tuple2;
 import io.smallrye.mutiny.tuples.Tuple4;
 import io.vertx.core.json.JsonObject;
 import org.junit.jupiter.api.extension.*;
@@ -20,7 +18,8 @@ import org.slf4j.LoggerFactory;
 import java.lang.reflect.Method;
 import java.util.*;
 
-import static io.eventx.launcher.ConfigLauncher.parseKey;
+import static io.eventx.config.DatabaseConfigurationService.parseKey;
+
 
 public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Extension, ParameterResolver, BeforeEachCallback, AfterEachCallback {
   private Bootstrapper<? extends Aggregate> bootstrapper;
@@ -51,9 +50,7 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
 
   @Override
   public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-    return Bootstrapper.injector.getBindings().keySet().stream().map(k -> k.getRawType()).toList()
-      .stream().anyMatch(k -> parameterContext.getParameter().getType().isAssignableFrom(k))
-      || parameterContext.getParameter().getType() == AggregateEventBusPoxy.class
+    return parameterContext.getParameter().getType() == AggregateEventBusPoxy.class
       || parameterContext.getParameter().getType() == AggregateHttpClient.class;
   }
 
@@ -64,18 +61,16 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
         return bootstrapper.eventBusPoxy;
       } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateHttpClient.class)) {
         return bootstrapper.httpClient;
-      } else {
-        return Loader.loadFromInjector(Bootstrapper.injector, parameterContext.getParameter().getType()).stream().findFirst().orElseThrow();
       }
     }
     throw new IllegalStateException("Bootstrapper has not been initialized");
   }
 
 
-  private List<Tuple4<Class<? extends BusinessRule>, String, String, Integer>> databaseConfigurations(Method testMethod) {
+  private List<Tuple4<Class<? extends DatabaseConfiguration>, String, String, Integer>> databaseConfigurations(Method testMethod) {
     LOGGER.debug("Getting business rules from method {}", testMethod);
-    List<Tuple4<Class<? extends io.eventx.config.BusinessRule>, String, String, Integer>> configurationTuples = new ArrayList<>();
-    DatabaseBusinessRule[] annotations = testMethod.getAnnotationsByType(DatabaseBusinessRule.class);
+    List<Tuple4<Class<? extends DatabaseConfiguration>, String, String, Integer>> configurationTuples = new ArrayList<>();
+    io.eventx.DatabaseBusinessRule[] annotations = testMethod.getAnnotationsByType(io.eventx.DatabaseBusinessRule.class);
     if (annotations != null && !Arrays.stream(annotations).toList().isEmpty()) {
       Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple4.of(a.configurationClass(), a.fileName(), a.tenant(), a.version())));
       return configurationTuples;
@@ -83,12 +78,12 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
     return new ArrayList<>();
   }
 
-  private List<Tuple2<Class<? extends io.eventx.config.BusinessRule>, String>> fileConfigurations(Method testMethod) {
+  private List<String> fileConfigurations(Method testMethod) {
     LOGGER.debug("Getting business rules from method {}", testMethod);
-    List<Tuple2<Class<? extends io.eventx.config.BusinessRule>, String>> configurationTuples = new ArrayList<>();
+    List<String> configurationTuples = new ArrayList<>();
     FileBusinessRule[] annotations = testMethod.getAnnotationsByType(FileBusinessRule.class);
     if (annotations != null && !Arrays.stream(annotations).toList().isEmpty()) {
-      Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple2.of(a.configurationClass(), a.fileName())));
+      Arrays.stream(annotations).forEach(a -> configurationTuples.add(a.fileName()));
       return configurationTuples;
     }
     return new ArrayList<>();
@@ -104,7 +99,7 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
           databaseConfigurations.forEach(
             dbConfig -> {
               LOGGER.info("Deleting database configuration {}", dbConfig);
-              DbConfigCache.delete(parseKey(new ConfigurationKey(dbConfig.getItem1().getName(), dbConfig.getItem4(), dbConfig.getItem3())));
+              DatabaseConfigurationCache.invalidate(parseKey(new ConfigurationKey(dbConfig.getItem1().getName(), dbConfig.getItem4(), dbConfig.getItem3())));
             }
           );
         }
@@ -112,9 +107,9 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
         if (!fileConfigurations.isEmpty()) {
           LOGGER.info("Removing previously deployed configurations {}", databaseConfigurations);
           fileConfigurations.forEach(
-            fsConfig -> {
-              LOGGER.info("Deleting file configuration {}", fsConfig);
-              FsConfigCache.delete(fsConfig.getItem2());
+            filename -> {
+              LOGGER.info("Deleting file configuration {}", filename);
+              FileConfigurationCache.invalidate(filename.substring(0, filename.indexOf(".")));
             }
           );
         }
@@ -158,14 +153,14 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
   public void beforeEach(ExtensionContext context) {
     context.getTestMethod().ifPresent(
       testMethod -> {
-        final var configs = fileConfigurations(testMethod);
-        if (!configs.isEmpty()) {
-          configs.forEach(
-            config -> {
-              LOGGER.info("Adding file configuration {}", config);
-              final var configuration = Bootstrapper.vertx.fileSystem().readFileBlocking(config.getItem2())
+        final var fileNames = fileConfigurations(testMethod);
+        if (!fileNames.isEmpty()) {
+          fileNames.forEach(
+            filename -> {
+              final var configuration = Bootstrapper.vertx.fileSystem().readFileBlocking(filename)
                 .toJsonObject();
-              FsConfigCache.put(config.getItem2(), configuration);
+              LOGGER.info("Adding file configuration {} {}", filename, configuration.encodePrettily());
+              FileConfigurationCache.put(filename.substring(0, filename.indexOf(".")), configuration);
             }
           );
         }
@@ -173,10 +168,10 @@ public class EventxExtension implements BeforeAllCallback, AfterAllCallback, Ext
         if (!databaseConfigurations.isEmpty()) {
           databaseConfigurations.forEach(
             fsConfig -> {
-              LOGGER.info("Adding database configuration {}", fsConfig);
               final var configuration = Bootstrapper.vertx.fileSystem().readFileBlocking(fsConfig.getItem2())
                 .toJsonObject();
-              DbConfigCache.put(parseKey(new ConfigurationKey(fsConfig.getItem1().getName(), 0, fsConfig.getItem3())), configuration);
+              LOGGER.info("Adding database configuration {} {}", fsConfig, configuration.encodePrettily());
+              DatabaseConfigurationCache.put(parseKey(new ConfigurationKey(fsConfig.getItem1().getName(), 0, fsConfig.getItem3())), configuration);
             }
           );
           final var optionalGivenAggregate = Optional.ofNullable(testMethod.getAnnotation(GivenAggregate.class));

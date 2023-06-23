@@ -21,8 +21,9 @@ public interface EventStore {
   <T extends Aggregate> Uni<Void> append(AppendInstruction<T> appendInstruction);
   <T extends Aggregate> Uni<Void> startStream(StartStream<T> appendInstruction);
 
-  Uni<Void> close();
-  Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  Uni<Void> stop();
+  void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
   <T extends Aggregate> Uni<Void> trim(PruneEventStream<T> trim);
 
 }

@@ -1,10 +1,13 @@
 package io.eventx.infra.pg;
 
+import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
 import io.eventx.core.objects.JournalOffsetBuilder;
+import io.eventx.infra.pg.mappers.JournalOffsetMapper;
 import io.eventx.infra.pg.models.EventJournalOffSet;
 import io.eventx.infra.pg.models.EventJournalOffSetKey;
 import io.eventx.sql.LiquibaseHandler;
+import io.eventx.sql.RepositoryHandler;
 import io.eventx.sql.exceptions.IntegrityContraintViolation;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.sql.models.EmptyQuery;
@@ -24,14 +27,21 @@ import java.util.Map;
 
 import static io.eventx.core.CommandHandler.camelToKebab;
 
+
+@AutoService(OffsetStore.class)
 public class PgOffsetStore implements OffsetStore {
-  private final Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> repository;
+  private Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> repository;
 
   private final Logger LOGGER = LoggerFactory.getLogger(PgOffsetStore.class);
 
+  @Override
+  public Uni<Void> stop() {
+    return repository.repositoryHandler().close();
+  }
 
-  public PgOffsetStore(Repository<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> repository) {
-    this.repository = repository;
+  @Override
+  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject config) {
+    this.repository = new Repository<>(JournalOffsetMapper.INSTANCE, RepositoryHandler.leasePool(config, vertx));
   }
 
   @Override
@@ -77,16 +87,12 @@ public class PgOffsetStore implements OffsetStore {
   }
 
   @Override
-  public Uni<Void> close() {
-    return repository.repositoryHandler().close();
-  }
-
-  @Override
-  public Uni<Void> start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
-      repository.repositoryHandler(),
-            "pg-offset-store.xml",
+      vertx,
+      configuration,
+      "pg-offset-store.xml",
       Map.of("schema", camelToKebab(aggregateClass.getSimpleName()))
     );
   }

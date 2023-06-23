@@ -38,7 +38,7 @@ public class PgTaskQueueTest {
   @BeforeAll
   static void start() {
     BOOTSTRAP.start();
-    TaskProcessorVerticle.deploy(InfrastructureBootstrap.vertx, BOOTSTRAP.CONFIGURATION, Loader.eventxModules()).await().indefinitely();
+    TaskProcessorVerticle.deploy(InfrastructureBootstrap.vertx, BOOTSTRAP.CONFIGURATION).await().indefinitely();
   }
 
 

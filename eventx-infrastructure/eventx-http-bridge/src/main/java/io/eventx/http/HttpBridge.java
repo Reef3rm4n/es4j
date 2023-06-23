@@ -1,10 +1,11 @@
 package io.eventx.http;
 
 
-import io.activej.inject.binding.OptionalDependency;
+import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.core.objects.EventxError;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
 import io.vertx.core.Handler;
@@ -14,6 +15,7 @@ import io.eventx.infrastructure.bus.AggregateBus;
 import io.eventx.infrastructure.proxy.AggregateEventBusPoxy;
 import io.eventx.launcher.EventxMain;
 import io.vertx.ext.bridge.PermittedOptions;
+import io.vertx.ext.web.Route;
 import io.vertx.ext.web.handler.sockjs.SockJSBridgeOptions;
 import io.vertx.ext.web.handler.sockjs.SockJSHandlerOptions;
 import io.vertx.mutiny.core.buffer.Buffer;
@@ -44,35 +46,29 @@ import java.util.*;
 import static io.eventx.core.CommandHandler.camelToKebab;
 
 
+@AutoService(Bridge.class)
 public class HttpBridge implements Bridge {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(HttpBridge.class);
   private final Handler<io.vertx.ext.web.RoutingContext> prometheusScrapingHandler = PrometheusScrapingHandler.create();
   public static final int HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
-  private final List<HttpRoute> routes;
-  private final List<HealthCheck> healthChecks;
+
   private HttpServer httpServer;
   private Vertx vertx;
-  private final OptionalDependency<CommandAuth> commandAuth;
-
+  private Optional<CommandAuth> commandAuth;
   private final Map<Class<? extends Aggregate>, AggregateEventBusPoxy<? extends Aggregate>> proxies = new HashMap<>();
+  private List<HealthCheck> healthChecks;
+  private List<HttpRoute> httpRoutes;
 
-  public HttpBridge(
-    final OptionalDependency<CommandAuth> commandAuth,
-    final List<HttpRoute> routes,
-    final List<HealthCheck> healthChecks
-  ) {
-    this.commandAuth = commandAuth;
-    this.routes = routes;
-    this.healthChecks = healthChecks;
-  }
 
   @Override
-  public Uni<Void> start(Vertx vertx, JsonObject configuration, List<Class<? extends Aggregate>> aggregateClasses) {
+  public Uni<Void> start(Vertx vertx, JsonObject configuration) {
     this.vertx = vertx;
     this.httpServer = httpServer();
+    this.commandAuth = ServiceLoader.load(CommandAuth.class).findFirst();
+    this.healthChecks = ServiceLoader.load(HealthCheck.class).stream().map(ServiceLoader.Provider::get).toList();
+    this.httpRoutes = ServiceLoader.load(HttpRoute.class).stream().map(ServiceLoader.Provider::get).toList();
     final var router = Router.router(vertx);
-    this.healthChecks(router);
     this.metrics(router);
     router.route().failureHandler(this::failureHandler);
     router.route().handler(LoggerHandler.create(LoggerFormat.SHORT));
@@ -81,22 +77,77 @@ public class HttpBridge implements Bridge {
     startProxies(vertx);
     aggregateRoutes(router);
     aggregateWebSocket(router);
-    return httpServer.requestHandler(router)
-      .invalidRequestHandler(this::handleInvalidRequest)
-      .exceptionHandler(throwable -> LOGGER.error("HTTP Server dropped exception", throwable))
-      .listen(HTTP_PORT)
-      .invoke(httpServer1 -> LOGGER.info("HTTP Server listening on port {}", httpServer1.actualPort()))
+
+    return startHttpRoutes(vertx, configuration, router)
+      .flatMap(avoid -> startHealthChecks(vertx, configuration, router))
+      .flatMap(avoid -> httpServer.requestHandler(router)
+        .invalidRequestHandler(this::handleInvalidRequest)
+        .exceptionHandler(throwable -> LOGGER.error("HTTP Server dropped exception", throwable))
+        .listen(HTTP_PORT)
+        .invoke(httpServer1 -> LOGGER.info("HTTP Server listening on port {}", httpServer1.actualPort())))
       .replaceWithVoid();
   }
 
+  private Uni<Void> startHttpRoutes(Vertx vertx, JsonObject configuration, Router router) {
+    if (!healthChecks.isEmpty()) {
+      return Multi.createFrom().iterable(httpRoutes)
+        .onItem().transformToUniAndMerge(httpRoute -> httpRoute.start(vertx, configuration))
+        .collect().asList()
+        .replaceWithVoid()
+        .map(avoid -> {
+            httpRoutes.forEach(
+              httpRoute -> httpRoute.registerRoutes(router)
+            );
+            return avoid;
+          }
+        );
+    }
+    return Uni.createFrom().voidItem();
+  }
+
+  private Uni<Void> startHealthChecks(Vertx vertx, JsonObject configuration, Router router) {
+    if (!healthChecks.isEmpty()) {
+      return Multi.createFrom().iterable(healthChecks)
+        .onItem().transformToUniAndMerge(healthCheck -> healthCheck.start(vertx, configuration))
+        .collect().asList()
+        .replaceWithVoid()
+        .map(avoid -> {
+            final var baseHealthCheck = io.vertx.ext.healthchecks.HealthChecks.create(vertx.getDelegate());
+            if (!healthChecks.isEmpty()) {
+              healthChecks.forEach(
+                healthCheck -> baseHealthCheck.register(
+                  healthCheck.name(),
+                  promise -> healthCheck.checkHealth()
+                    .subscribe()
+                    .with(
+                      promise::tryComplete
+                      , throwable -> {
+                        LOGGER.error(healthCheck.name() + " health check failed", throwable);
+                        promise.tryComplete(Status.KO(new JsonObject().put("message", throwable.getMessage())));
+                      }
+                    )
+                )
+              );
+            }
+            router.get("/readiness")
+              .handler(HealthCheckHandler.createWithHealthChecks(io.vertx.mutiny.ext.healthchecks.HealthChecks.newInstance(baseHealthCheck)))
+              .failureHandler(this::failureHandler);
+            return avoid;
+          }
+        );
+    }
+    return Uni.createFrom().voidItem();
+  }
+
   private void startProxies(Vertx vertx) {
-    EventxMain.AGGREGATE_CLASSES.forEach(aggregateClass -> proxies.put(aggregateClass, new AggregateEventBusPoxy<>(vertx, aggregateClass)));
+    EventxMain.AGGREGATES.stream().map(bootstrap -> bootstrap.aggregateClass())
+      .forEach(aggregateClass -> proxies.put(aggregateClass, new AggregateEventBusPoxy<>(vertx, aggregateClass)));
   }
 
   private void aggregateWebSocket(Router router) {
     final var options = new SockJSHandlerOptions().setRegisterWriteHandler(true);
     final var bridgeOptions = new SockJSBridgeOptions();
-    EventxMain.AGGREGATE_CLASSES.forEach(
+    EventxMain.AGGREGATES.stream().map(bootstrap -> bootstrap.aggregateClass()).forEach(
       aClass -> bridgeOptions
         .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
         .addOutboundPermitted(permission(EventbusLiveProjections.STATE_PROJECTION, aClass))
@@ -117,7 +168,6 @@ public class HttpBridge implements Bridge {
   }
 
   private void aggregateRoutes(Router router) {
-    //todo build openapi spec at run-time from commands
     EventxMain.AGGREGATE_COMMANDS.forEach((key, value) -> value.forEach(commandClass -> router.post(parsePath(key, commandClass))
         .consumes(Constants.APPLICATION_JSON)
         .produces(Constants.APPLICATION_JSON)
@@ -143,7 +193,7 @@ public class HttpBridge implements Bridge {
   }
 
   @Override
-  public Uni<Void> close() {
+  public Uni<Void> stop() {
     return httpServer.close();
   }
 
@@ -178,29 +228,6 @@ public class HttpBridge implements Bridge {
       .put("headers", httpServerRequest.headers().entries())
       .put("uri", httpServerRequest.absoluteURI());
     LOGGER.error("Invalid request -> " + json.encodePrettily());
-  }
-
-  private void healthChecks(Router router) {
-    final var baseHealthCheck = io.vertx.ext.healthchecks.HealthChecks.create(vertx.getDelegate());
-    if (!healthChecks.isEmpty()) {
-      healthChecks.forEach(
-        healthCheck -> baseHealthCheck.register(
-          healthCheck.name(),
-          promise -> healthCheck.checkHealth()
-            .subscribe()
-            .with(
-              promise::tryComplete
-              , throwable -> {
-                LOGGER.error(healthCheck.name() + " health check failed", throwable);
-                promise.tryComplete(Status.KO(new JsonObject().put("message", throwable.getMessage())));
-              }
-            )
-        )
-      );
-    }
-    router.get("/readiness")
-      .handler(HealthCheckHandler.createWithHealthChecks(io.vertx.mutiny.ext.healthchecks.HealthChecks.newInstance(baseHealthCheck)))
-      .failureHandler(this::failureHandler);
   }
 
   private void metrics(Router router) {

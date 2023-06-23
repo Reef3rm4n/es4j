@@ -118,7 +118,7 @@ public class OpenApiGenerator extends AbstractProcessor {
             builder.append("    @POST\n");
             builder.append("    @Path(\"/").append(camelToKebab(commandSimpleName)).append("\")\n");
             builder.append("    @Operation(summary = \"Submits command to " + aggregateSimpleName + " aggregate, it will be either processed or rejected \")\n");
-            builder.append("    @APIResponse(responseCode = \"200\", description = \"Command Processed\", content = @Content(schema = @Schema(implementation = ").append(aggregate).append(".class)))\n");
+            builder.append("    @APIResponse(responseCode = \"200\", description = \"Command Processed\")\n");
             builder.append("    @APIResponse(responseCode = \"400\", description = \"Command Rejected\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
             builder.append("    @APIResponse(responseCode = \"500\", description = \"Command Rejected\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
             builder.append("    ").append("default io.eventx.core.objects.AggregateState<").append(aggregate).append("> " + camelToSnake(commandSimpleName) + "(").append(command).append(" command){return null;}\n\n");
@@ -127,38 +127,6 @@ public class OpenApiGenerator extends AbstractProcessor {
 
         builder.append("}\n");
         interfaces.add(Tuple2.of(aggregateSimpleName + "Api", builder.toString()));
-      }
-    );
-    return interfaces;
-  }
-
-  private List<Tuple2<String, String>> generateJavaInterfaceImplementation(Map<TypeMirror, List<TypeMirror>> typeArgumentsMap) {
-    final var interfaces = new ArrayList<Tuple2<String, String>>();
-    typeArgumentsMap.forEach(
-      (aggregate, commandList) -> {
-        StringBuilder builder = new StringBuilder();
-        final var aggregateTypeElement = (TypeElement) processingEnv.getTypeUtils().asElement(aggregate);
-        final var aggregateSimpleName = aggregateTypeElement.getSimpleName().toString();
-        // Package
-        builder.append(convertToPackageStatement(aggregate.toString()) + "\n\n");
-
-        // Imports
-        builder.append("import javax.ws.rs.*;\n");
-
-        // Class declaration
-        builder.append("public class " + aggregateSimpleName + "Impl implements " + extractPackageStatement(aggregate.toString()) + "." + aggregateSimpleName + "Api {\n\n");
-        commandList.forEach(
-          command -> {
-            final var commandTypeElement = (TypeElement) processingEnv.getTypeUtils().asElement(command);
-            final var commandSimpleName = commandTypeElement.getSimpleName().toString();
-            builder.append("    @Override\n");
-            builder.append("    public ").append(aggregate).append(" " + camelToSnake(commandSimpleName) + "(").append(command).append(" command) {\n");
-            builder.append("        return null;\n");
-            builder.append("    }\n\n");
-          }
-        );
-        builder.append("}\n");
-        interfaces.add(Tuple2.of(aggregate + "Impl", builder.toString()));
       }
     );
     return interfaces;
@@ -188,15 +156,6 @@ public class OpenApiGenerator extends AbstractProcessor {
     if (lastDotIndex != -1) {
       String packageName = className.substring(0, lastDotIndex);
       return "package " + packageName + ";";
-    } else {
-      return "";
-    }
-  }
-
-  public static String extractPackageStatement(String className) {
-    int lastDotIndex = className.lastIndexOf('.');
-    if (lastDotIndex != -1) {
-      return className.substring(0, lastDotIndex);
     } else {
       return "";
     }
