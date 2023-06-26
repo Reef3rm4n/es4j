@@ -61,12 +61,12 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   @Override
   public Uni<Void> asyncStart() {
     config().put("schema", camelToKebab(aggregateClass.getSimpleName()));
-    this.aggregateConfiguration = config().getJsonObject("aggregate-config", new JsonObject()).mapTo(AggregateConfiguration.class);
+    this.aggregateConfiguration = config().getJsonObject("aggregate-configuration", new JsonObject()).mapTo(AggregateConfiguration.class);
     LOGGER.info("Event.x starting {}::{}", aggregateClass.getSimpleName(), this.deploymentID);
     this.aggregatorWraps = loadAggregators(aggregateClass);
     this.behaviourWraps = loadBehaviours(aggregateClass);
     this.infrastructure = new Infrastructure(
-      Optional.of(new CaffeineAggregateCache()),
+      Loader.loadCache(),
       Loader.loadEventStore(),
       Optional.empty(),
       Loader.loadOffsetStore()

@@ -44,10 +44,10 @@ public class AggregateDeployer<T extends Aggregate> {
   private List<AggregateServices> aggregateServices;
 
   public AggregateDeployer(
-    List<String> files,
-    Class<T> aggregateClass,
-    Vertx vertx,
-    String deploymentID
+    final List<String> files,
+    final Class<T> aggregateClass,
+    final Vertx vertx,
+    final String deploymentID
   ) {
     this.files = files;
     this.aggregateClass = aggregateClass;

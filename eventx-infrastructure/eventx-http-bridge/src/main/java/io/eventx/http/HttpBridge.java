@@ -3,11 +3,14 @@ package io.eventx.http;
 
 import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
+import io.eventx.Behaviour;
 import io.eventx.Command;
 import io.eventx.core.objects.EventxError;
+import io.eventx.infrastructure.misc.Loader;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 
+import io.smallrye.mutiny.subscription.Cancellable;
 import io.vertx.core.Handler;
 import io.vertx.core.http.HttpServerOptions;
 import io.eventx.core.objects.EventbusLiveProjections;
@@ -55,17 +58,16 @@ public class HttpBridge implements Bridge {
 
   private HttpServer httpServer;
   private Vertx vertx;
-  private Optional<CommandAuth> commandAuth;
+  private List<CommandAuth> commandAuth;
   private final Map<Class<? extends Aggregate>, AggregateEventBusPoxy<? extends Aggregate>> proxies = new HashMap<>();
   private List<HealthCheck> healthChecks;
   private List<HttpRoute> httpRoutes;
-
 
   @Override
   public Uni<Void> start(Vertx vertx, JsonObject configuration) {
     this.vertx = vertx;
     this.httpServer = httpServer();
-    this.commandAuth = ServiceLoader.load(CommandAuth.class).findFirst();
+    this.commandAuth = ServiceLoader.load(CommandAuth.class).stream().map(ServiceLoader.Provider::get).toList();
     this.healthChecks = ServiceLoader.load(HealthCheck.class).stream().map(ServiceLoader.Provider::get).toList();
     this.httpRoutes = ServiceLoader.load(HttpRoute.class).stream().map(ServiceLoader.Provider::get).toList();
     final var router = Router.router(vertx);
@@ -147,6 +149,7 @@ public class HttpBridge implements Bridge {
   private void aggregateWebSocket(Router router) {
     final var options = new SockJSHandlerOptions().setRegisterWriteHandler(true);
     final var bridgeOptions = new SockJSBridgeOptions();
+    //todo add web-socket command ingress
     EventxMain.AGGREGATES.stream().map(bootstrap -> bootstrap.aggregateClass()).forEach(
       aClass -> bridgeOptions
         .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
@@ -173,16 +176,29 @@ public class HttpBridge implements Bridge {
         .produces(Constants.APPLICATION_JSON)
         .handler(routingContext -> {
             final var command = routingContext.body().asJsonObject().mapTo(commandClass);
-            proxies.get(key).forward(command)
-              .subscribe()
-              .with(
-                state -> okJson(routingContext, state.toJson()),
-                routingContext::fail
-              );
+            getAuthHandler(command).ifPresentOrElse(
+              cmdAuth -> cmdAuth.validateCommand(command, routingContext)
+                .flatMap(avoid -> proxies.get(key).forward(command))
+                .subscribe()
+                .with(
+                  state -> okJson(routingContext, state.toJson()),
+                  routingContext::fail
+                ),
+              () -> proxies.get(key).forward(command)
+                .subscribe()
+                .with(
+                  state -> okJson(routingContext, state.toJson()),
+                  routingContext::fail
+                )
+            );
           }
         )
       )
     );
+  }
+
+  public Optional<CommandAuth> getAuthHandler(Command command) {
+    return commandAuth.stream().filter(c -> c.tenant().stream().anyMatch(tt -> tt.equals(command.tenant()))).findFirst();
   }
 
   public static String parsePath(Class<? extends Aggregate> aggregateClass, Class<? extends Command> commandClass) {

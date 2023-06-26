@@ -7,6 +7,7 @@ import io.eventx.core.objects.AggregateState;
 import io.eventx.infrastructure.models.AggregateKey;
 import io.eventx.infrastructure.models.AggregatePlainKey;
 import io.eventx.infrastructure.AggregateCache;
+import io.smallrye.mutiny.Uni;
 
 
 @AutoService(AggregateCache.class)
@@ -26,5 +27,8 @@ public class CaffeineAggregateCache implements AggregateCache {
     CaffeineWrapper.put(key(aggregateKey), aggregate);
   }
 
-
+  @Override
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass) {
+    return AggregateCache.super.setup(aggregateClass);
+  }
 }

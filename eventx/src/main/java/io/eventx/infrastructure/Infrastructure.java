@@ -1,6 +1,7 @@
 package io.eventx.infrastructure;
 
 import io.eventx.Aggregate;
+import io.eventx.core.objects.AggregateConfiguration;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
@@ -26,7 +27,7 @@ public record Infrastructure(
 
   public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     final var list = new ArrayList<Uni<Void>>();
-    cache.ifPresent(cache -> list.add(cache.setup(aggregateClass)));
+    cache.ifPresent(cache -> list.add(cache.setup(aggregateClass, configuration.getJsonObject("aggregate-configuration", new JsonObject()).mapTo(AggregateConfiguration.class))));
     secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.setup(aggregateClass, vertx, configuration)));
     list.add(eventStore.setup(aggregateClass, vertx, configuration));
     list.add(offsetStore.setup(aggregateClass, vertx, configuration));
@@ -37,7 +38,6 @@ public record Infrastructure(
   public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
     eventStore.start(aggregateClass, vertx, configuration);
     offsetStore.start(aggregateClass, vertx, configuration);
-    cache.ifPresent(cache -> cache.start(aggregateClass));
     secondaryEventStore.ifPresent(ses -> ses.start(aggregateClass, vertx, configuration));
   }
 }
