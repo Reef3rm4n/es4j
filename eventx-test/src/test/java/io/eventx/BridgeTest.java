@@ -23,8 +23,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 @EventxTest(aggregate = FakeAggregate.class)
-public class EventxBehaviourTest {
-  private final Logger LOGGER = LoggerFactory.getLogger(EventxBehaviourTest.class);
+public class BridgeTest {
+  private final Logger LOGGER = LoggerFactory.getLogger(BridgeTest.class);
 
   @Test
   void test_snapshotting() {

@@ -3,6 +3,7 @@ package io.eventx.infrastructure.cache;
 
 import com.google.auto.service.AutoService;
 import io.eventx.Aggregate;
+import io.eventx.core.objects.AggregateConfiguration;
 import io.eventx.core.objects.AggregateState;
 import io.eventx.infrastructure.models.AggregateKey;
 import io.eventx.infrastructure.models.AggregatePlainKey;
@@ -28,7 +29,8 @@ public class CaffeineAggregateCache implements AggregateCache {
   }
 
   @Override
-  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass) {
-    return AggregateCache.super.setup(aggregateClass);
+  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, AggregateConfiguration configuration) {
+    CaffeineWrapper.setUp(configuration);
+    return Uni.createFrom().voidItem();
   }
 }
