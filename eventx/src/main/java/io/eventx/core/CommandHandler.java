@@ -98,7 +98,7 @@ public class CommandHandler<T extends Aggregate> {
 
   private T aggregateEvent(T aggregateState, final Event event) {
     Event finalEvent = event;
-    final var aggregator = Objects.requireNonNullElse(customAggregator(event), defaultAggregator(event));
+    final var aggregator = findAggregator(event);
     LOGGER.debug("Applying {} schema versionTo {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().currentSchemaVersion());
     if (aggregator.delegate().currentSchemaVersion() != event.schemaVersion()) {
       LOGGER.debug("Schema versionTo mismatch, migrating event {} {} ", event.getClass().getName(), JsonObject.mapFrom(event).encodePrettily());
@@ -109,24 +109,15 @@ public class CommandHandler<T extends Aggregate> {
     return newAggregateState;
   }
 
-  private AggregatorWrap defaultAggregator(Event event) {
+  private AggregatorWrap findAggregator(Event event) {
     return aggregators.stream()
-      .filter(behaviour -> Objects.equals(behaviour.delegate().tenant(), "default"))
       .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
       .findFirst()
       .orElseThrow(() -> UnknownEvent.unknown(event.getClass()));
   }
 
-  private AggregatorWrap customAggregator(Event event) {
-    return aggregators.stream()
-      .filter(behaviour -> !Objects.equals(behaviour.delegate().tenant(), "default"))
-      .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
-      .findFirst()
-      .orElse(null);
-  }
-
   private List<Event> applyCommandBehaviour(final T aggregateState, final Command command) {
-    final var behaviour = Objects.requireNonNullElse(customBehaviour(command), defaultBehaviour(command));
+    final var behaviour = findBehaviour(command);
     LOGGER.debug("Applying {} {} ", behaviour.delegate().getClass().getSimpleName(), JsonObject.mapFrom(command));
     final var events = behaviour.process(aggregateState, command);
     LOGGER.debug("{} behaviour produced {}", behaviour.delegate().getClass().getSimpleName(), new JsonArray(events).encodePrettily());
@@ -134,20 +125,11 @@ public class CommandHandler<T extends Aggregate> {
   }
 
 
-  private BehaviourWrap defaultBehaviour(Command command) {
+  private BehaviourWrap findBehaviour(Command command) {
     return behaviours.stream()
-      .filter(behaviour -> Objects.equals(behaviour.delegate().tenant(), "default"))
       .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
       .findFirst()
       .orElseThrow(() -> UnknownCommand.unknown(command.getClass()));
-  }
-
-  private BehaviourWrap customBehaviour(Command command) {
-    return behaviours.stream()
-      .filter(behaviour -> !Objects.equals(behaviour.delegate().tenant(), "default"))
-      .filter(behaviour -> behaviour.commandClass().getName().equals(command.getClass().getName()))
-      .findFirst()
-      .orElse(null);
   }
 
   private Uni<AggregateState<T>> replayAggregateAndCache(String aggregateId, String tenant) {

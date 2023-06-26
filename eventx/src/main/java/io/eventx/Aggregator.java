@@ -8,11 +8,6 @@ import io.eventx.core.objects.ErrorSource;
 public interface Aggregator<T extends Aggregate, E extends Event> {
 
   T apply(T aggregateState, E event);
-
-  default String tenant() {
-    return "default";
-  }
-
   default int currentSchemaVersion() {
     return 0;
   }
