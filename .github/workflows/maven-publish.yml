@@ -22,11 +22,15 @@ jobs:
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
-      - name: build-with-maven
+      - name: maven-build
         run: mvn -B package --file pom.xml
       - name: publish-maven-central-packages
-        run: mvn --batch-mode clean deploy
+        run: mvn --no-transfer-progress --batch-mode -Dgpg.passphrase=${{ secrets.OSSRH_GPG_SECRET_KEY_PASSWORD }} deploy
         env:
-          MAVEN_USERNAME: ${secrets.OSSRH_USERNAME}}
-          MAVEN_PASSWORD: ${secrets.OSSRH_PASSWORD}}
-          GPG_PASSPHRASE: ${{secrets.GPG_PASSPHRASE}}
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${ secrets.OSSRH_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      - name: publish-github-package
+        run: mvn --batch-mode deploy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
