@@ -16,6 +16,10 @@
     <module>es4j-infrastructure</module>
     <module>es4j-stack</module>
   </modules>
+  <name>es4j</name>
+  <description>A framework based on the vert.x stack that aims to facilitate the implementation of event sourcing</description>
+  <url>https://github.com/Reef3rm4n/es4j</url>
+
 
 
   <properties>
@@ -23,14 +27,10 @@
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <sonar-maven-plugin.version>3.6.0.1398</sonar-maven-plugin.version>
-    <flatten.maven.plugin.version>1.1.0</flatten.maven.plugin.version>
-    <netty-transport-native-epoll.version>4.1.93.Final</netty-transport-native-epoll.version>
     <vertx.version>4.4.1</vertx.version>
     <mutiny.vertx.version>3.4.2</mutiny.vertx.version>
-    <repository-owner>Reef3rm4n</repository-owner>
-    <repository-name>es4j</repository-name>
-    <branch-name>main</branch-name>
-    <github.global.server>github</github.global.server>
+    <maven-source-plugin.version>3.3.0</maven-source-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.13</nexus-staging-maven-plugin.version>
   </properties>
 
   <licenses>
@@ -40,10 +40,14 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
-
+  git@github.com:Reef3rm4n/es4j.git
   <scm>
-    <url>https://svn.apache.org/viewvc/maven</url>
+    <connection>scm:git:git://github.com/Reef3rm4n/es4j.git</connection>
+    <developerConnection>scm:git:ssh://github.com:Reef3rm4n/es4j.git</developerConnection>
+    <url>https://github.com/Reef3rm4n/es4j</url>
   </scm>
+
+
   <developers>
     <developer>
       <name>Benato J</name>
@@ -91,6 +95,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
+        <version>${maven-source-plugin.version}</version>
         <executions>
           <execution>
             <id>attach-source</id>
@@ -103,7 +108,7 @@
       <plugin>
         <groupId>org.sonatype.plugins</groupId>
         <artifactId>nexus-staging-maven-plugin</artifactId>
-        <version>1.6.8</version>
+        <version>${nexus-staging-maven-plugin.version}</version>
         <extensions>true</extensions>
         <configuration>
           <serverId>ossrh</serverId>
