@@ -70,7 +70,7 @@ public interface RecordMapper<K extends RepositoryRecordKey, V extends Repositor
     void keyParams(Map<String, Object> params, K key);
 
     /**
-     * Fill up the builder with entries <Column,Value> this mapping will be subjected to run time validation thus the values will always be checked before being added to the final query
+     * Fill up the builder with entries Column,Value this mapping will be subjected to run time validation thus the values will always be checked before being added to the final query
      *
      * @param query   the object that represents the queryable fields in the record
      * @param builder where queries for that object can be built

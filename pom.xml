@@ -7,7 +7,7 @@
   <groupId>io.es4j</groupId>
   <artifactId>es4j</artifactId>
   <packaging>pom</packaging>
-  <version>${revision}</version>
+  <version>0</version>
 
   <modules>
     <module>es4j-core</module>
@@ -22,7 +22,6 @@
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <revision>0.0.1-SNAPSHOT</revision>
     <sonar-maven-plugin.version>3.6.0.1398</sonar-maven-plugin.version>
     <flatten.maven.plugin.version>1.1.0</flatten.maven.plugin.version>
     <netty-transport-native-epoll.version>4.1.93.Final</netty-transport-native-epoll.version>
@@ -57,63 +56,38 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>flatten-maven-plugin</artifactId>
-        <version>${flatten.maven.plugin.version}</version>
-        <configuration>
-          <updatePomFile>true</updatePomFile>
-          <flattenMode>resolveCiFriendliesOnly</flattenMode>
-        </configuration>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
+        <version>1.6</version>
         <executions>
           <execution>
-            <id>flatten</id>
-            <phase>process-resources</phase>
+            <id>sign-artifacts</id>
+            <phase>verify</phase>
             <goals>
-              <goal>flatten</goal>
+              <goal>sign</goal>
             </goals>
-          </execution>
-          <execution>
-            <id>flatten.clean</id>
-            <phase>clean</phase>
-            <goals>
-              <goal>clean</goal>
-            </goals>
+            <configuration>
+              <gpgArguments>
+                <arg>--pinentry-mode</arg>
+                <arg>loopback</arg>
+              </gpgArguments>
+            </configuration>
           </execution>
         </executions>
       </plugin>
 <!--      <plugin>-->
 <!--        <groupId>org.apache.maven.plugins</groupId>-->
-<!--        <artifactId>maven-gpg-plugin</artifactId>-->
-<!--        <version>1.6</version>-->
+<!--        <artifactId>maven-javadoc-plugin</artifactId>-->
+<!--        <version>3.2.0</version>-->
 <!--        <executions>-->
 <!--          <execution>-->
-<!--            <id>sign-artifacts</id>-->
-<!--            <phase>verify</phase>-->
+<!--            <id>attach-javadoc</id>-->
 <!--            <goals>-->
-<!--              <goal>sign</goal>-->
+<!--              <goal>jar</goal>-->
 <!--            </goals>-->
-<!--            <configuration>-->
-<!--              <gpgArguments>-->
-<!--                <arg>&#45;&#45;pinentry-mode</arg>-->
-<!--                <arg>loopback</arg>-->
-<!--              </gpgArguments>-->
-<!--            </configuration>-->
 <!--          </execution>-->
 <!--        </executions>-->
 <!--      </plugin>-->
-      <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-javadoc-plugin</artifactId>
-        <version>3.2.0</version>
-        <executions>
-          <execution>
-            <id>attach-javadoc</id>
-            <goals>
-              <goal>jar</goal>
-            </goals>
-          </execution>
-        </executions>
-      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-source-plugin</artifactId>
@@ -129,11 +103,11 @@
       <plugin>
         <groupId>org.sonatype.plugins</groupId>
         <artifactId>nexus-staging-maven-plugin</artifactId>
-        <version>1.6.7</version>
+        <version>1.6.8</version>
         <extensions>true</extensions>
         <configuration>
           <serverId>ossrh</serverId>
-          <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+          <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
           <autoReleaseAfterClose>true</autoReleaseAfterClose>
         </configuration>
       </plugin>
@@ -141,11 +115,13 @@
   </build>
 
   <distributionManagement>
+    <snapshotRepository>
+      <id>ossrh</id>
+      <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+    </snapshotRepository>
     <repository>
       <id>ossrh</id>
-      <name>Central Repository OSSRH</name>
-      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+      <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
     </repository>
   </distributionManagement>
-
 </project>
