@@ -12,7 +12,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
+      - uses: actions/setup-java@v1
         with:
           java-version: '17'
           distribution: 'zulu'
@@ -22,7 +22,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
       - name: publish-maven-central
-        run: mvn deploy --batch-mode -D skipTests --activate-profiles release --no-transfer-progress
+        run: mvn deploy --batch-mode -D skipTests --no-transfer-progress
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
