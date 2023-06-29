@@ -169,7 +169,6 @@ public class CommandHandler<T extends Aggregate> {
   private EventStream eventStreamInstruction(LoadAggregate loadAggregate) {
     return EventStreamBuilder
       .builder()
-      .aggregates(List.of(aggregateClass))
       .aggregateIds(List.of(loadAggregate.aggregateId()))
       .tenantId(loadAggregate.tenant())
       .offset(0L)
@@ -183,7 +182,6 @@ public class CommandHandler<T extends Aggregate> {
     //  the log from the last compression can only be as long as the compression policy
     // when policy is applied should trim and move events to secondary event-store
     return new AggregateEventStream<>(
-      state.aggregateClass(),
       aggregateId,
       tenant,
       state.currentVersion(),
@@ -273,7 +271,7 @@ public class CommandHandler<T extends Aggregate> {
             eventVersion,
             JsonObject.mapFrom(ev),
             finalCommand.tenant(),
-            finalCommand.headers().commandId(),
+            finalCommand.uniqueId(),
             ev.tags(),
             ev.schemaVersion()
           );
@@ -300,7 +298,7 @@ public class CommandHandler<T extends Aggregate> {
           JsonObject.mapFrom(
             snapshotEvent),
           finalCommand.tenant(),
-          finalCommand.headers().commandId(),
+          finalCommand.uniqueId(),
           List.of("system"),
           state.state().schemaVersion()
         ));
@@ -321,13 +319,13 @@ public class CommandHandler<T extends Aggregate> {
 
   private void publishToEventStream(AggregateState<T> state, List<io.eventx.infrastructure.models.Event> events) {
     events.forEach(event -> {
-        final var address = EventbusLiveProjections.eventSubscriptionAddress(state.aggregateClass(), state.state().tenant());
+        final var address = EventbusLiveStreams.eventLiveStream(state.aggregateClass(), state.state().aggregateId(), state.state().tenant());
         try {
           vertx.eventBus().publish(
             address,
-            event,
+            JsonObject.mapFrom(event),
             new DeliveryOptions()
-              .setLocalOnly(true)
+              .setLocalOnly(false)
               .setTracingPolicy(TracingPolicy.ALWAYS)
           );
         } catch (Exception exception) {
@@ -339,10 +337,10 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   private void publishToStateStream(AggregateState<T> state) {
-    final var address = EventbusLiveProjections.subscriptionAddress(state.aggregateClass(), state.state().tenant());
+    final var address = EventbusLiveStreams.stateLiveStream(state.aggregateClass(), state.state().aggregateId(), state.state().tenant());
     try {
       vertx.eventBus().publish(address, state.toJson(), new DeliveryOptions()
-        .setLocalOnly(true)
+        .setLocalOnly(false)
         .setTracingPolicy(TracingPolicy.ALWAYS)
       );
     } catch (Exception exception) {
@@ -353,7 +351,7 @@ public class CommandHandler<T extends Aggregate> {
 
   private <C extends Command> void checkCommandId(AggregateState<T> state, C command) {
     if (state.knownCommands() != null && !state.knownCommands().isEmpty()) {
-      state.knownCommands().stream().filter(txId -> txId.equals(command.headers().commandId()))
+      state.knownCommands().stream().filter(txId -> txId.equals(command.uniqueId()))
         .findAny()
         .ifPresent(duplicatedCommand -> {
             throw new CommandRejected(new EventxError(
@@ -410,7 +408,6 @@ public class CommandHandler<T extends Aggregate> {
   private void dumpToSecondaryStore(AggregateState<T> state, List<io.eventx.infrastructure.models.Event> events) {
     if (infrastructure.secondaryEventStore().isPresent() && events.stream().anyMatch(event -> event.eventClass().equals(SnapshotEvent.class.getName()))) {
       infrastructure.eventStore().fetch(new AggregateEventStream<>(
-            state.aggregateClass(),
             state.state().aggregateId(),
             state.state().tenant(),
             0L,

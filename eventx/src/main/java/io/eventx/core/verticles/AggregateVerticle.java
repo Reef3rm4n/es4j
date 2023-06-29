@@ -2,8 +2,8 @@ package io.eventx.core.verticles;
 
 
 import io.eventx.core.objects.*;
-import io.eventx.infrastructure.cache.CaffeineAggregateCache;
-import io.eventx.infrastructure.misc.Loader;
+import io.eventx.infrastructure.bus.ProjectionService;
+import io.eventx.infrastructure.misc.EventxClassLoader;
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.subscription.Cancellable;
@@ -48,6 +48,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   private List<BehaviourWrap> behaviourWraps;
   private List<AggregatorWrap> aggregatorWraps;
   private Infrastructure infrastructure;
+  private ProjectionService projectionService;
 
   public AggregateVerticle(
     final Class<T> aggregateClass,
@@ -66,10 +67,10 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
     this.aggregatorWraps = loadAggregators(aggregateClass);
     this.behaviourWraps = loadBehaviours(aggregateClass);
     this.infrastructure = new Infrastructure(
-      Loader.loadCache(),
-      Loader.loadEventStore(),
+      EventxClassLoader.loadCache(),
+      EventxClassLoader.loadEventStore(),
       Optional.empty(),
-      Loader.loadOffsetStore()
+      EventxClassLoader.loadOffsetStore()
     );
     infrastructure.start(aggregateClass, vertx, config());
     vertx.eventBus().addInboundInterceptor(this::addContextualData);
@@ -81,7 +82,16 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
       infrastructure,
       aggregateConfiguration
     );
+    this.projectionService = new ProjectionService(
+      infrastructure.offsetStore(),
+      infrastructure.eventStore(),
+      aggregateClass
+    );
     // todo as behaviours are loaded also register consumer in order to avoid unsafe operation ?
+    return projectionService.register(vertx).flatMap(avoid -> registerAggregateBus());
+  }
+
+  private Uni<Void> registerAggregateBus() {
     return Multi.createFrom().iterable(behaviourWraps)
       .onItem().transformToUniAndMerge(
         cmdBehaviour -> AggregateBus.registerCommandConsumer(
@@ -97,9 +107,9 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
       .replaceWithVoid();
   }
 
-  private Cancellable messageHandler(BehaviourWrap cmdBehaviour, Message<JsonObject> message) {
+  private <A extends Aggregate, C extends Command> void messageHandler(BehaviourWrap<A, C> cmdBehaviour, Message<JsonObject> message) {
     // todo add command name to contextual data
-    return commandHandler.process(parseCommand(cmdBehaviour.commandClass(), message))
+    commandHandler.process(parseCommand(cmdBehaviour.commandClass(), message))
       .subscribe()
       .with(
         message::reply,
@@ -140,7 +150,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   }
 
   public static <T extends Aggregate> List<BehaviourWrap> loadBehaviours(Class<T> aggregateClass) {
-    final var behaviours = new ArrayList<>(Loader.loadBehaviours().stream()
+    final var behaviours = new ArrayList<>(EventxClassLoader.loadBehaviours().stream()
       .filter(behaviour ->
         parseCommandBehaviourGenericTypes(behaviour.getClass()).getItem1().isAssignableFrom(aggregateClass))
       .map(commandBehaviour -> {
@@ -167,7 +177,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   }
 
   public static <T extends Aggregate> List<AggregatorWrap> loadAggregators(Class<T> aggregateClass) {
-    final var aggregators = Loader.loadAggregators().stream()
+    final var aggregators = EventxClassLoader.loadAggregators().stream()
       .map(aggregator -> {
           final var genericTypes = parseAggregatorClass(aggregator.getClass());
           return new AggregatorWrap(aggregator, genericTypes.getItem1(), genericTypes.getItem2());

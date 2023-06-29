@@ -1,10 +1,11 @@
 package io.eventx.core.tasks;
 
-import io.eventx.Aggregate;
+
 import io.eventx.core.objects.AggregateEvent;
 import io.eventx.infrastructure.EventStore;
 import io.eventx.infrastructure.OffsetStore;
 import io.eventx.infrastructure.models.Event;
+import io.eventx.infrastructure.models.EventStreamBuilder;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.task.CronTask;
 import io.eventx.task.CronTaskConfiguration;
@@ -60,33 +61,21 @@ public class EventProjectionPoller implements CronTask {
   private static EventStream streamStatement(PollingEventProjection pollingEventProjection, JournalOffset journalOffset) {
     AtomicReference<EventStream> eventStream = new AtomicReference<>();
     pollingEventProjection.filter().ifPresentOrElse(
-      filter -> eventStream.set(new EventStream(
-        null,
-        filter.events(),
-        null,
-        filter.tags(),
-        pollingEventProjection.tenant(),
-        journalOffset.idOffSet(),
-        1000,
-        null,
-        null,
-        null,
-        null
-      )),
+      filter -> eventStream.set(
+        EventStreamBuilder.builder()
+          .events(filter.events())
+          .tenantId(pollingEventProjection.tenant())
+          .offset(journalOffset.idOffSet())
+          .batchSize(1000)
+          .tags(filter.tags())
+          .build()
+      ),
       () -> eventStream.set(
-        new EventStream(
-          null,
-          null,
-          null,
-          null,
-          pollingEventProjection.tenant(),
-          journalOffset.idOffSet(),
-          1000,
-          null,
-          null,
-          null,
-          null
-        )
+        EventStreamBuilder.builder()
+          .tenantId(pollingEventProjection.tenant())
+          .offset(journalOffset.idOffSet())
+          .batchSize(1000)
+          .build()
       )
     );
     return eventStream.get();

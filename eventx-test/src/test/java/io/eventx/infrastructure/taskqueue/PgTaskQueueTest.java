@@ -2,7 +2,6 @@ package io.eventx.infrastructure.taskqueue;
 
 
 import io.eventx.core.verticles.TaskProcessorVerticle;
-import io.eventx.infrastructure.misc.Loader;
 import io.eventx.sql.Repository;
 import io.eventx.sql.exceptions.NotFound;
 import io.eventx.InfrastructureBootstrap;

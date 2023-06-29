@@ -11,7 +11,7 @@ import io.eventx.task.CronTaskConfigurationBuilder;
 public class EventLogTrimmer implements CronTask {
 
   // todo implement a log compression mechanism that implements the following
-  // 1) marks the id offset in the event-journal where it is safe to chop
+  // 1) marks the id idOffset in the event-journal where it is safe to chop
   //  - first draft will determine the safety by querying the event-log for the lowest id for any given aggregateId stream where the Snapshot.class event is not present.
   //  - second draft will could the determine whe above for each existent aggregate
   // 2) add to the infrastructure an optional interface called EventStoreDump.class classes implementing this interface would handle offloading of events

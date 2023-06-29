@@ -17,6 +17,12 @@
     <maven.compiler.target>17</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <netty-transport-native-epoll.version>4.1.85.Final</netty-transport-native-epoll.version>
+    <base.image>eclipse-temurin:17-jre-alpine@sha256:dd8238c151293ae6a7c22898ef2f0df2af8a05786aef73ccd3248e73765969ed
+    </base.image>
+    <docker.image.name>account-portfolio</docker.image.name>
+    <main.verticle>io.eventx.launcher.EventxMain</main.verticle>
+    <launcher.class>io.eventx.launcher.EventxLauncher</launcher.class>
+    <jib-maven-plugin.version>3.3.2</jib-maven-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -63,4 +69,66 @@
     </dependencies>
   </dependencyManagement>
 
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>3.1.2</version>
+        </plugin>
+        <plugin>
+          <groupId>io.smallrye</groupId>
+          <artifactId>smallrye-open-api-maven-plugin</artifactId>
+          <executions>
+            <execution>
+              <goals>
+                <goal>generate-schema</goal>
+              </goals>
+            </execution>
+          </executions>
+        </plugin>
+        <plugin>
+          <groupId>com.google.cloud.tools</groupId>
+          <artifactId>jib-maven-plugin</artifactId>
+          <version>${jib-maven-plugin.version}</version>
+          <executions>
+            <execution>
+              <phase>package</phase>
+              <goals>
+                <goal>dockerBuild</goal>
+              </goals>
+            </execution>
+          </executions>
+          <configuration>
+            <from>
+              <image>${base.image}</image>
+            </from>
+            <to>
+              <image>${docker.image.name}</image>
+              <tags>
+                <tag>latest</tag>
+              </tags>
+            </to>
+            <container>
+              <extraClasspath>/aggregates/*</extraClasspath>
+              <mainClass>${launcher.class}</mainClass>
+              <creationTime>USE_CURRENT_TIMESTAMP</creationTime>
+              <jvmFlags>
+                <jvmFlag>-XX:+UseZGC</jvmFlag>
+              </jvmFlags>
+              <args>
+                <arg>run</arg>
+                <arg>${main.verticle}</arg>
+              </args>
+              <ports>
+                <port>8080</port>
+              </ports>
+            </container>
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+  </build>
 </project>

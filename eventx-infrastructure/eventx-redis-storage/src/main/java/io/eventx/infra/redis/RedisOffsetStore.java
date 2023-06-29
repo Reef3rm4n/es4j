@@ -23,6 +23,11 @@ public class RedisOffsetStore implements OffsetStore {
   }
 
   @Override
+  public Uni<JournalOffset> reset(JournalOffset journalOffset) {
+    return null;
+  }
+
+  @Override
   public Uni<Void> stop() {
     return null;
   }

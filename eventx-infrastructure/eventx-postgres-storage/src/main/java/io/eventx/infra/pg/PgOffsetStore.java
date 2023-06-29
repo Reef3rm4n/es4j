@@ -76,6 +76,10 @@ public class PgOffsetStore implements OffsetStore {
       );
   }
 
+  @Override
+  public Uni<JournalOffset> reset(JournalOffset journalOffset) {
+    return repository.updateByKey(getOffSet(journalOffset)).map(PgOffsetStore::getJournalOffset);
+  }
 
   private static JournalOffset getJournalOffset(EventJournalOffSet offset) {
     return JournalOffsetBuilder.builder()

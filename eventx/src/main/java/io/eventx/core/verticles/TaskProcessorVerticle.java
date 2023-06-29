@@ -10,7 +10,7 @@ import org.crac.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
-import io.eventx.infrastructure.misc.Loader;
+import io.eventx.infrastructure.misc.EventxClassLoader;
 import io.eventx.queue.MessageProcessor;
 import io.eventx.queue.TaskSubscriber;
 import io.eventx.queue.QueueTransactionManager;
@@ -108,7 +108,7 @@ public class TaskProcessorVerticle extends AbstractVerticle implements Resource 
     final var queueMap = new HashMap<Class<?>, List<MessageProcessor>>();
     messageProcessors.forEach(
       impl -> {
-        final var tClass = Loader.getFirstGenericType(impl);
+        final var tClass = EventxClassLoader.getFirstGenericType(impl);
         if (queueMap.containsKey(tClass)) {
           queueMap.get(tClass).add(impl);
         } else {

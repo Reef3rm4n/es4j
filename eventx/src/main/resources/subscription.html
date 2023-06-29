@@ -5,7 +5,7 @@
   <title>Vert.x with SockJS</title>
   <script src="//cdn.jsdelivr.net/sockjs/0.3.4/sockjs.min.js"></script>
   <script src="js/vertx-eventbus.js"></script>
-  <script src="js/aggregate-projection.js"></script>
+  <script src="js/eventbus-stream.js"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -57,13 +57,40 @@
       background-color: #f2f2f2;
     }
 
-    #addButton {
+    #subscribeButton {
       margin-top: 10px;
     }
   </style>
+  <script>
+    function handleButtonClick() {
+      var field1 = document.getElementById('aggregate').value;
+      var field2 = document.getElementById('id').value;
+      var field3 = document.getElementById('tenant').value;
+      subscribe(field1, field2, field3);
+    }
+  </script>
 </head>
-<body onload="init();">
-<h3>Aggregate State Projection</h3>
+<body>
+<h3>State Stream</h3>
+
+<!-- Input fields and button -->
+<div>
+  <label for="aggregate">
+    <input required type="text" id="aggregate" placeholder="Aggregate">
+  </label>
+  <label for="tenant">
+    <input required type="text" id="tenant" placeholder="Tenant">
+  </label>
+  <label for="id">
+    <input required type="text" id="id" placeholder="ID">
+  </label>
+  <button id="subscribeButton" onclick="handleButtonClick()">Subscribe</button>
+</div>
+
 <div id="state" class="json-container"></div>
+<div id="event" class="json-container"></div>
+
+
+<!-- Input fields and button -->
 </body>
 </html>

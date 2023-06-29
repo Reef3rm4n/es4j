@@ -11,10 +11,10 @@ import java.lang.reflect.Type;
 import java.util.*;
 
 
-public class Loader {
+public class EventxClassLoader {
 
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(Loader.class);
+  protected static final Logger LOGGER = LoggerFactory.getLogger(EventxClassLoader.class);
 
   public static List<Behaviour> loadBehaviours() {
     return ServiceLoader.load(Behaviour.class).stream()

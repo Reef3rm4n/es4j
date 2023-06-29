@@ -52,9 +52,8 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     stateProjectionWrapper.logger().debug("Polling events");
     return offsetStore.get(new JournalOffsetKey(stateProjectionWrapper.pollingStateProjection().getClass().getName(), "default"))
       .flatMap(journalOffset -> {
-          stateProjectionWrapper.logger().debug("Journal offset at {}", journalOffset.idOffSet());
+          stateProjectionWrapper.logger().debug("Journal idOffset at {}", journalOffset.idOffSet());
           return eventStore.fetch(EventStreamBuilder.builder()
-            .aggregates(List.of(aggregateClass))
             .offset(journalOffset.idOffSet())
             .batchSize(5000)
             .build()
@@ -68,7 +67,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
           stateProjectionWrapper.logger().debug("Updating {} IDs : {}", aggregateClass.getSimpleName(), aggregateIds);
           return Multi.createFrom().iterable(aggregateIds)
             .onItem().transformToUniAndMerge(
-              tuple2 -> proxy.forward(new LoadAggregate(
+              tuple2 -> proxy.proxyCommand(new LoadAggregate(
                     tuple2.getItem1(),
                   tuple2.getItem2(),
                     null,

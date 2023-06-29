@@ -7,7 +7,6 @@ import io.vertx.core.json.JsonObject;
 
 @RecordBuilder
 public record AggregateEventStream<T extends Aggregate>(
-  Class<T> aggregate,
   String aggregateId,
   String tenantId,
   Long eventVersionOffset,
@@ -17,7 +16,6 @@ public record AggregateEventStream<T extends Aggregate>(
 ) {
   public JsonObject toJson() {
     return new JsonObject()
-      .put("aggregate", aggregate)
       .put("aggregateId", aggregateId)
       .put("tenant", tenantId)
       .put("eventVersionOffset", eventVersionOffset)

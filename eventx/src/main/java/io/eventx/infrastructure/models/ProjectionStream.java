@@ -1,14 +1,15 @@
 package io.eventx.infrastructure.models;
 
-import io.eventx.Event;
+
 import io.soabase.recordbuilder.core.RecordBuilder;
 
 import java.time.Instant;
 import java.util.List;
 
 @RecordBuilder
-public record EventStream(
-  List<Class<? extends Event>> events,
+public record ProjectionStream(
+  String projectionId,
+  List<String> events,
   List<String> aggregateIds,
   List<String> tags,
   String tenantId,

@@ -125,6 +125,23 @@ public class OpenApiGenerator extends AbstractProcessor {
           }
         );
 
+        builder.append("    @POST\n");
+        builder.append("    @Path(\"/").append(camelToKebab(aggregateSimpleName)).append("/projection/next").append("\")\n");
+        builder.append("    @Operation(summary = \"Fetches events for a given projection id \")\n");
+        builder.append("    @APIResponse(responseCode = \"200\", description = \"Events fetched\")\n");
+        builder.append("    @APIResponse(responseCode = \"400\", description = \"Unable to fetch\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
+        builder.append("    @APIResponse(responseCode = \"500\", description = \"Unable to fetch\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
+        builder.append("    ").append("default io.eventx.infrastructure.models.Event projection_next(io.eventx.infrastructure.models.ProjectionStream projectionStream){return null;}\n\n");
+
+
+        builder.append("    @POST\n");
+        builder.append("    @Path(\"/").append(camelToKebab(aggregateSimpleName)).append("/projection/reset").append("\")\n");
+        builder.append("    @Operation(summary = \"Reset projection\")\n");
+        builder.append("    @APIResponse(responseCode = \"200\", description = \"Projection idOffset reset\")\n");
+        builder.append("    @APIResponse(responseCode = \"400\", description = \"Unable to fetch\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
+        builder.append("    @APIResponse(responseCode = \"500\", description = \"Unable to fetch\", content = @Content(schema = @Schema(implementation = io.eventx.core.objects.EventxError.class)))\n");
+        builder.append("    ").append("default void projection_reset(io.eventx.infrastructure.models.ResetProjection reset){}\n\n");
+
         builder.append("}\n");
         interfaces.add(Tuple2.of(aggregateSimpleName + "Api", builder.toString()));
       }

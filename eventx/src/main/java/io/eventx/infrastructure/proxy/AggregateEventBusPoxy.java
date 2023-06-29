@@ -4,13 +4,18 @@ import io.eventx.Aggregate;
 import io.eventx.Command;
 import io.eventx.core.objects.*;
 import io.eventx.infrastructure.bus.AggregateBus;
+import io.eventx.infrastructure.bus.ProjectionService;
+import io.eventx.infrastructure.models.Event;
+import io.eventx.infrastructure.models.ProjectionStream;
+import io.eventx.infrastructure.models.ResetProjection;
 import io.smallrye.mutiny.Uni;
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 
-import java.util.function.Consumer;
+import java.util.List;
 
 
 public class AggregateEventBusPoxy<T extends Aggregate> {
@@ -27,7 +32,7 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
   }
 
 
-  public Uni<AggregateState<T>> forward(Command command) {
+  public Uni<AggregateState<T>> proxyCommand(Command command) {
     return AggregateBus.request(
       vertx,
       aggregateClass,
@@ -35,62 +40,18 @@ public class AggregateEventBusPoxy<T extends Aggregate> {
     );
   }
 
-  public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer) {
-    final var address = EventbusLiveProjections.subscriptionAddress(aggregateClass, "default");
-    LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
-    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
-        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
-        final var aggregateState = AggregateState.fromJson(jsonObjectMessage.body(), aggregateClass);
-        consumer.accept(aggregateState);
-      })
-      .exceptionHandler(this::subscriptionError)
-      .completionHandler();
+  public Uni<List<Event>> projectionNext(ProjectionStream projectionStream) {
+    return vertx.eventBus().<JsonArray>request(ProjectionService.nextAddress(aggregateClass), JsonObject.mapFrom(projectionStream))
+      .map(jsonArrayMessage -> jsonArrayMessage.body().stream().map(JsonObject::mapFrom).map(jsonObject -> jsonObject.mapTo(Event.class)).toList());
   }
-
-  public Uni<Void> subscribe(Consumer<AggregateState<T>> consumer, String tenantId) {
-    final var address = EventbusLiveProjections.subscriptionAddress(aggregateClass, tenantId);
-    LOGGER.debug("Subscribing to state updates for {} in address {}", aggregateClass.getSimpleName(), address);
-    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
-        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
-        final var aggregateState = AggregateState.fromJson(jsonObjectMessage.body(), aggregateClass);
-        consumer.accept(aggregateState);
-      })
-      .exceptionHandler(this::subscriptionError)
-      .completionHandler();
+  public Uni<Void> resetProjection(ResetProjection resetProjection) {
+    return vertx.eventBus().<JsonArray>request(ProjectionService.resetAddress(aggregateClass),
+        new JsonObject()
+          .put("tenant", resetProjection.tenantId())
+          .put("projectionId", resetProjection.projectionId())
+          .put("idOffset", resetProjection.idOffset())
+      )
+      .replaceWithVoid();
   }
-
-  public Uni<Void> eventSubscribe(Consumer<AggregateEvent> consumer, String tenantId) {
-    final var address = EventbusLiveProjections.eventSubscriptionAddress(aggregateClass, tenantId);
-    LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
-    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
-        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
-        final var aggregateState = jsonObjectMessage.body().mapTo(AggregateEvent.class);
-        consumer.accept(aggregateState);
-      })
-      .exceptionHandler(this::subscriptionError)
-      .completionHandler();
-  }
-
-  public Uni<Void> eventSubscribe(Consumer<AggregateEvent> consumer) {
-    final var address = EventbusLiveProjections.eventSubscriptionAddress(aggregateClass, "default");
-    LOGGER.debug("Subscribing to event stream for {} in address {}", aggregateClass.getSimpleName(), address);
-    return vertx.eventBus().<JsonObject>consumer(address).handler(jsonObjectMessage -> {
-        LOGGER.debug("{} subscription incoming event {} {} ", aggregateClass.getSimpleName(), jsonObjectMessage.headers(), jsonObjectMessage.body());
-
-      })
-      .exceptionHandler(this::subscriptionError)
-      .completionHandler();
-  }
-
-  private void subscriptionError(Throwable throwable) {
-    LOGGER.error("{} subscription dropped exception", aggregateClass, throwable);
-  }
-
-  public record CommandWrapper(
-    String commandClass,
-    Command command
-  ) {
-  }
-
 
 }

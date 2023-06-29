@@ -1,9 +1,10 @@
 package io.eventx.core.verticles;
 
 
-import io.eventx.infrastructure.misc.Loader;
+import io.eventx.infrastructure.misc.EventxClassLoader;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.unchecked.Unchecked;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
 import org.crac.Context;
@@ -41,7 +42,7 @@ public class AggregateBridge extends AbstractVerticle implements Resource {
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateBridge.class);
 
   public AggregateBridge() {
-    this.bridges = Loader.loadBridges();
+    this.bridges = EventxClassLoader.loadBridges();
     Core.getGlobalContext().register(this);
   }
 
@@ -49,7 +50,8 @@ public class AggregateBridge extends AbstractVerticle implements Resource {
   public Uni<Void> asyncStart() {
     LOGGER.info("Deploying bridges {}", bridges);
     return Multi.createFrom().iterable(bridges)
-      .onItem().transformToUniAndMerge(bridge -> bridge.start(vertx, config()))
+      .onItem().transformToUniAndMerge(Unchecked.function(bridge -> bridge.start(vertx, config())))
+      .onFailure().invoke(throwable -> LOGGER.error("Unable to deploy bridge ", throwable))
       .collect().asList()
       .replaceWithVoid();
   }

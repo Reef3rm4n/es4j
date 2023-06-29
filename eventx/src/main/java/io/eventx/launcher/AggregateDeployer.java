@@ -8,7 +8,7 @@ import io.eventx.core.verticles.AggregateVerticle;
 import io.eventx.infrastructure.*;
 import io.eventx.infrastructure.cache.CaffeineAggregateCache;
 import io.eventx.infrastructure.config.EventxConfigurationHandler;
-import io.eventx.infrastructure.misc.Loader;
+import io.eventx.infrastructure.misc.EventxClassLoader;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.DeploymentOptions;
@@ -77,7 +77,7 @@ public class AggregateDeployer<T extends Aggregate> {
                     .replaceWithVoid()
                 )
                 .call(avoid -> {
-                    this.aggregateServices = Loader.loadAggregateServices();
+                    this.aggregateServices = EventxClassLoader.loadAggregateServices();
                     return EventxConfigurationHandler.fsConfigurations(vertx, files)
                       .flatMap(av -> Multi.createFrom().iterable(aggregateServices)
                         .onItem().transformToUniAndMerge(
@@ -112,9 +112,9 @@ public class AggregateDeployer<T extends Aggregate> {
   private Uni<Void> infrastructure(Vertx vertx, JsonObject configuration) {
     this.infrastructure = new Infrastructure(
       Optional.of(new CaffeineAggregateCache()),
-      Loader.loadEventStore(),
+      EventxClassLoader.loadEventStore(),
       Optional.empty(),
-      Loader.loadOffsetStore()
+      EventxClassLoader.loadOffsetStore()
 
     );
     return infrastructure.setup(aggregateClass, vertx, configuration);
@@ -123,8 +123,8 @@ public class AggregateDeployer<T extends Aggregate> {
 
   private void addProjections() {
     final var aggregateProxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
-    final var stateProjections = Loader.stateProjections().stream()
-      .filter(cc -> Loader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
+    final var stateProjections = EventxClassLoader.stateProjections().stream()
+      .filter(cc -> EventxClassLoader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
       .map(cc -> new StateProjectionWrapper<T>(
         cc,
         aggregateClass,
@@ -138,8 +138,8 @@ public class AggregateDeployer<T extends Aggregate> {
         infrastructure.offsetStore()
       ))
       .toList();
-    final var eventProjections = Loader.pollingEventProjections().stream()
-      .filter(cc -> Loader.getFirstGenericType(cc).isAssignableFrom(aggregateClass))
+    final var eventProjections = EventxClassLoader.pollingEventProjections().stream()
+      .filter(cc -> cc.aggregateClass().isAssignableFrom(aggregateClass))
       .map(eventProjection -> new EventProjectionPoller(
           eventProjection,
           infrastructure.eventStore(),

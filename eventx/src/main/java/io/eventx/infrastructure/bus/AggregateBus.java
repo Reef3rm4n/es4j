@@ -127,18 +127,18 @@ public class AggregateBus {
     );
   }
 
-  public static <T extends Aggregate> Uni<Void> registerCommandConsumer(
+  public static <T extends Aggregate, C extends Command> Uni<Void> registerCommandConsumer(
     final Vertx vertx,
     final Class<T> aggregateClass,
     final String deploymentID,
     final Consumer<Message<JsonObject>> consumer,
-    final Class<? extends Command> commandClass
+    final Class<C> commandClass
   ) {
     return  registerEventBusBridge(vertx, aggregateClass, commandClass)
       .flatMap(avoid -> registerEventbusCommandConsumer(vertx, aggregateClass, deploymentID, consumer, commandClass));
   }
 
-  private static <T extends Aggregate> Uni<Void> registerEventbusCommandConsumer(Vertx vertx, Class<T> aggregateClass, String deploymentID, Consumer<Message<JsonObject>> consumer, Class<? extends Command> commandClass) {
+  private static <T extends Aggregate, C extends Command> Uni<Void> registerEventbusCommandConsumer(Vertx vertx, Class<T> aggregateClass, String deploymentID, Consumer<Message<JsonObject>> consumer, Class<C> commandClass) {
     return vertx.eventBus().<JsonObject>consumer(commandConsumer(aggregateClass, deploymentID, commandClass))
       .handler(consumer)
       .exceptionHandler(throwable -> dropped(aggregateClass, throwable, commandClass))

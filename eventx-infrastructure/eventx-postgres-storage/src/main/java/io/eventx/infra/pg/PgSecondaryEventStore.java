@@ -155,7 +155,7 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
     return new EventRecordQuery(
       List.of(aggregateEventStream.aggregateId()),
       null,
-      List.of(aggregateEventStream.aggregate().getName()),
+      null,
       null,
       aggregateEventStream.eventVersionOffset(),
       null,
@@ -190,7 +190,7 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
     return new EventRecordQuery(
       eventStream.aggregateIds(),
       eventStream.events() != null ? eventStream.events().stream().map(Class::getName).toList() : null,
-      eventStream.aggregates() != null ? eventStream.aggregates().stream().map(Class::getName).toList() : null,
+      null,
       eventStream.tags(),
       null,
       eventStream.versionTo(),

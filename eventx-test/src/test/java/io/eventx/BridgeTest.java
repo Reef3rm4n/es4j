@@ -58,7 +58,7 @@ public class BridgeTest {
     final var aggregate = sendDummyCommandAndBlock(eventBusPoxy);
     final var changeData = new ChangeData(aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
     Assertions.assertNotNull(aggregate.state().data().get("key"), "data should have been created");
-    final var entityAfterChange = eventBusPoxy.forward(changeData).await().indefinitely();
+    final var entityAfterChange = eventBusPoxy.proxyCommand(changeData).await().indefinitely();
     Assertions.assertNotEquals(aggregate.state().data().get("key"), entityAfterChange.state().data().get("key"), "data should have been replaced");
   }
 
@@ -81,7 +81,7 @@ public class BridgeTest {
     final var aggregate = createAggregate(eventBusPoxy);
     final var resultingState = issueCommands(aggregate, 9, eventBusPoxy);
     Assertions.assertEquals(10L, resultingState.currentVersion());
-    final var replayedState = eventBusPoxy.forward(new LoadAggregate(
+    final var replayedState = eventBusPoxy.proxyCommand(new LoadAggregate(
       aggregate.state().aggregateId(),
       "default",
       5L,
@@ -90,7 +90,7 @@ public class BridgeTest {
     )).await().indefinitely();
     Assertions.assertEquals(5L, replayedState.currentVersion());
 
-    final var stateAfterReplayCommand = eventBusPoxy.forward(new LoadAggregate(
+    final var stateAfterReplayCommand = eventBusPoxy.proxyCommand(new LoadAggregate(
       aggregate.state().aggregateId(),
       "default",
       null,
@@ -105,7 +105,7 @@ public class BridgeTest {
   @FileBusinessRule(fileName = "data-configuration.json")
   void test_fs_configuration(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = createAggregate(eventBusPoxy);
-    final var newState = eventBusPoxy.forward(new ChangeDataWithConfig(
+    final var newState = eventBusPoxy.proxyCommand(new ChangeDataWithConfig(
       aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders()
     )).await().indefinitely();
   }
@@ -115,7 +115,7 @@ public class BridgeTest {
   @DatabaseBusinessRule(configurationClass = DataBusinessRule.class, fileName = "data-configuration.json")
   void test_db_configuration(AggregateEventBusPoxy<FakeAggregate> proxy, AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = createAggregate(eventBusPoxy);
-    final var newState = proxy.forward(new ChangeDataWithDbConfig(
+    final var newState = proxy.proxyCommand(new ChangeDataWithDbConfig(
       aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders()
     )).await().indefinitely();
   }
@@ -128,19 +128,19 @@ public class BridgeTest {
 
   private static AggregateState<FakeAggregate> createAggregate(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var createData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
-    final var state = eventBusPoxy.forward(createData).await().indefinitely();
+    final var state = eventBusPoxy.proxyCommand(createData).await().indefinitely();
     Assertions.assertEquals(1L, state.currentVersion());
     return state;
   }
 
   private static AggregateState<FakeAggregate> sendDummyCommandAndBlock(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
-    return eventBusPoxy.forward(newData).await().indefinitely();
+    return eventBusPoxy.proxyCommand(newData).await().indefinitely();
   }
 
   private static Uni<AggregateState<FakeAggregate>> sendDummyCommand(AggregateEventBusPoxy<FakeAggregate> proxy, String aggregateId) {
     final var changeData = new ChangeData(aggregateId, Map.of("key", UUID.randomUUID().toString()), CommandHeaders.defaultHeaders());
-    return proxy.forward(changeData);
+    return proxy.proxyCommand(changeData);
   }
 
 }

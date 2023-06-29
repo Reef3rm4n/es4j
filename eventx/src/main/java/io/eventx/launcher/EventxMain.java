@@ -1,15 +1,12 @@
 package io.eventx.launcher;
 
 import io.eventx.*;
-import io.eventx.infrastructure.AggregateServices;
 import io.eventx.core.tasks.AggregateHeartbeat;
 import io.eventx.core.tasks.EventProjectionPoller;
 import io.eventx.core.tasks.StateProjectionPoller;
 import io.eventx.core.verticles.AggregateBridge;
-import io.eventx.infrastructure.EventStore;
-import io.eventx.infrastructure.OffsetStore;
 import io.eventx.infrastructure.config.EventxConfigurationHandler;
-import io.eventx.infrastructure.misc.Loader;
+import io.eventx.infrastructure.misc.EventxClassLoader;
 import io.eventx.task.CronTaskDeployer;
 import io.eventx.task.TimerTaskDeployer;
 import io.reactiverse.contextual.logging.ContextualData;
@@ -35,7 +32,7 @@ import java.util.concurrent.CountDownLatch;
 public class EventxMain extends AbstractVerticle implements Resource {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventxMain.class);
-  public static final List<Bootstrap> AGGREGATES = Loader.bootstrapList();
+  public static final List<Bootstrap> AGGREGATES = EventxClassLoader.bootstrapList();
   private CronTaskDeployer cronTaskDeployer;
   private TimerTaskDeployer timerTaskDeployer;
   public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
@@ -162,13 +159,13 @@ public class EventxMain extends AbstractVerticle implements Resource {
   @Override
   public void stop(final Promise<Void> stopPromise) {
     LOGGER.warn(" ---- Stopping  {}::{}  ---- ", this.getClass().getName(), context.deploymentID());
-    undeployComponent()
+    stopEventx()
       .subscribe()
       .with(avoid -> stopPromise.complete(), stopPromise::fail);
   }
 
 
-  private Uni<Void> undeployComponent() {
+  private Uni<Void> stopEventx() {
     EventxConfigurationHandler.close();
     timerTaskDeployer.close();
     cronTaskDeployer.close();
