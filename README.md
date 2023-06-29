@@ -1,4 +1,4 @@
-# Event.x
+# ES4J - Vert.x
 
 # Aggregate Interface
 
@@ -57,7 +57,7 @@ public record Account(String id, String owner, BigDecimal balance) implements Ag
                 snapshot.get("field3")
         );
       default ->
-        throw new UnknownEvent(new EventxError(
+        throw new UnknownEvent(new Es4jError(
           ErrorSource.LOGIC,
           EventBehaviour.class.getName(),
           "missing schema versionTo " + schemaVersion,
@@ -84,7 +84,7 @@ The `CommandBehaviour` interface is part of our event sourcing framework, and it
 Consider a banking application where we have an `Account` aggregate and a `DepositCommand`. We might define our command behavior like so:
 
 ```java
-public class DepositBehaviour implements CommandBehaviour<Account, DepositCommand> {
+public class DepositBehaviour implements Behaviour<Account, DepositCommand> {
 
     @Override
     public List<Event> process(Account account, DepositCommand command) {
@@ -134,7 +134,7 @@ The `EventBehaviour` interface specifies four methods, each serving a unique pur
 Here's an example of how this interface could be implemented:
 
 ```java
-public class AccountCreatedBehaviour implements EventBehaviour<Account, AccountCreatedEvent> {
+public class AccountCreatedBehaviour implements Aggregator<Account, AccountCreatedEvent> {
 
     @Override
     public Account apply(Account aggregateState, AccountCreatedEvent event) {

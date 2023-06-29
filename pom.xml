@@ -4,17 +4,17 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <groupId>io.eventx</groupId>
-  <artifactId>eventx-framework</artifactId>
+  <groupId>io.es4j</groupId>
+  <artifactId>es4j</artifactId>
   <packaging>pom</packaging>
   <version>${revision}</version>
 
   <modules>
-    <module>eventx</module>
-    <module>eventx-test</module>
-    <module>eventx-dependencies</module>
-    <module>eventx-infrastructure</module>
-    <module>eventx-stack</module>
+    <module>es4j-core</module>
+    <module>es4j-test</module>
+    <module>es4j-dependencies</module>
+    <module>es4j-infrastructure</module>
+    <module>es4j-stack</module>
   </modules>
 
 
@@ -25,10 +25,13 @@
     <revision>0.0.1-SNAPSHOT</revision>
     <sonar-maven-plugin.version>3.6.0.1398</sonar-maven-plugin.version>
     <flatten.maven.plugin.version>1.1.0</flatten.maven.plugin.version>
-    <maven.gitflow.plugin.version>1.17.0</maven.gitflow.plugin.version>
     <netty-transport-native-epoll.version>4.1.93.Final</netty-transport-native-epoll.version>
     <vertx.version>4.4.1</vertx.version>
     <mutiny.vertx.version>3.4.2</mutiny.vertx.version>
+    <repository-owner>Reef3rm4n</repository-owner>
+    <repository-name>es4j</repository-name>
+    <branch-name>main</branch-name>
+    <github.global.server>github</github.global.server>
   </properties>
 
   <licenses>
@@ -38,10 +41,6 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
-
-  <scm>
-    <url>https://svn.apache.org/viewvc/maven</url>
-  </scm>
 
 
   <build>
@@ -73,4 +72,5 @@
       </plugin>
     </plugins>
   </build>
+
 </project>
