@@ -67,11 +67,9 @@ public class Es4jMain extends AbstractVerticle implements Resource {
 
   @Override
   public void start(final Promise<Void> startPromise) {
-
     LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
     Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x]  had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
-
     this.cronTaskDeployer = new CronTaskDeployer(vertx);
     this.timerTaskDeployer = new TimerTaskDeployer(vertx);
     addEventBusInterceptors();
