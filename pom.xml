@@ -85,6 +85,10 @@
             </goals>
           </execution>
         </executions>
+        <configuration>
+          <excludePackageNames>io.es4j.core.objects</excludePackageNames>
+          <excludePackageNames>io.es4j.infrastructure.models</excludePackageNames>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
