@@ -5,6 +5,7 @@ import io.es4j.core.exceptions.Es4jException;
 import io.es4j.core.objects.Es4jError;
 import io.es4j.core.objects.JournalOffsetBuilder;
 import io.es4j.core.objects.JournalOffsetKey;
+import io.es4j.core.projections.EventStreamListener;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.models.EventStreamBuilder;
@@ -14,6 +15,8 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.core.eventbus.Message;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Objects;
@@ -25,6 +28,9 @@ public class ProjectionService {
   private final OffsetStore offsetStore;
   private final EventStore eventStore;
   private final Class<? extends Aggregate> aClass;
+
+  protected static final Logger LOGGER = LoggerFactory.getLogger(ProjectionService.class);
+
 
   public ProjectionService(OffsetStore offsetStore, EventStore eventStore, Class<? extends Aggregate> aClass) {
     this.offsetStore = offsetStore;
@@ -79,7 +85,7 @@ public class ProjectionService {
   }
 
   private void handle(Throwable throwable) {
-
+    LOGGER.error("Unhandled exception", throwable);
   }
 
   public Uni<List<io.es4j.infrastructure.models.Event>> next(ProjectionStream projectionStream) {
@@ -96,6 +102,9 @@ public class ProjectionService {
             .versionTo(projectionStream.versionTo())
             .aggregateIds(projectionStream.aggregateIds())
             .build()
+        )
+        .flatMap(events -> offsetStore.put(journalOffset.updateOffset(events))
+          .replaceWith(events)
         )
       );
   }
