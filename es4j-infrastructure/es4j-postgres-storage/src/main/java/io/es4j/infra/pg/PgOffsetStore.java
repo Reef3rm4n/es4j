@@ -92,7 +92,9 @@ public class PgOffsetStore implements OffsetStore {
 
   @Override
   public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
-    LOGGER.debug("Migrating database for {} with configuration {}", aggregateClass.getSimpleName(), configuration);
+    final var schema = camelToKebab(aggregateClass.getSimpleName());
+    LOGGER.debug("Migrating postgres schema {} configuration {}", schema, configuration);
+    configuration.put("schema", schema);
     return LiquibaseHandler.liquibaseString(
       vertx,
       configuration,

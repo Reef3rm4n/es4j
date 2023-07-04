@@ -10,7 +10,7 @@ public class AggregateConfiguration {
   private Integer snapshotThreshold = 500;
   private Integer idempotencyThreshold = 50;
 
-  public Duration aggregateCacheTtlInMinutes() {
+  public Duration ttl() {
     return cacheTtl;
   }
 

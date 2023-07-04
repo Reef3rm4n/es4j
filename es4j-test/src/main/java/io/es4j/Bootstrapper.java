@@ -1,5 +1,11 @@
 package io.es4j;
 
+import io.es4j.infrastructure.AggregateCache;
+import io.es4j.infrastructure.EventStore;
+import io.es4j.infrastructure.Infrastructure;
+import io.es4j.infrastructure.OffsetStore;
+import io.es4j.infrastructure.cache.CaffeineAggregateCache;
+import io.es4j.infrastructure.misc.Es4jServiceLoader;
 import io.es4j.sql.misc.Constants;
 import io.vertx.core.DeploymentOptions;
 import io.es4j.infrastructure.proxy.AggregateEventBusPoxy;
@@ -17,10 +23,12 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
+import java.util.Optional;
+
 import static io.es4j.core.CommandHandler.camelToKebab;
 
 
-public class Bootstrapper<T extends Aggregate> {
+class Bootstrapper<T extends Aggregate> {
   public AggregateEventBusPoxy<T> eventBusPoxy;
   public AggregateHttpClient<T> httpClient;
   private static Network network = Network.newNetwork();
@@ -39,6 +47,9 @@ public class Bootstrapper<T extends Aggregate> {
   public Integer HTTP_PORT = Integer.parseInt(System.getenv().getOrDefault("HTTP_PORT", "8080"));
   public Class<T> aggregateClass;
   private GenericContainer zookeeperContainer;
+  public AggregateCache cache;
+  public EventStore eventStore;
+  public OffsetStore offsetStore;
 
   public Bootstrapper(
     Class<T> aggregateClass
@@ -51,6 +62,12 @@ public class Bootstrapper<T extends Aggregate> {
     config = configuration(aggregateClass).put("schema", camelToKebab(aggregateClass.getSimpleName()));
     if (Boolean.TRUE.equals(infrastructure())) {
       deployPgContainer();
+      vertx.deployVerticle(Es4jMain::new, new DeploymentOptions().setInstances(1).setConfig(config)).await().indefinitely();
+      this.cache = new CaffeineAggregateCache();
+      this.eventStore = Es4jServiceLoader.loadEventStore();
+      eventStore.start(aggregateClass, vertx, config);
+      this.offsetStore = Es4jServiceLoader.loadOffsetStore();
+      offsetStore.start(aggregateClass, vertx, config);
     }
     this.httpClient = new AggregateHttpClient<>(
       WebClient.create(vertx, new WebClientOptions()
@@ -59,10 +76,8 @@ public class Bootstrapper<T extends Aggregate> {
       ),
       aggregateClass
     );
-    vertx.deployVerticle(Es4jMain::new, new DeploymentOptions().setInstances(1).setConfig(config)).await().indefinitely();
     this.eventBusPoxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
   }
-
 
 
   public Bootstrapper<T> setRemoteHost(String host) {

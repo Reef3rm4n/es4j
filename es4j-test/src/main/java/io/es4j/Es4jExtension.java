@@ -5,6 +5,9 @@ import io.es4j.config.DatabaseConfiguration;
 import io.es4j.config.DatabaseConfigurationCache;
 import io.es4j.config.orm.ConfigurationKey;
 import io.es4j.core.objects.AggregateState;
+import io.es4j.infrastructure.AggregateCache;
+import io.es4j.infrastructure.EventStore;
+import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.cache.CaffeineWrapper;
 import io.es4j.infrastructure.config.FileConfigurationCache;
 import io.es4j.infrastructure.models.AggregatePlainKey;
@@ -51,7 +54,10 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
   @Override
   public boolean supportsParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
     return parameterContext.getParameter().getType() == AggregateEventBusPoxy.class
-      || parameterContext.getParameter().getType() == AggregateHttpClient.class;
+      || parameterContext.getParameter().getType() == AggregateHttpClient.class
+      || parameterContext.getParameter().getType() == EventStore.class
+      || parameterContext.getParameter().getType() == OffsetStore.class
+      || parameterContext.getParameter().getType() == AggregateCache.class;
   }
 
   @Override
@@ -61,6 +67,12 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
         return bootstrapper.eventBusPoxy;
       } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateHttpClient.class)) {
         return bootstrapper.httpClient;
+      } else if (parameterContext.getParameter().getType().isAssignableFrom(EventStore.class)) {
+        return bootstrapper.eventStore;
+      } else if (parameterContext.getParameter().getType().isAssignableFrom(OffsetStore.class)) {
+        return bootstrapper.offsetStore;
+      } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateCache.class)) {
+        return bootstrapper.cache;
       }
     }
     throw new IllegalStateException("Bootstrapper has not been initialized");

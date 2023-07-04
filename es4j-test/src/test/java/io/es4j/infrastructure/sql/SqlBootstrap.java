@@ -1,5 +1,6 @@
-package io.es4j;
+package io.es4j.infrastructure.sql;
 
+import io.es4j.Aggregate;
 import io.es4j.sql.LiquibaseHandler;
 import io.es4j.sql.RepositoryHandler;
 import io.es4j.sql.misc.Constants;
@@ -21,10 +22,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 
-public class InfrastructureBootstrap {
+public class SqlBootstrap {
   private static Network network = Network.newNetwork();
   public static final String POSTGRES_VERSION = "postgres:latest";
-  private final Logger LOGGER = LoggerFactory.getLogger(InfrastructureBootstrap.class);
+  private final Logger LOGGER = LoggerFactory.getLogger(SqlBootstrap.class);
   public PostgreSQLContainer<?> POSTGRES_CONTAINER;
   public GenericContainer redis = new GenericContainer(DockerImageName.parse("redis:latest"))
     .withExposedPorts(6379);
@@ -59,27 +60,27 @@ public class InfrastructureBootstrap {
   }
 
 
-  public InfrastructureBootstrap addLiquibaseRun(String liquibaseChangelog, Map<String, String> params) {
+  public SqlBootstrap addLiquibaseRun(String liquibaseChangelog, Map<String, String> params) {
     liquibase.put(liquibaseChangelog, params);
     return this;
   }
 
-  public InfrastructureBootstrap setRemoteHost(String host) {
+  public SqlBootstrap setRemoteHost(String host) {
     this.HTTP_HOST = host;
     return this;
   }
 
-  public InfrastructureBootstrap setRemotePort(Integer port) {
+  public SqlBootstrap setRemotePort(Integer port) {
     this.HTTP_PORT = port;
     return this;
   }
 
-  public InfrastructureBootstrap setConfigurationPath(final String configurationPath) {
+  public SqlBootstrap setConfigurationPath(final String configurationPath) {
     this.configurationPath = configurationPath;
     return this;
   }
 
-  public InfrastructureBootstrap setPostgres(final Boolean postgres) {
+  public SqlBootstrap setPostgres(final Boolean postgres) {
     this.postgres = postgres;
     return this;
   }
@@ -96,7 +97,7 @@ public class InfrastructureBootstrap {
     return schema == null ? "postgres" : schema;
   }
 
-  public InfrastructureBootstrap schema(String schema) {
+  public SqlBootstrap schema(String schema) {
     this.schema = schema;
     return this;
   }

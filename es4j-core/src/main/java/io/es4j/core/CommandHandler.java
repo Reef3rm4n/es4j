@@ -260,7 +260,7 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   public static <X extends Aggregate> ArrayList<io.es4j.infrastructure.models.Event> transformEvents(AggregateState<X> state, Command finalCommand, Event[] array) {
-    final var currentVersion = state.currentVersion() == null ? 0 : state.currentVersion();
+    final var currentVersion = Objects.requireNonNullElse(state.currentVersion(), 0L);
     return new ArrayList<>(IntStream.range(1, array.length + 1)
       .mapToObj(index -> {
           final var ev = array[index - 1];

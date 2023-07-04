@@ -1,6 +1,6 @@
 package io.es4j.infrastructure.sql;
 
-import io.es4j.InfrastructureBootstrap;
+
 import io.es4j.sql.LiquibaseHandler;
 import io.es4j.sql.Repository;
 import io.es4j.sql.models.BaseRecord;
@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @ExtendWith(VertxExtension.class)
 public class SqlTest {
-  public static final InfrastructureBootstrap BOOTSTRAP = new InfrastructureBootstrap()
+  public static final SqlBootstrap BOOTSTRAP = new SqlBootstrap()
     .addLiquibaseRun("sql-test.xml",Map.of("schema", "es4j"))
     .setPostgres(true);
 
@@ -49,7 +49,7 @@ public class SqlTest {
     BOOTSTRAP.configuration().put("schema", "es4j");
     BOOTSTRAP.deployPgContainer();
     LiquibaseHandler.liquibaseString(
-      InfrastructureBootstrap.REPOSITORY_HANDLER,
+      SqlBootstrap.REPOSITORY_HANDLER,
       "sql-test.xml",
       Map.of("schema", "es4j")
     ).await().indefinitely();
@@ -57,14 +57,14 @@ public class SqlTest {
 
   @Test
   void insert(Vertx vertx, VertxTestContext vertxTestContext) {
-    final var repository = new Repository<>(new TestModelMapper(), InfrastructureBootstrap.REPOSITORY_HANDLER);
+    final var repository = new Repository<>(new TestModelMapper(), SqlBootstrap.REPOSITORY_HANDLER);
     repository.insert(testModel()).await().indefinitely();
     vertxTestContext.completeNow();
   }
 
   @Test
   void insert_and_select(Vertx vertx, VertxTestContext vertxTestContext) {
-    final var repository = new Repository<>(new TestModelMapper(), InfrastructureBootstrap.REPOSITORY_HANDLER);
+    final var repository = new Repository<>(new TestModelMapper(), SqlBootstrap.REPOSITORY_HANDLER);
     final var model = testModel();
     repository.insert(model).await().indefinitely();
     final var selectedValue = repository.selectByKey(new TestModelKey(model.textField())).await().indefinitely();
@@ -75,7 +75,7 @@ public class SqlTest {
 
   @Test
   void insert_and_query(Vertx vertx, VertxTestContext vertxTestContext) {
-    final var repository = new Repository<>(new TestModelMapper(), InfrastructureBootstrap.REPOSITORY_HANDLER);
+    final var repository = new Repository<>(new TestModelMapper(), SqlBootstrap.REPOSITORY_HANDLER);
     final var model = IntStream.range(0, 20).mapToObj(
       integerValue -> testModel()
     ).toList();

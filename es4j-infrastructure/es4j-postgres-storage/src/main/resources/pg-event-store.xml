@@ -26,7 +26,7 @@
   </changeSet>
   <changeSet id="event-journal-indexes" author="reeferman" context="vertx">
     <addPrimaryKey tableName="event_store" columnNames="id" schemaName="${schema}"/>
-    <addUniqueConstraint tableName="event_store" columnNames="aggregate_id, event_version"
+    <addUniqueConstraint tableName="event_store" columnNames="aggregate_id, tenant, event_version"
                          schemaName="${schema}"/>
     <createIndex tableName="event_store" indexName="index-2" schemaName="${schema}">
       <column name="aggregate_id"/>
