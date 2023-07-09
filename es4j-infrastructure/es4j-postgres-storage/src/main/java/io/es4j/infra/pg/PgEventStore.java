@@ -219,7 +219,7 @@ public class PgEventStore implements EventStore {
         eventStream.to(),
         null,
         null,
-        null,
+        0,
         eventStream.batchSize(),
         null,
         eventStream.tenantId()
