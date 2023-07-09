@@ -220,7 +220,7 @@ public class PgEventStore implements EventStore {
         null,
         null,
         null,
-        null,
+        eventStream.batchSize(),
         null,
         eventStream.tenantId()
       )
