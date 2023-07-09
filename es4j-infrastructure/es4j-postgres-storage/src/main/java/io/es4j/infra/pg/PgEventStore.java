@@ -208,7 +208,7 @@ public class PgEventStore implements EventStore {
       eventStream.events() != null ? eventStream.events().stream().map(Class::getName).toList() : null,
       null,
       eventStream.tags(),
-      null,
+      eventStream.versionFrom(),
       eventStream.versionTo(),
       eventStream.offset(),
       null,

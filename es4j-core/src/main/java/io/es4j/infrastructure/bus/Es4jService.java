@@ -7,10 +7,12 @@ import com.github.victools.jsonschema.generator.SchemaGeneratorConfig;
 import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder;
 import com.github.victools.jsonschema.generator.SchemaVersion;
 import io.es4j.Aggregate;
+import io.es4j.Event;
 import io.es4j.core.exceptions.Es4jException;
 import io.es4j.core.objects.*;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
+import io.es4j.infrastructure.misc.EventParser;
 import io.es4j.infrastructure.models.*;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -172,20 +174,35 @@ public class Es4jService {
       );
   }
 
-  public Uni<List<io.es4j.infrastructure.models.Event>> fetchEvents(EventFilter eventStreamQuery) {
+  public Uni<List<io.es4j.infrastructure.models.Event>> fetchEvents(EventFilter eventFilter) {
     return eventStore.fetch(
       EventStreamBuilder.builder()
-        .offset(eventStreamQuery.offset())
-        .batchSize(eventStreamQuery.batchSize())
-        .tenantId(eventStreamQuery.tenantId())
-        .tags(eventStreamQuery.tags())
-        .to(eventStreamQuery.to())
-        .from(eventStreamQuery.from())
-        .versionFrom(eventStreamQuery.versionFrom())
-        .versionTo(eventStreamQuery.versionTo())
-        .aggregateIds(eventStreamQuery.aggregateIds())
+        .offset(eventFilter.offset())
+        .batchSize(eventFilter.batchSize())
+        .tenantId(eventFilter.tenantId())
+        .tags(eventFilter.tags())
+        .to(eventFilter.to())
+        .from(eventFilter.from())
+        .events(figureEventClass(eventFilter.events()))
+        .versionFrom(eventFilter.versionFrom())
+        .versionTo(eventFilter.versionTo())
+        .aggregateIds(eventFilter.aggregateIds())
         .build()
     );
+  }
+
+  private List<Class<? extends Event>> figureEventClass(List<String> classNames) {
+    final var arrayList = new ArrayList<Class<? extends Event>>();
+    classNames.forEach(
+      className -> {
+        try {
+          arrayList.add((Class<? extends Event>) Class.forName(className));
+        } catch (ClassNotFoundException e) {
+          throw new RuntimeException(e);
+        }
+      }
+    );
+   return arrayList;
   }
 
   public Uni<List<Offset>> offsets(OffsetFilter offsetFilter) {
