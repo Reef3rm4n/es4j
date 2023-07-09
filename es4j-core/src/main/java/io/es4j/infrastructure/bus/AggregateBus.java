@@ -98,7 +98,7 @@ public class AggregateBus {
   }
 
   public static <T extends Aggregate> void broadcastActorAddress(Vertx vertx, Class<T> entityClass, String deploymentID) {
-    LOGGER.info("Publishing [{}] address[{}] ", entityClass.getSimpleName(), AddressResolver.nodeAddress(entityClass, deploymentID));
+    LOGGER.debug("Publishing [{}] address[{}] ", entityClass.getSimpleName(), AddressResolver.nodeAddress(entityClass, deploymentID));
     vertx.eventBus().<String>publish(
       AddressResolver.broadcastChannel(entityClass),
       AddressResolver.nodeAddress(entityClass, deploymentID),

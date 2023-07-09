@@ -136,11 +136,11 @@ public class CommandHandler<T extends Aggregate> {
     AggregateState<T> state = null;
     final var key = new AggregateKey<>(aggregateClass, aggregateId, tenant);
     if (infrastructure.cache().isPresent()) {
-      LOGGER.info("Fetching from cache-store {}", key);
+      LOGGER.debug("Fetching from cache-store {}", key);
       state = infrastructure.cache().get().get(key);
     }
     if (state == null) {
-      LOGGER.info("Fetching from event-store {}", key);
+      LOGGER.debug("Fetching from event-store {}", key);
       return playFromLastJournalOffset(aggregateId, tenant, new AggregateState<>(aggregateClass));
     } else {
       return Uni.createFrom().item(state);

@@ -215,7 +215,6 @@ public class HttpBridge implements Bridge {
   private HttpServer httpServer() {
     return vertx.createHttpServer(new HttpServerOptions()
       .setTracingPolicy(TracingPolicy.ALWAYS)
-      .setLogActivity(true)
       .setRegisterWebSocketWriteHandlers(true)
     );
   }
