@@ -50,7 +50,7 @@ public interface Aggregator<T extends Aggregate, E extends Event> {
       ErrorSource.LOGIC,
       Aggregator.class.getName(),
       "missing schema versionTo " + schemaVersion,
-      "could not transform event",
+      "could not transform event %s to schema version %d".formatted(event, schemaVersion),
       "aggregate.event.transform",
       500
     )

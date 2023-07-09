@@ -2,6 +2,8 @@ package io.es4j.core.tasks;
 
 
 import io.es4j.core.objects.AggregateEvent;
+import io.es4j.core.objects.Offset;
+import io.es4j.core.objects.OffsetKey;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.models.Event;
@@ -15,8 +17,6 @@ import io.smallrye.mutiny.Uni;
 import io.es4j.PollingEventProjection;
 import io.es4j.infrastructure.misc.EventParser;
 import io.es4j.infrastructure.models.EventStream;
-import io.es4j.core.objects.JournalOffset;
-import io.es4j.core.objects.JournalOffsetKey;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -54,18 +54,18 @@ public class EventProjectionPoller implements CronTask {
       .replaceWithVoid();
   }
 
-  private JournalOffsetKey getOffset() {
-    return new JournalOffsetKey(pollingEventProjection.getClass().getName(), pollingEventProjection.tenant());
+  private OffsetKey getOffset() {
+    return new OffsetKey(pollingEventProjection.getClass().getName(), pollingEventProjection.tenant());
   }
 
-  private static EventStream streamStatement(PollingEventProjection pollingEventProjection, JournalOffset journalOffset) {
+  private static EventStream streamStatement(PollingEventProjection pollingEventProjection, Offset offset) {
     AtomicReference<EventStream> eventStream = new AtomicReference<>();
     pollingEventProjection.filter().ifPresentOrElse(
       filter -> eventStream.set(
         EventStreamBuilder.builder()
           .events(filter.events())
           .tenantId(pollingEventProjection.tenant())
-          .offset(journalOffset.idOffSet())
+          .offset(offset.idOffSet())
           .batchSize(1000)
           .tags(filter.tags())
           .build()
@@ -73,7 +73,7 @@ public class EventProjectionPoller implements CronTask {
       () -> eventStream.set(
         EventStreamBuilder.builder()
           .tenantId(pollingEventProjection.tenant())
-          .offset(journalOffset.idOffSet())
+          .offset(offset.idOffSet())
           .batchSize(1000)
           .build()
       )

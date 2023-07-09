@@ -17,7 +17,7 @@ import java.time.Instant;
 
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 @RecordBuilder
-public record PublicQueryOptions(
+public record DefaultFilters(
    boolean desc,
    Instant creationDateFrom,
    Instant creationDateTo,

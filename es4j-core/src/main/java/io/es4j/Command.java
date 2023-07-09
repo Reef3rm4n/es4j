@@ -47,16 +47,6 @@ public interface Command extends Shareable, Serializable {
   }
 
   /**
-   * Retrieves the list of roles required to execute this command.
-   * This method provides a default implementation that returns an empty list.
-   *
-   * @return A list of required roles as strings. Default is an empty list.
-   */
-  default List<String> requiredRoles() {
-    return Collections.emptyList();
-  }
-
-  /**
    * Retrieves the options associated with this command.
    * This method provides a default implementation that returns the default options.
    *

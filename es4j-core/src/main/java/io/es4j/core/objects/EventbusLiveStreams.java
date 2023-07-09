@@ -12,7 +12,7 @@ public class EventbusLiveStreams {
   public static final String EVENT_STREAM = "event-stream";
 
   public static String stateLiveStream(Class<? extends Aggregate> aggregateClass, String aggregateId, String tenantId) {
-    return new StringJoiner("/")
+    return new StringJoiner("/", "/","")
       .add(STATE_STREAM)
       .add(CommandHandler.camelToKebab(aggregateClass.getSimpleName()))
       .add(tenantId)
@@ -21,7 +21,7 @@ public class EventbusLiveStreams {
   }
 
   public static String eventLiveStream(Class<? extends Aggregate> aggregateClass, String aggregateId, String tenantId) {
-    return new StringJoiner("/")
+    return new StringJoiner("/","/","")
       .add(EVENT_STREAM)
       .add(CommandHandler.camelToKebab(aggregateClass.getSimpleName()))
       .add(tenantId)

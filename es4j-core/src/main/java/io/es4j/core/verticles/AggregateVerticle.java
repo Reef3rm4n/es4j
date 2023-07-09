@@ -2,7 +2,7 @@ package io.es4j.core.verticles;
 
 
 import io.es4j.core.objects.*;
-import io.es4j.infrastructure.bus.ProjectionService;
+import io.es4j.infrastructure.bus.Es4jService;
 import io.es4j.infrastructure.misc.Es4jServiceLoader;
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Multi;
@@ -47,7 +47,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
   private List<BehaviourWrap> behaviourWraps;
   private List<AggregatorWrap> aggregatorWraps;
   private Infrastructure infrastructure;
-  private ProjectionService projectionService;
+  private Es4jService es4jService;
 
   public AggregateVerticle(
     final Class<T> aggregateClass,
@@ -81,13 +81,15 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
       infrastructure,
       aggregateConfiguration
     );
-    this.projectionService = new ProjectionService(
+    this.es4jService = new Es4jService(
       infrastructure.offsetStore(),
       infrastructure.eventStore(),
-      aggregateClass
+      aggregateClass,
+      aggregatorWraps,
+      behaviourWraps
     );
     // todo as behaviours are loaded also register consumer in order to avoid unsafe operation ?
-    return projectionService.register(vertx).flatMap(avoid -> registerAggregateBus());
+    return es4jService.register(vertx).flatMap(avoid -> registerAggregateBus());
   }
 
   private Uni<Void> registerAggregateBus() {

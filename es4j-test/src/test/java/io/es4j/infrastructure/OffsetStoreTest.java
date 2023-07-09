@@ -1,8 +1,8 @@
 package io.es4j.infrastructure;
 
-import io.es4j.core.objects.JournalOffset;
-import io.es4j.core.objects.JournalOffsetBuilder;
-import io.es4j.core.objects.JournalOffsetKeyBuilder;
+import io.es4j.core.objects.Offset;
+import io.es4j.core.objects.OffsetBuilder;
+import io.es4j.core.objects.OffsetKeyBuilder;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.infra.pg.PgOffsetStore;
 import io.es4j.sql.misc.Constants;
@@ -49,20 +49,20 @@ class OffsetStoreTest {
     );
 
     final var result = Assertions.assertDoesNotThrow(
-      () -> offsetStore.put(JournalOffsetBuilder.builder(offset).eventVersionOffset(1L).idOffSet(10L).build()).await().indefinitely()
+      () -> offsetStore.put(OffsetBuilder.builder(offset).eventVersionOffset(1L).idOffSet(10L).build()).await().indefinitely()
     );
     Assertions.assertEquals(10L, result.idOffSet());
     Assertions.assertEquals(1L, result.eventVersionOffset());
 
     final var result2 = Assertions.assertDoesNotThrow(
-      () -> offsetStore.get(JournalOffsetKeyBuilder.builder().consumer(name).tenantId(TENANT_ID).build()).await().indefinitely()
+      () -> offsetStore.get(OffsetKeyBuilder.builder().consumer(name).tenantId(TENANT_ID).build()).await().indefinitely()
     );
     Assertions.assertEquals(10L, result2.idOffSet());
     Assertions.assertEquals(1L, result2.eventVersionOffset());
   }
 
-  private static JournalOffset createOffset(String name) {
-    return JournalOffsetBuilder.builder()
+  private static Offset createOffset(String name) {
+    return OffsetBuilder.builder()
       .consumer(name)
       .tenantId(TENANT_ID)
       .idOffSet(0L)

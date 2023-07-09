@@ -1,5 +1,6 @@
 package io.es4j;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -22,5 +23,16 @@ public interface Behaviour<T extends Aggregate, C extends Command> {
    * @return A list of events that should be applied to the aggregate.
    */
   List<Event> process(T state, C command);
+
+
+  /**
+   * Retrieves the list of roles required to execute this command.
+   * This method provides a default implementation that returns an empty list.
+   *
+   * @return A list of required roles as strings. Default is an empty list.
+   */
+  default List<String> requiredRoles() {
+    return Collections.emptyList();
+  }
 
 }

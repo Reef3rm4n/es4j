@@ -25,7 +25,7 @@ import static io.es4j.config.DatabaseConfigurationService.parseKey;
 
 
 public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Extension, ParameterResolver, BeforeEachCallback, AfterEachCallback {
-  private Bootstrapper<? extends Aggregate> bootstrapper;
+  private Es4jBootstrapper<? extends Aggregate> es4jBootstrapper;
   private final Logger LOGGER = LoggerFactory.getLogger(Es4jExtension.class);
 
 
@@ -34,19 +34,19 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
     extensionContext.getTestClass().ifPresent(
       testClass -> {
         Es4jTest annotation = testClass.getAnnotation(Es4jTest.class);
-        bootstrapper = new Bootstrapper<>(annotation.aggregate())
+        es4jBootstrapper = new Es4jBootstrapper<>(annotation.aggregate())
           .setPostgres(annotation.infrastructure())
           .setRemoteHost(annotation.host())
           .setRemotePort(annotation.port());
-        bootstrapper.bootstrap();
+        es4jBootstrapper.bootstrap();
       }
     );
   }
 
   @Override
   public void afterAll(ExtensionContext extensionContext) {
-    if (bootstrapper != null) {
-      bootstrapper.destroy();
+    if (es4jBootstrapper != null) {
+      es4jBootstrapper.destroy();
     }
   }
 
@@ -62,17 +62,17 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
 
   @Override
   public Object resolveParameter(ParameterContext parameterContext, ExtensionContext extensionContext) throws ParameterResolutionException {
-    if (bootstrapper != null) {
+    if (es4jBootstrapper != null) {
       if (parameterContext.getParameter().getType().isAssignableFrom(AggregateEventBusPoxy.class)) {
-        return bootstrapper.eventBusPoxy;
+        return es4jBootstrapper.eventBusPoxy;
       } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateHttpClient.class)) {
-        return bootstrapper.httpClient;
+        return es4jBootstrapper.httpClient;
       } else if (parameterContext.getParameter().getType().isAssignableFrom(EventStore.class)) {
-        return bootstrapper.eventStore;
+        return es4jBootstrapper.eventStore;
       } else if (parameterContext.getParameter().getType().isAssignableFrom(OffsetStore.class)) {
-        return bootstrapper.offsetStore;
+        return es4jBootstrapper.offsetStore;
       } else if (parameterContext.getParameter().getType().isAssignableFrom(AggregateCache.class)) {
-        return bootstrapper.cache;
+        return es4jBootstrapper.cache;
       }
     }
     throw new IllegalStateException("Bootstrapper has not been initialized");
@@ -132,10 +132,10 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
   }
 
   private void dropAggregate(GivenAggregate givenAggregate) {
-    final var jsonObject = Bootstrapper.vertx.fileSystem().readFileBlocking(givenAggregate.filename()).toJsonObject();
-    final var state = getState(bootstrapper.aggregateClass, jsonObject);
-    CaffeineWrapper.invalidate(bootstrapper.aggregateClass, new AggregatePlainKey(
-      bootstrapper.aggregateClass.getName(),
+    final var jsonObject = Es4jBootstrapper.vertx.fileSystem().readFileBlocking(givenAggregate.filename()).toJsonObject();
+    final var state = getState(es4jBootstrapper.aggregateClass, jsonObject);
+    CaffeineWrapper.invalidate(es4jBootstrapper.aggregateClass, new AggregatePlainKey(
+      es4jBootstrapper.aggregateClass.getName(),
       state.state().aggregateId(),
       state.state().tenant()
     ));
@@ -143,11 +143,11 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
   }
 
   private void addAggregate(GivenAggregate givenAggregate) {
-    final var jsonObject = Bootstrapper.vertx.fileSystem().readFileBlocking(givenAggregate.filename()).toJsonObject();
-    final var state = getState(bootstrapper.aggregateClass, jsonObject);
+    final var jsonObject = Es4jBootstrapper.vertx.fileSystem().readFileBlocking(givenAggregate.filename()).toJsonObject();
+    final var state = getState(es4jBootstrapper.aggregateClass, jsonObject);
     CaffeineWrapper.put(
       new AggregatePlainKey(
-        bootstrapper.aggregateClass.getName(),
+        es4jBootstrapper.aggregateClass.getName(),
         state.state().aggregateId(),
         state.state().tenant()
       ),
@@ -169,7 +169,7 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
         if (!fileNames.isEmpty()) {
           fileNames.forEach(
             filename -> {
-              final var configuration = Bootstrapper.vertx.fileSystem().readFileBlocking(filename)
+              final var configuration = Es4jBootstrapper.vertx.fileSystem().readFileBlocking(filename)
                 .toJsonObject();
               LOGGER.info("Adding file configuration {} {}", filename, configuration.encodePrettily());
               FileConfigurationCache.put(filename.substring(0, filename.indexOf(".")), configuration);
@@ -180,7 +180,7 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
         if (!databaseConfigurations.isEmpty()) {
           databaseConfigurations.forEach(
             fsConfig -> {
-              final var configuration = Bootstrapper.vertx.fileSystem().readFileBlocking(fsConfig.getItem2())
+              final var configuration = Es4jBootstrapper.vertx.fileSystem().readFileBlocking(fsConfig.getItem2())
                 .toJsonObject();
               LOGGER.info("Adding database configuration {} {}", fsConfig, configuration.encodePrettily());
               DatabaseConfigurationCache.put(parseKey(new ConfigurationKey(fsConfig.getItem1().getName(), 0, fsConfig.getItem3())), configuration);

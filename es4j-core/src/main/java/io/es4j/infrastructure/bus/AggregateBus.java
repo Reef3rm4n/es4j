@@ -28,7 +28,9 @@ import org.ishugaliy.allgood.consistent.hash.node.SimpleNode;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.StringJoiner;
 import java.util.function.Consumer;
 
 import static io.es4j.infrastructure.bus.AddressResolver.commandBridge;
@@ -134,7 +136,7 @@ public class AggregateBus {
     final Consumer<Message<JsonObject>> consumer,
     final Class<C> commandClass
   ) {
-    return  registerEventBusBridge(vertx, aggregateClass, commandClass)
+    return registerEventBusBridge(vertx, aggregateClass, commandClass)
       .flatMap(avoid -> registerEventbusCommandConsumer(vertx, aggregateClass, deploymentID, consumer, commandClass));
   }
 
@@ -199,6 +201,35 @@ public class AggregateBus {
           .setTracingPolicy(TracingPolicy.ALWAYS)
           .setLocalOnly(!vertx.isClustered())
           .setSendTimeout(2000)
+      )
+      .map(response -> AggregateState.fromJson(response.body(), aggregateClass))
+      .onFailure().transform(Unchecked.function(AggregateBus::transformError));
+  }
+
+  public static <T extends Aggregate> Uni<AggregateState<T>> requestWithRoles(
+    final Vertx vertx,
+    final Class<T> aggregateClass,
+    final Command command,
+    final List<String> roles
+  ) {
+    final var aggregateKey = new AggregatePlainKey(
+      aggregateClass.getName(),
+      command.aggregateId(),
+      command.tenant()
+    );
+    final var encodedCommand = JsonObject.mapFrom(command);
+    final var address = AggregateBus.resolveNode(aggregateClass, aggregateKey, command);
+    final var stringJoiner = new StringJoiner(",");
+    roles.forEach(stringJoiner::add);
+    LOGGER.debug("Proxying  {} -> {}", address, encodedCommand.encodePrettily());
+    return vertx.eventBus().<JsonObject>request(
+        address,
+        encodedCommand,
+        new DeliveryOptions()
+          .setTracingPolicy(TracingPolicy.ALWAYS)
+          .setLocalOnly(!vertx.isClustered())
+          .setSendTimeout(2000)
+          .addHeader("auth-roles", stringJoiner.toString())
       )
       .map(response -> AggregateState.fromJson(response.body(), aggregateClass))
       .onFailure().transform(Unchecked.function(AggregateBus::transformError));

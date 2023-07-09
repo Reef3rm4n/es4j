@@ -43,7 +43,7 @@ public record QueryOptions(
             null,
             null,
             0,
-            100,
+            10_000,
             null,
             tenantId
         );

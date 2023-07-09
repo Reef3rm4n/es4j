@@ -6,7 +6,6 @@ import io.es4j.commands.ChangeDataWithConfig;
 import io.es4j.commands.ChangeDataWithDbConfig;
 import io.es4j.commands.CreateData;
 import io.es4j.core.objects.AggregateState;
-import io.es4j.core.objects.CommandHeaders;
 import io.es4j.domain.DataBusinessRule;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.infrastructure.proxy.AggregateEventBusPoxy;
@@ -56,7 +55,7 @@ public class BridgeTest {
   @Order(1)
   void test_eventbus_bridge(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = sendDummyCommandAndBlock(eventBusPoxy);
-    final var changeData = new ChangeData(aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
+    final var changeData = new ChangeData(aggregate.state().aggregateId(), Map.of("key", "value2"));
     Assertions.assertNotNull(aggregate.state().data().get("key"), "data should have been created");
     final var entityAfterChange = eventBusPoxy.proxyCommand(changeData).await().indefinitely();
     Assertions.assertNotEquals(aggregate.state().data().get("key"), entityAfterChange.state().data().get("key"), "data should have been replaced");
@@ -66,9 +65,9 @@ public class BridgeTest {
   @Order(2)
   void test_http_bridge(AggregateHttpClient<FakeAggregate> proxy) {
     final var vertxTestContext = new VertxTestContext();
-    final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
+    final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"));
     final var entity = proxy.forward(newData).await().indefinitely();
-    final var changeData = new ChangeData(entity.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders());
+    final var changeData = new ChangeData(entity.state().aggregateId(), Map.of("key", "value2"));
     Assertions.assertNotNull(entity.state().data().get("key"), "data should have been created");
     final var entityAfterChange = proxy.forward(changeData).await().indefinitely();
     Assertions.assertNotEquals(entity.state().data().get("key"), entityAfterChange.state().data().get("key"), "data should have been replaced");
@@ -85,8 +84,7 @@ public class BridgeTest {
       aggregate.state().aggregateId(),
       "default",
       5L,
-      null,
-      CommandHeaders.defaultHeaders()
+      null
     )).await().indefinitely();
     Assertions.assertEquals(5L, replayedState.currentVersion());
 
@@ -94,8 +92,7 @@ public class BridgeTest {
       aggregate.state().aggregateId(),
       "default",
       null,
-      null,
-      CommandHeaders.defaultHeaders()
+      null
     )).await().indefinitely();
     Assertions.assertEquals(10L, stateAfterReplayCommand.currentVersion());
   }
@@ -106,7 +103,7 @@ public class BridgeTest {
   void test_fs_configuration(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = createAggregate(eventBusPoxy);
     final var newState = eventBusPoxy.proxyCommand(new ChangeDataWithConfig(
-      aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders()
+      aggregate.state().aggregateId(), Map.of("key", "value2")
     )).await().indefinitely();
   }
 
@@ -116,7 +113,7 @@ public class BridgeTest {
   void test_db_configuration(AggregateEventBusPoxy<FakeAggregate> proxy, AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
     final var aggregate = createAggregate(eventBusPoxy);
     final var newState = proxy.proxyCommand(new ChangeDataWithDbConfig(
-      aggregate.state().aggregateId(), Map.of("key", "value2"), CommandHeaders.defaultHeaders()
+      aggregate.state().aggregateId(), Map.of("key", "value2")
     )).await().indefinitely();
   }
 
@@ -127,19 +124,19 @@ public class BridgeTest {
   }
 
   private static AggregateState<FakeAggregate> createAggregate(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
-    final var createData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
+    final var createData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"));
     final var state = eventBusPoxy.proxyCommand(createData).await().indefinitely();
     Assertions.assertEquals(1L, state.currentVersion());
     return state;
   }
 
   private static AggregateState<FakeAggregate> sendDummyCommandAndBlock(AggregateEventBusPoxy<FakeAggregate> eventBusPoxy) {
-    final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"), CommandHeaders.defaultHeaders());
+    final var newData = new CreateData(UUID.randomUUID().toString(), Map.of("key", "value"));
     return eventBusPoxy.proxyCommand(newData).await().indefinitely();
   }
 
   private static Uni<AggregateState<FakeAggregate>> sendDummyCommand(AggregateEventBusPoxy<FakeAggregate> proxy, String aggregateId) {
-    final var changeData = new ChangeData(aggregateId, Map.of("key", UUID.randomUUID().toString()), CommandHeaders.defaultHeaders());
+    final var changeData = new ChangeData(aggregateId, Map.of("key", UUID.randomUUID().toString()));
     return proxy.proxyCommand(changeData);
   }
 

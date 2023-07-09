@@ -1,7 +1,7 @@
 package io.es4j.http;
 
+import io.es4j.core.objects.DefaultFilters;
 import io.es4j.core.objects.Es4jError;
-import io.es4j.core.objects.PublicQueryOptions;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -88,7 +88,7 @@ public interface HttpRoute {
       throw new RouterException(e.getMessage(), "malformed request, please check that your json conforms with notifier models", 500);
     }
   }
-  default PublicQueryOptions getQueryOptions(RoutingContext routingContext) {
+  default DefaultFilters getQueryOptions(RoutingContext routingContext) {
     final var desc = routingContext.queryParam("desc").stream().findFirst();
     final var creationDateFrom = routingContext.queryParam("creationDateFrom").stream().findFirst().map(Instant::parse);
     final var creationDateTo = routingContext.queryParam("creationDateTo").stream().findFirst().map(Instant::parse);
@@ -103,7 +103,7 @@ public interface HttpRoute {
         }
       }
     );
-    return new PublicQueryOptions(
+    return new DefaultFilters(
       Boolean.parseBoolean(desc.orElse("false")),
       creationDateFrom.orElse(null),
       creationDateTo.orElse(null),

@@ -15,7 +15,6 @@
     <module>es4j-dependencies</module>
     <module>es4j-infrastructure</module>
     <module>es4j-stack</module>
-    <module>es4j-infrastructure-test</module>
   </modules>
   <name>es4j</name>
   <description>A framework based on the vert.x stack that aims to facilitate the implementation of event sourcing</description>

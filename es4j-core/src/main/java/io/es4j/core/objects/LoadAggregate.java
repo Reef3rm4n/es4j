@@ -8,8 +8,7 @@ public record LoadAggregate(
   String aggregateId,
   String tenant,
   Long versionTo,
-  Instant dateTo,
-  CommandHeaders headers
+  Instant dateTo
 
 ) implements Command {
 }

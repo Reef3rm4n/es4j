@@ -3,10 +3,7 @@ package io.es4j.config;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
-import io.es4j.config.orm.ConfigurationKey;
-import io.es4j.config.orm.ConfigurationQuery;
-import io.es4j.config.orm.ConfigurationRecord;
-import io.es4j.config.orm.ConfigurationRecordMapper;
+import io.es4j.config.orm.*;
 import io.es4j.infrastructure.AggregateServices;
 import io.es4j.sql.LiquibaseHandler;
 import io.es4j.sql.Repository;
@@ -14,6 +11,7 @@ import io.es4j.sql.RepositoryHandler;
 import io.es4j.sql.models.QueryOptions;
 import io.smallrye.mutiny.Uni;
 
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.pgclient.pubsub.PgSubscriber;
@@ -41,6 +39,41 @@ public class DatabaseConfigurationService implements AggregateServices {
     this.repository = new Repository<>(ConfigurationRecordMapper.INSTANCE, repositoryHandler);
     configUni.add(dbConfigurations(repositoryHandler, repository));
     return Uni.join().all(configUni).andFailFast().replaceWithVoid();
+  }
+
+
+  public Uni<Void> routes(Vertx vertx) {
+    return vertx.eventBus().<JsonObject>consumer("/%s/business-rules")
+      .handler(objectMessage -> {
+        final var configurationFilter = objectMessage.body().mapTo(ConfigurationFilter.class);
+        repository.query(ConfigurationQueryBuilder.builder()
+            .tClasses(configurationFilter.configs())
+            .options(
+              Objects.nonNull(configurationFilter.options()) ?
+                new QueryOptions(
+                  null,
+                  configurationFilter.options().desc(),
+                  configurationFilter.options().creationDateFrom(),
+                  configurationFilter.options().creationDateTo(),
+                  configurationFilter.options().lastUpdateFrom(),
+                  configurationFilter.options().lastUpdateTo(),
+                  configurationFilter.options().pageNumber(),
+                  configurationFilter.options().pageSize(),
+                  null,
+                  configurationFilter.tenant()
+                )
+                :
+                QueryOptions.simple(configurationFilter.tenant())
+            )
+            .build()
+          )
+          .subscribe()
+          .with(
+            configurationRecords -> objectMessage.reply(new JsonArray(configurationRecords)),
+            throwable -> objectMessage.fail(500, throwable.getMessage())
+          );
+      })
+      .completionHandler();
   }
 
   @Override

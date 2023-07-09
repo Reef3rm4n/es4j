@@ -1,7 +1,6 @@
 package io.es4j.core.tasks;
 
 import io.es4j.Aggregate;
-import io.es4j.core.objects.CommandHeaders;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.models.EventStreamBuilder;
@@ -15,7 +14,7 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 import io.es4j.core.objects.LoadAggregate;
 import io.es4j.infrastructure.proxy.AggregateEventBusPoxy;
-import io.es4j.core.objects.JournalOffsetKey;
+import io.es4j.core.objects.OffsetKey;
 import io.es4j.core.objects.StateProjectionWrapper;
 
 import java.util.List;
@@ -50,7 +49,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     // polling will have to be moved to a queue
     // a new entry must be inserted in the queue for each one of the updated streams
     stateProjectionWrapper.logger().debug("Polling events");
-    return offsetStore.get(new JournalOffsetKey(stateProjectionWrapper.pollingStateProjection().getClass().getName(), "default"))
+    return offsetStore.get(new OffsetKey(stateProjectionWrapper.pollingStateProjection().getClass().getName(), "default"))
       .flatMap(journalOffset -> {
           stateProjectionWrapper.logger().debug("Journal idOffset at {}", journalOffset.idOffSet());
           return eventStore.fetch(EventStreamBuilder.builder()
@@ -71,8 +70,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
                     tuple2.getItem1(),
                   tuple2.getItem2(),
                     null,
-                    null,
-                    CommandHeaders.defaultHeaders()
+                    null
                   )
                 )
                 .flatMap(stateProjectionWrapper::update)

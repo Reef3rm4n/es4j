@@ -2,7 +2,6 @@ package io.es4j;
 
 import io.es4j.infrastructure.AggregateCache;
 import io.es4j.infrastructure.EventStore;
-import io.es4j.infrastructure.Infrastructure;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.cache.CaffeineAggregateCache;
 import io.es4j.infrastructure.misc.Es4jServiceLoader;
@@ -23,18 +22,16 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.utility.DockerImageName;
 
-import java.util.Optional;
-
 import static io.es4j.core.CommandHandler.camelToKebab;
 
 
-class Bootstrapper<T extends Aggregate> {
+class Es4jBootstrapper<T extends Aggregate> {
   public AggregateEventBusPoxy<T> eventBusPoxy;
   public AggregateHttpClient<T> httpClient;
   private static Network network = Network.newNetwork();
   public static final String POSTGRES_VERSION = "postgres:latest";
   public static final String ZOOKEEPER_VERSION = "bitnami/zookeeper:latest";
-  private final Logger LOGGER = LoggerFactory.getLogger(Bootstrapper.class);
+  private final Logger LOGGER = LoggerFactory.getLogger(Es4jBootstrapper.class);
   public PostgreSQLContainer<?> postgreSQLContainer;
   public GenericContainer redis;
 
@@ -51,7 +48,7 @@ class Bootstrapper<T extends Aggregate> {
   public EventStore eventStore;
   public OffsetStore offsetStore;
 
-  public Bootstrapper(
+  public Es4jBootstrapper(
     Class<T> aggregateClass
   ) {
     vertx = Vertx.vertx();
@@ -80,17 +77,17 @@ class Bootstrapper<T extends Aggregate> {
   }
 
 
-  public Bootstrapper<T> setRemoteHost(String host) {
+  public Es4jBootstrapper<T> setRemoteHost(String host) {
     this.HTTP_HOST = host;
     return this;
   }
 
-  public Bootstrapper<T> setRemotePort(Integer port) {
+  public Es4jBootstrapper<T> setRemotePort(Integer port) {
     this.HTTP_PORT = port;
     return this;
   }
 
-  public Bootstrapper<T> setPostgres(final Boolean postgres) {
+  public Es4jBootstrapper<T> setPostgres(final Boolean postgres) {
     this.postgres = postgres;
     return this;
   }

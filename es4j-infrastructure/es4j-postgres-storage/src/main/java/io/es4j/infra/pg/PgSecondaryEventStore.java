@@ -33,46 +33,6 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
 
 
   @Override
-  public <T extends Aggregate> Uni<List<Event>> fetch(AggregateEventStream<T> aggregateEventStream) {
-    return eventJournal.query(eventJournalQuery(aggregateEventStream))
-      .onFailure(NotFound.class).recoverWithItem(new ArrayList<>())
-      .map(eventRecords -> eventRecords.stream()
-        .map(eventRecord -> new Event(
-            eventRecord.aggregateId(),
-            eventRecord.eventClass(),
-            eventRecord.eventVersion(),
-            eventRecord.event(),
-            eventRecord.baseRecord().tenant(),
-            eventRecord.commandId(),
-            eventRecord.tags(),
-            eventRecord.schemaVersion()
-          )
-        ).toList()
-      );
-  }
-
-
-  @Override
-  public <T extends Aggregate> Uni<Void> stream(AggregateEventStream<T> aggregateEventStream, Consumer<Event> consumer) {
-    return eventJournal.stream(
-      eventRecord -> {
-        final var infraEvent = new Event(
-          eventRecord.aggregateId(),
-          eventRecord.eventClass(),
-          eventRecord.eventVersion(),
-          eventRecord.event(),
-          eventRecord.baseRecord().tenant(),
-          eventRecord.commandId(),
-          eventRecord.tags(),
-          eventRecord.schemaVersion()
-        );
-        consumer.accept(infraEvent);
-      },
-      eventJournalQuery(aggregateEventStream)
-    );
-  }
-
-  @Override
   public Uni<Void> stream(EventStream eventStream, Consumer<Event> consumer) {
     return eventJournal.stream(
       eventRecord -> {

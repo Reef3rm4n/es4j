@@ -1,6 +1,9 @@
 package io.es4j.config;
 
 
+import io.vertx.core.json.JsonArray;
+import io.vertx.core.json.JsonObject;
+
 import java.util.*;
 
 public class DatabaseConfigurationFetcher {
@@ -14,6 +17,10 @@ public class DatabaseConfigurationFetcher {
       return Optional.of(data.mapTo(tClass));
     }
     return Optional.empty();
+  }
+
+  public static <T extends DatabaseConfiguration> JsonArray fetchAll() {
+    return new JsonArray(DatabaseConfigurationCache.getAll().values().stream().toList());
   }
 
   public static <T extends DatabaseConfiguration> Optional<T> fetch(Class<T> tClass) {

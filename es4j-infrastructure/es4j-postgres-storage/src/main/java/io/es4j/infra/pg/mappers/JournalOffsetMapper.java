@@ -2,16 +2,18 @@ package io.es4j.infra.pg.mappers;
 
 import io.es4j.infra.pg.models.EventJournalOffSet;
 import io.es4j.infra.pg.models.EventJournalOffSetKey;
+import io.es4j.infra.pg.models.EventJournalOffsetFilter;
 import io.es4j.sql.RecordMapper;
 import io.es4j.sql.generator.filters.QueryBuilder;
 import io.es4j.sql.models.EmptyQuery;
+import io.es4j.sql.models.QueryFilters;
 import io.vertx.sqlclient.Row;
 
 import java.util.Map;
 import java.util.Set;
 
 
-public class JournalOffsetMapper implements RecordMapper<EventJournalOffSetKey, EventJournalOffSet, EmptyQuery> {
+public class JournalOffsetMapper implements RecordMapper<EventJournalOffSetKey, EventJournalOffSet, EventJournalOffsetFilter> {
 
 
   public static final JournalOffsetMapper INSTANCE = new JournalOffsetMapper();
@@ -19,7 +21,6 @@ public class JournalOffsetMapper implements RecordMapper<EventJournalOffSetKey, 
   public static final String ID_OFFSET = "id_offset";
   public static final String EVENT_OFFSET = "event_offset";
   public static final String CONSUMER = "consumer";
-  public static final String DATE_OFFSET = "data_offset";
 
 
 
@@ -65,8 +66,14 @@ public class JournalOffsetMapper implements RecordMapper<EventJournalOffSetKey, 
   }
 
   @Override
-  public void queryBuilder(EmptyQuery query, QueryBuilder builder) {
-
+  public void queryBuilder(EventJournalOffsetFilter query, QueryBuilder builder) {
+    builder
+      .iLike(
+        new QueryFilters<>(String.class)
+          .filterColumn(CONSUMER)
+          .filterParams(query.consumers())
+      );
   }
+
 
 }

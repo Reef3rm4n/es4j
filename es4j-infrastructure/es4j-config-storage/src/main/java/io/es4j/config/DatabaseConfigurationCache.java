@@ -6,6 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 public class DatabaseConfigurationCache {
   private static final Logger LOGGER = LoggerFactory.getLogger(DatabaseConfigurationCache.class);
   public static final Cache<String, JsonObject> DB_CONFIGURATIONS = Caffeine.newBuilder()
@@ -26,5 +30,9 @@ public class DatabaseConfigurationCache {
 
   public static void invalidate(String parseKey) {
     DB_CONFIGURATIONS.invalidate(parseKey);
+  }
+
+  public static Map<String, JsonObject> getAll() {
+    return DB_CONFIGURATIONS.asMap();
   }
 }

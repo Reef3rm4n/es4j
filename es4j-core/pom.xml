@@ -85,6 +85,11 @@
       <groupId>io.soabase.record-builder</groupId>
       <artifactId>record-builder-processor</artifactId>
     </dependency>
+    <dependency>
+      <groupId>com.github.victools</groupId>
+      <artifactId>jsonschema-generator</artifactId>
+      <version>4.31.1</version>
+    </dependency>
     <!--    Logging Dependencies -->
     <dependency>
       <groupId>org.slf4j</groupId>

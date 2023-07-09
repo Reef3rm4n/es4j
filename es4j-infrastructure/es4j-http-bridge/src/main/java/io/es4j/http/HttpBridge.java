@@ -5,6 +5,7 @@ import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
 import io.es4j.Bootstrap;
 import io.es4j.Command;
+import io.es4j.core.objects.DefaultFilters;
 import io.es4j.core.objects.Es4jError;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -27,7 +28,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.core.tracing.TracingPolicy;
 import io.es4j.core.exceptions.Es4jException;
 import io.es4j.infrastructure.Bridge;
-import io.es4j.core.objects.PublicQueryOptions;
 import io.vertx.ext.healthchecks.Status;
 import io.vertx.ext.web.handler.LoggerFormat;
 import io.vertx.micrometer.PrometheusScrapingHandler;
@@ -55,7 +55,7 @@ public class HttpBridge implements Bridge {
 
   private HttpServer httpServer;
   private Vertx vertx;
-  private List<CommandAuth> commandAuth;
+  private List<HttpBridgeAuth> httpBridgeAuth;
   private final Map<Class<? extends Aggregate>, AggregateEventBusPoxy<? extends Aggregate>> proxies = new HashMap<>();
   private List<HealthCheck> healthChecks;
   private List<HttpRoute> httpRoutes;
@@ -64,7 +64,7 @@ public class HttpBridge implements Bridge {
   public Uni<Void> start(Vertx vertx, JsonObject configuration) {
     this.vertx = vertx;
     this.httpServer = httpServer();
-    this.commandAuth = ServiceLoader.load(CommandAuth.class).stream().map(ServiceLoader.Provider::get).toList();
+    this.httpBridgeAuth = ServiceLoader.load(HttpBridgeAuth.class).stream().map(ServiceLoader.Provider::get).toList();
     this.healthChecks = ServiceLoader.load(HealthCheck.class).stream().map(ServiceLoader.Provider::get).toList();
     this.httpRoutes = ServiceLoader.load(HttpRoute.class).stream().map(ServiceLoader.Provider::get).toList();
     final var router = Router.router(vertx);
@@ -164,7 +164,7 @@ public class HttpBridge implements Bridge {
   }
 
   private static PermittedOptions permission(String permissionType, Class<? extends Aggregate> aClass) {
-    return new PermittedOptions().setAddressRegex("^%s\\/%s\\/(.*)".formatted(permissionType, camelToKebab(aClass.getSimpleName())));
+    return new PermittedOptions().setAddressRegex("(.*)");
   }
 
   private void aggregateRoutes(Router router) {
@@ -174,13 +174,15 @@ public class HttpBridge implements Bridge {
         .handler(routingContext -> {
             final var command = routingContext.body().asJsonObject().mapTo(commandClass);
             getAuthHandler(command).ifPresentOrElse(
-              cmdAuth -> cmdAuth.validateCommand(command, routingContext)
-                .flatMap(avoid -> proxies.get(key).proxyCommand(command))
-                .subscribe()
-                .with(
-                  state -> okJson(routingContext, state.toJson()),
-                  routingContext::fail
-                ),
+              httpBridgeAuth -> {
+                final var roles = httpBridgeAuth.extractRoles(routingContext);
+                proxies.get(key).proxyCommand(command)
+                  .subscribe()
+                  .with(
+                    state -> okJson(routingContext, state.toJson()),
+                    routingContext::fail
+                  );
+              },
               () -> proxies.get(key).proxyCommand(command)
                 .subscribe()
                 .with(
@@ -194,8 +196,8 @@ public class HttpBridge implements Bridge {
     );
   }
 
-  public Optional<CommandAuth> getAuthHandler(Command command) {
-    return commandAuth.stream().filter(c -> c.tenant().stream().anyMatch(tt -> tt.equals(command.tenant()))).findFirst();
+  public Optional<HttpBridgeAuth> getAuthHandler(Command command) {
+    return httpBridgeAuth.stream().filter(c -> c.tenant().stream().anyMatch(tt -> tt.equals(command.tenant()))).findFirst();
   }
 
   public static String parsePath(Class<? extends Aggregate> aggregateClass, Class<? extends Command> commandClass) {
@@ -341,7 +343,7 @@ public class HttpBridge implements Bridge {
     }
   }
 
-  public static PublicQueryOptions getQueryOptions(RoutingContext routingContext) {
+  public static DefaultFilters getQueryOptions(RoutingContext routingContext) {
     final var desc = routingContext.queryParam("desc").stream().findFirst();
     final var creationDateFrom = routingContext.queryParam("creationDateFrom").stream().findFirst().map(Instant::parse);
     final var creationDateTo = routingContext.queryParam("creationDateTo").stream().findFirst().map(Instant::parse);
@@ -356,7 +358,7 @@ public class HttpBridge implements Bridge {
         }
       }
     );
-    return new PublicQueryOptions(
+    return new DefaultFilters(
       Boolean.parseBoolean(desc.orElse("false")),
       creationDateFrom.orElse(null),
       creationDateTo.orElse(null),
