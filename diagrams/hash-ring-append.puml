@@ -19,8 +19,8 @@ skinparam sequence {
 }
 
 actor Client
-participant "Event.x Node 1" as N1
-participant "Event.x Node 2" as N2
+participant "es4j Node 1" as N1
+participant "es4j Node 2" as N2
 database "PG Event Store" as PG
 
 
@@ -30,7 +30,7 @@ database "PG Event Store" as PG
 note right: worse case scenario 1 network hop
 Client -> N1 : Command(aggregateId)
 N1 -> N1 : findNode(aggregateId)
-note right: returns "Event.x Node 2"
+note right: returns "es4j Node 2"
 N1 -> N2: proxyCommand(aggregateId)
 N2 -> N2: aggregateCacheMiss
 N2 <-> PG: streamEvent()
@@ -44,7 +44,7 @@ N1 ->> Client : AggregateState()
 
 Client -> N1 : Command2(aggregateId)
 N1 -> N1 : findNode(aggregateId)
-note right: returns "Event.x Node 1"
+note right: returns "es4j Node 1"
 N1 -> N1: cacheHit()
 N1 -> N1: handleCommand(aggregateId)
 N1 -> PG: appendEvents()

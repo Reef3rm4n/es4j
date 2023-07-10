@@ -1,0 +1,44 @@
+@startuml
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+}
+participant JournalCompressor as "Es4j"
+database MainEventStore
+database SecondaryEventStore
+
+activate JournalCompressor
+JournalCompressor -> MainEventStore: Query for latest snapshot
+activate MainEventStore
+MainEventStore --> JournalCompressor: Return latest snapshot
+deactivate MainEventStore
+
+JournalCompressor -> MainEventStore: Get events before snapshot
+activate MainEventStore
+MainEventStore --> JournalCompressor: Return old events
+deactivate MainEventStore
+
+JournalCompressor -> SecondaryEventStore: Copy old events
+activate SecondaryEventStore
+SecondaryEventStore --> JournalCompressor: Confirm events copied
+deactivate SecondaryEventStore
+
+JournalCompressor -> MainEventStore: Delete old events
+activate MainEventStore
+MainEventStore --> JournalCompressor: Confirm old events deleted
+deactivate MainEventStore
+
+deactivate JournalCompressor
+
+@enduml

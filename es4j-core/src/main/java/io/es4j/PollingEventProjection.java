@@ -13,19 +13,43 @@ import io.vertx.mutiny.core.Vertx;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * The PollingEventProjection interface defines the structure for event projections
+ * that use a polling strategy.
+ */
 public interface PollingEventProjection {
 
+  /**
+   * Apply the list of AggregateEvent objects to the projection.
+   *
+   * @param events the list of AggregateEvent objects to apply
+   * @return a Uni representing the completion of the operation
+   */
   Uni<Void> apply(List<AggregateEvent> events);
 
+  /**
+   * Optional filter for the event journal.
+   *
+   * @return an Optional containing the EventJournalFilter, if one is defined
+   */
   default Optional<EventJournalFilter> filter() {
     return Optional.empty();
   }
 
+  /**
+   * Retrieve the tenant associated with the projection.
+   *
+   * @return a String representing the tenant. Defaults to "default".
+   */
   default String tenant() {
     return "default";
   }
-  //
 
+  /**
+   * Defines the polling policy for the projection.
+   *
+   * @return a Cron object representing the polling policy. Defaults to once every minute.
+   */
   default Cron pollingPolicy() {
     return new CronParser(CronDefinitionBuilder
       .instanceDefinitionFor(CronType.UNIX)
@@ -33,9 +57,20 @@ public interface PollingEventProjection {
       .parse("*/1 * * * *");
   }
 
+  /**
+   * Setup the projection with the given Vertx and configuration.
+   *
+   * @param vertx the Vertx to use for the setup
+   * @param configuration the configuration to use for the setup
+   * @return a Uni representing the completion of the setup operation
+   */
   Uni<Void> setup(Vertx vertx, JsonObject configuration);
 
+  /**
+   * Retrieve the class of the aggregate associated with the projection.
+   *
+   * @return the Class of the aggregate associated with the projection
+   */
   Class<? extends Aggregate> aggregateClass();
-
 
 }

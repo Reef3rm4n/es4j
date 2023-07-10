@@ -47,14 +47,14 @@ public class Es4jServiceLoader {
       .toList();
   }
 
-  public static List<LiveEventProjection> liveEventProjections() {
-    return ServiceLoader.load(LiveEventProjection.class).stream()
+  public static List<LiveEventStream> liveEventProjections() {
+    return ServiceLoader.load(LiveEventStream.class).stream()
       .map(ServiceLoader.Provider::get)
       .toList();
   }
 
-  public static List<LiveStateProjection> liveStateProjections() {
-    return ServiceLoader.load(LiveStateProjection.class).stream()
+  public static List<LiveStateStream> liveStateProjections() {
+    return ServiceLoader.load(LiveStateStream.class).stream()
       .map(ServiceLoader.Provider::get)
       .toList();
   }

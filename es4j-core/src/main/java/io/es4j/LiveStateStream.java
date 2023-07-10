@@ -4,7 +4,7 @@ import io.es4j.core.objects.AggregateState;
 import io.smallrye.mutiny.Uni;
 
 // create javadoc for this interface
-public interface LiveStateProjection<T extends Aggregate> {
+public interface LiveStateStream<T extends Aggregate> {
 
   Uni<Void> update(AggregateState<T> currentState);
 

@@ -1,0 +1,60 @@
+@startuml
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+
+
+actor CommandIssuer
+participant es4j
+database EventStore
+
+CommandIssuer -> es4j: Issue Command 1
+activate es4j
+es4j -> EventStore: Fetch Events
+activate EventStore
+EventStore --> es4j: Return Events
+deactivate EventStore
+es4j -> es4j: Process Command and Events in Memory
+es4j -> EventStore: Append New Event
+activate EventStore
+EventStore --> es4j: Confirm Event Appended
+deactivate EventStore
+es4j --> CommandIssuer: Reply to Command 1
+deactivate es4j
+
+CommandIssuer -> es4j: Issue Command 2
+activate es4j
+es4j -> es4j: Process Command in Memory
+es4j -> EventStore: Attempt to Append New Event
+activate EventStore
+EventStore --> es4j: Event Append Failed
+deactivate EventStore
+es4j -> EventStore: Fetch Events Again
+activate EventStore
+EventStore --> es4j: Return Events
+deactivate EventStore
+es4j -> es4j: Process Command Again and Events in Memory
+es4j -> EventStore: Append New Event
+activate EventStore
+EventStore --> es4j: Confirm Event Appended
+deactivate EventStore
+es4j --> CommandIssuer: Reply to Command 2
+deactivate es4j
+
+@enduml
+
