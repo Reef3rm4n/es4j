@@ -1,0 +1,45 @@
+@startuml
+
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+!define DEFAULT_MONO_FONT_SIZE 14
+
+skinparam monochrome true
+
+title es4j Architecture
+
+actor Client
+component HashingFunction
+node Node1
+node Node2
+node Node3
+database Aggregate1
+database Aggregate2
+database Aggregate3
+
+Client --> HashingFunction : Sends Command with Aggregate Key
+HashingFunction --> Node1 : Directs command for Aggregate1
+HashingFunction --> Node2 : Directs command for Aggregate2
+HashingFunction --> Node3 : Directs command for Aggregate3
+
+Node1 --> Aggregate1 : Executes command
+Node2 --> Aggregate2 : Executes command
+Node3 --> Aggregate3 : Executes command
+
+@enduml

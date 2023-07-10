@@ -15,7 +15,7 @@ skinparam sequence {
     ActorFontName Aapex
 }
 
-participant "Event.x Bus" as LB
+participant "Es4j Bus" as LB
 note over LB: the bus is embeded in each node \n this is just to make the visualization easier
 database "Node 1" as N1
 database "Node 2" as N2
