@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kjetland.jackson.jsonSchema.JsonSchemaGenerator;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.infrastructure.models.AggregatePlainKey;
+import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.es4j.infrastructure.consistenthashing.Consistent;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
+import static io.es4j.core.CommandHandler.isShouldSnapshot;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ConsistentHashingTest {
@@ -46,6 +48,30 @@ class ConsistentHashingTest {
 
     return members;
   }
+
+  @Test
+  void test() {
+    Assertions.assertTrue(isShouldSnapshot(100, 400L));
+    Assertions.assertTrue(isShouldSnapshot(100, 100L));
+    Assertions.assertTrue(isShouldSnapshot(100, 500L));
+    Assertions.assertTrue(isShouldSnapshot(100, 1000L));
+    Assertions.assertTrue(isShouldSnapshot(100, 200L));
+
+
+    Assertions.assertFalse(isShouldSnapshot(100, 99L));
+    Assertions.assertFalse(isShouldSnapshot(100, 1L));
+    Assertions.assertFalse(isShouldSnapshot(100, 24L));
+    Assertions.assertFalse(isShouldSnapshot(100, 33L));
+    Assertions.assertFalse(isShouldSnapshot(100, 102L));
+    Assertions.assertFalse(isShouldSnapshot(100, 201L));
+    Assertions.assertFalse(isShouldSnapshot(100, 341L));
+    Assertions.assertFalse(isShouldSnapshot(100, 124134L));
+    Assertions.assertFalse(isShouldSnapshot(100, 1239004L));
+
+
+  }
+
+
 
 
   @Test

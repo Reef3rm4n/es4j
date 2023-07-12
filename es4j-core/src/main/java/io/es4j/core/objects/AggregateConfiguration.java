@@ -7,7 +7,7 @@ import java.time.Duration;
 @JsonAutoDetect(fieldVisibility = JsonAutoDetect.Visibility.ANY)
 public class AggregateConfiguration {
   private Duration cacheTtl = Duration.ofMinutes(40);
-  private Integer snapshotThreshold = 500;
+  private Integer snapshotThreshold = 100;
   private Integer idempotencyThreshold = 50;
 
   public Duration ttl() {

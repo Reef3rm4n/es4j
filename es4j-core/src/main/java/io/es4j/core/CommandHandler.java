@@ -111,7 +111,7 @@ public class CommandHandler<T extends Aggregate> {
 
   private AggregatorWrap findAggregator(Event event) {
     return aggregators.stream()
-      .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
+      .filter(aggregator -> aggregator.eventClass().isAssignableFrom(event.getClass()))
       .findFirst()
       .orElseThrow(() -> UnknownEvent.unknown(event));
   }
@@ -196,13 +196,11 @@ public class CommandHandler<T extends Aggregate> {
     events.stream()
       .sorted(Comparator.comparingLong(io.es4j.infrastructure.models.Event::eventVersion))
       .forEachOrdered(event -> {
-          final var aggregator = findAggregator(event.eventType());
-          final var parsedEvent = EventParser.getEvent(aggregator.eventClass(), event.event());
-          final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
-          if (isSnapshot) {
-            LOGGER.debug("Aggregating snapshot {}", event.event().encodePrettily());
-            applySnapshot(state, event, parsedEvent, event.schemaVersion());
+          if (event.eventType().equals("snapshot")) {
+            applySnapshot(state, event, event.event().mapTo(SnapshotEvent.class), event.schemaVersion());
           } else {
+            final var aggregator = findAggregator(event.eventType());
+            final var parsedEvent = EventParser.getEvent(aggregator.eventClass(), event.event());
             applyEvent(state, event, parsedEvent);
           }
           state
@@ -285,7 +283,7 @@ public class CommandHandler<T extends Aggregate> {
 
   private void addOptionalSnapshot(AggregateState<T> state, Command finalCommand, ArrayList<io.es4j.infrastructure.models.Event> resultingEvents) {
     if (state.state() != null && Objects.nonNull(aggregateConfiguration.snapshotThreshold())) {
-      final var shouldSnapshot = aggregateConfiguration.snapshotThreshold() <= Math.floorMod(state.currentVersion(), aggregateConfiguration.snapshotThreshold());
+      final var shouldSnapshot = resultingEvents.stream().anyMatch(event -> isShouldSnapshot(aggregateConfiguration.snapshotThreshold(), event.eventVersion()));
       if (shouldSnapshot) {
         final var snapshotEvent = new SnapshotEvent(
           JsonObject.mapFrom(state.state()).getMap(),
@@ -308,6 +306,9 @@ public class CommandHandler<T extends Aggregate> {
     }
   }
 
+  public static boolean isShouldSnapshot(int snapshotThreshold, Long currentEvent) {
+    return currentEvent % snapshotThreshold == 0;
+  }
 
   private <C extends Command> Uni<AggregateState<T>> processCommand(final AggregateState<T> state, final C command) {
     checkCommandId(state, command);
