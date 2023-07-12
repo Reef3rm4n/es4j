@@ -7,7 +7,7 @@ import io.es4j.core.objects.ErrorSource;
 
 /**
  * The Aggregator interface represents an entity responsible for
- * applying events to an aggregate root and handling event version migration
+ * applying eventTypes to an aggregate root and handling event version migration
  * in an event sourcing based system.
  *
  * @param <T> The type of the aggregate, which must implement the Aggregate interface.
@@ -31,7 +31,7 @@ public interface Aggregator<T extends Aggregate, E extends Event> {
    *
    * @return The current schema version as an integer, default is 0.
    */
-  default int currentSchemaVersion() {
+  default int schemaVersion() {
     return 0;
   }
 
@@ -56,6 +56,8 @@ public interface Aggregator<T extends Aggregate, E extends Event> {
     )
     );
   }
+
+  String eventType();
 
 }
 

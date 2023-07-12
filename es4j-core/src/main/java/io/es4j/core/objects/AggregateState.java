@@ -38,6 +38,7 @@ public class AggregateState<T extends Aggregate> implements Shareable {
     return this;
   }
 
+
   public T state() {
     return state;
   }

@@ -26,7 +26,7 @@ public record EventRecord(
 
   public EventRecord {
     Objects.requireNonNull(aggregateId, "aggregateId must not be null");
-    Objects.requireNonNull(eventClass, "eventClass must not be null");
+    Objects.requireNonNull(eventClass, "eventType must not be null");
     Objects.requireNonNull(eventVersion, "eventVersion must not be null");
     if (eventVersion < 0) {
       throw new IllegalArgumentException("eventVersion must be greater than 0");

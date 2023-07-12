@@ -17,7 +17,9 @@ skinparam sequence {
     NoteBorderColor sienna
     NoteFontColor black
 }
+!define DEFAULT_MONO_FONT_SIZE 14
 
+skinparam monochrome true
 actor Client
 participant "es4j Node 1" as N1
 participant "es4j Node 2" as N2

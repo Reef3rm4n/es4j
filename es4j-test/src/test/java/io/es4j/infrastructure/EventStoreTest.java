@@ -48,7 +48,7 @@ class EventStoreTest {
   void append_ensure_uniqueness(EventStore eventStore) {
     eventStore.setup(FakeAggregate.class, vertx, CONFIGURATION).await().indefinitely();
     eventStore.start(FakeAggregate.class, vertx, CONFIGURATION);
-    // Define events and append instructions
+    // Define eventTypes and append instructions
     final var aggregateId = UUID.randomUUID().toString();
     final var goodAppend = createAppendInstruction(aggregateId);
     final var conflictingAppend = createAppendInstruction(aggregateId);
@@ -68,7 +68,7 @@ class EventStoreTest {
   void append_and_fetch(EventStore eventStore) {
     eventStore.setup(FakeAggregate.class, vertx, CONFIGURATION).await().indefinitely();
     eventStore.start(FakeAggregate.class, vertx, CONFIGURATION);
-    // Define events and append instructions
+    // Define eventTypes and append instructions
     final var aggregateId = UUID.randomUUID().toString();
     int numberOfEvents = 100;
     final var goodAppend = createAppendInstruction(aggregateId, numberOfEvents);
@@ -92,7 +92,7 @@ class EventStoreTest {
   void append_and_stream(EventStore eventStore) {
     eventStore.setup(FakeAggregate.class, vertx, CONFIGURATION).await().indefinitely();
     eventStore.start(FakeAggregate.class, vertx, CONFIGURATION);
-    // Define events and append instructions
+    // Define eventTypes and append instructions
     final var aggregateId = UUID.randomUUID().toString();
     int numberOfEvents = 100;
     final var goodAppend = createAppendInstruction(aggregateId, numberOfEvents);

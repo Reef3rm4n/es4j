@@ -1,18 +1,14 @@
 package io.es4j.infrastructure.bus;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.github.victools.jsonschema.generator.OptionPreset;
-import com.github.victools.jsonschema.generator.SchemaGenerator;
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfig;
-import com.github.victools.jsonschema.generator.SchemaGeneratorConfigBuilder;
-import com.github.victools.jsonschema.generator.SchemaVersion;
+
+import com.github.victools.jsonschema.generator.*;
 import io.es4j.Aggregate;
 import io.es4j.Event;
 import io.es4j.core.exceptions.Es4jException;
 import io.es4j.core.objects.*;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
-import io.es4j.infrastructure.misc.EventParser;
 import io.es4j.infrastructure.models.*;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -35,8 +31,7 @@ public class Es4jService {
   private final Class<? extends Aggregate> aClass;
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(Es4jService.class);
-  private final Set<Class> events;
-
+  private final Set<String> eventTypes;
   private final Map<String, JsonNode> commandSchemas;
 
 
@@ -44,7 +39,7 @@ public class Es4jService {
     this.offsetStore = offsetStore;
     this.eventStore = eventStore;
     this.aClass = aClass;
-    SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_6, OptionPreset.PLAIN_JSON);
+    SchemaGeneratorConfigBuilder configBuilder = new SchemaGeneratorConfigBuilder(SchemaVersion.DRAFT_2020_12, OptionPreset.PLAIN_JSON);
     SchemaGeneratorConfig config = configBuilder.build();
     SchemaGenerator generator = new SchemaGenerator(config);
     commandSchemas = behaviourWraps.stream().map(BehaviourWrap::commandClass)
@@ -57,7 +52,7 @@ public class Es4jService {
         }
       })
       .collect(Collectors.toMap(Tuple2::getItem1, Tuple2::getItem2));
-    this.events = aggregatorWraps.stream().map(AggregatorWrap::eventClass).collect(Collectors.toSet());
+    this.eventTypes = aggregatorWraps.stream().map(wrap -> wrap.delegate().eventType()).collect(Collectors.toSet());
   }
 
   public Uni<Void> register(Vertx vertx) {
@@ -114,7 +109,7 @@ public class Es4jService {
         .flatMap(av -> vertx.eventBus().<JsonObject>consumer(availableTypes(aClass))
           .handler(
             message -> message.reply(JsonObject.mapFrom(new AvailableTypes(
-                  events.stream().map(Class::getName).toList(),
+                  eventTypes,
                   commandSchemas
                 )
               )
@@ -183,7 +178,7 @@ public class Es4jService {
         .tags(eventFilter.tags())
         .to(eventFilter.to())
         .from(eventFilter.from())
-        .events(figureEventClass(eventFilter.events()))
+        .eventTypes(eventFilter.eventTypes())
         .versionFrom(eventFilter.versionFrom())
         .versionTo(eventFilter.versionTo())
         .aggregateIds(eventFilter.aggregateIds())
@@ -191,19 +186,7 @@ public class Es4jService {
     );
   }
 
-  private List<Class<? extends Event>> figureEventClass(List<String> classNames) {
-    final var arrayList = new ArrayList<Class<? extends Event>>();
-    classNames.forEach(
-      className -> {
-        try {
-          arrayList.add((Class<? extends Event>) Class.forName(className));
-        } catch (ClassNotFoundException e) {
-          throw new RuntimeException(e);
-        }
-      }
-    );
-   return arrayList;
-  }
+
 
   public Uni<List<Offset>> offsets(OffsetFilter offsetFilter) {
     return offsetStore.projections(offsetFilter);

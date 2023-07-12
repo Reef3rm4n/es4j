@@ -1,5 +1,10 @@
 package io.es4j.hashing;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.kjetland.jackson.jsonSchema.JsonSchemaGenerator;
+import io.es4j.domain.FakeAggregate;
 import io.es4j.infrastructure.models.AggregatePlainKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +46,7 @@ class ConsistentHashingTest {
 
     return members;
   }
+
 
   @Test
   void simplePartitionedConsistentHashing() {

@@ -156,7 +156,7 @@ public class PgEventStore implements EventStore {
     return appendInstruction.events().stream()
       .map(event -> new EventRecord(
           event.aggregateId(),
-          event.eventClass(),
+          event.eventType(),
           event.eventVersion(),
           event.event(),
           event.commandId(),
@@ -193,19 +193,16 @@ public class PgEventStore implements EventStore {
   }
 
   private static <T extends Aggregate> String startingOffset(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.journalOffset() != null && aggregateEventStream.journalOffset() == 0) {
-      return String.valueOf(0);
-    } else if (aggregateEventStream.startFrom() != null) {
-      return "(select max(id) from event_journal where event_class = '" + aggregateEventStream.startFrom().getName() + "' and aggregateId = '" + aggregateEventStream.aggregateId() + "')";
-    } else {
-      return null;
+    if (aggregateEventStream.startFromSnapshot()) {
+      return "(select coalesce(max(id),0) from event_store where event_class = 'snapshot' and aggregate_id ilike any(#{aggregate_id}) and tenant = #{tenant})";
     }
+    return null;
   }
 
   private EventRecordQuery eventJournalQuery(EventStream eventStream) {
     return new EventRecordQuery(
       eventStream.aggregateIds(),
-      eventStream.events() != null ? eventStream.events().stream().map(Class::getName).toList() : null,
+      eventStream.eventTypes(),
       null,
       eventStream.tags(),
       eventStream.versionFrom(),

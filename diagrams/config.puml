@@ -1,0 +1,48 @@
+@startuml
+
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+!define DEFAULT_MONO_FONT_SIZE 14
+skinparam monochrome true
+
+actor "Client" as f
+participant "ES4J Node1" as B
+database "Config Store" as C
+participant "ES4J Node2" as D
+participant "ES4J Node3" as E
+
+
+f -> B: Send configuration
+activate B
+activate C
+B -> C: Update table with configuration
+C -> B: Emit event
+B -> B: Update internal cache
+deactivate B
+activate D
+C -> D: Emit event
+D -> D: Update internal cache
+deactivate D
+
+activate E
+C -> E: Emit event
+deactivate C
+E -> E: Update internal cache
+deactivate E
+@enduml

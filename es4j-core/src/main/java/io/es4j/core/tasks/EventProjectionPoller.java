@@ -63,7 +63,7 @@ public class EventProjectionPoller implements CronTask {
     pollingEventProjection.filter().ifPresentOrElse(
       filter -> eventStream.set(
         EventStreamBuilder.builder()
-          .events(filter.events())
+          .eventTypes(filter.eventTypes())
           .tenantId(pollingEventProjection.tenant())
           .offset(offset.idOffSet())
           .batchSize(1000)
@@ -89,7 +89,7 @@ public class EventProjectionPoller implements CronTask {
           event.tenantId(),
           event.journalOffset(),
           event.eventVersion(),
-          EventParser.getEvent(event.eventClass(), event.event())
+          EventParser.getEvent(event.eventType(), event.event())
         )
       )
       .toList();

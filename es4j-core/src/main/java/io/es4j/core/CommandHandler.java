@@ -76,11 +76,11 @@ public class CommandHandler<T extends Aggregate> {
     return replayAggregateAndCache(command.aggregateId(), command.tenant())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
         .onFailure(Conflict.class).recoverWithUni(
-          () -> playFromLastJournalOffset(command.aggregateId(), command.tenant(), aggregateState)
+          () -> playFromLastSnapshot(command.aggregateId(), command.tenant(), aggregateState)
             .flatMap(reconstructedState -> processCommand(reconstructedState, command))
             .onFailure(Conflict.class).retry().atMost(5)
         )
-        .onFailure().invoke(throwable -> logRejectedCommand(throwable, command))
+        .onFailure().invoke(throwable -> logRejectedCommand(throwable, command, aggregateState))
       )
       .map(AggregateState::toJson);
   }
@@ -90,19 +90,19 @@ public class CommandHandler<T extends Aggregate> {
       .map(aggregateState -> {
           checkCommandId(aggregateState, command);
           final var events = applyCommandBehaviour(aggregateState, command);
-          applyEvents(aggregateState, events);
+          aggregateEvents(aggregateState, events);
           return aggregateState.toJson();
         }
       );
   }
 
-  private T aggregateEvent(T aggregateState, final Event event) {
+  private T aggregateEvent(T aggregateState, final Event event, Integer eventSchemaVersion) {
     Event finalEvent = event;
     final var aggregator = findAggregator(event);
-    LOGGER.debug("Applying {} schema versionTo {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().currentSchemaVersion());
-    if (aggregator.delegate().currentSchemaVersion() != event.schemaVersion()) {
+    LOGGER.debug("Applying {} schema versionTo {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().schemaVersion());
+    if (aggregator.delegate().schemaVersion() != eventSchemaVersion) {
       LOGGER.debug("Schema versionTo mismatch, migrating event {} {} ", event.getClass().getName(), JsonObject.mapFrom(event).encodePrettily());
-      finalEvent = aggregator.delegate().transformFrom(event.schemaVersion(), JsonObject.mapFrom(event));
+      finalEvent = aggregator.delegate().transformFrom(eventSchemaVersion, JsonObject.mapFrom(event));
     }
     final var newAggregateState = (T) aggregator.delegate().apply(aggregateState, finalEvent);
     LOGGER.debug("State after aggregation {}", newAggregateState);
@@ -113,7 +113,14 @@ public class CommandHandler<T extends Aggregate> {
     return aggregators.stream()
       .filter(aggregator -> aggregator.eventClass().getName().equals(event.getClass().getName()))
       .findFirst()
-      .orElseThrow(() -> UnknownEvent.unknown(event.getClass()));
+      .orElseThrow(() -> UnknownEvent.unknown(event));
+  }
+
+  private AggregatorWrap findAggregator(String eventType) {
+    return aggregators.stream()
+      .filter(aggregator -> aggregator.delegate().eventType().equals(eventType))
+      .findFirst()
+      .orElseThrow();
   }
 
   private List<Event> applyCommandBehaviour(final T aggregateState, final Command command) {
@@ -141,14 +148,14 @@ public class CommandHandler<T extends Aggregate> {
     }
     if (state == null) {
       LOGGER.debug("Fetching from event-store {}", key);
-      return playFromLastJournalOffset(aggregateId, tenant, new AggregateState<>(aggregateClass));
+      return playFromLastSnapshot(aggregateId, tenant, new AggregateState<>(aggregateClass));
     } else {
       return Uni.createFrom().item(state);
     }
   }
 
-  private Uni<AggregateState<T>> playFromLastJournalOffset(String aggregateId, String tenant, AggregateState<T> state) {
-    final var instruction = streamInstruction(aggregateId, tenant, state);
+  private Uni<AggregateState<T>> playFromLastSnapshot(String aggregateId, String tenant, AggregateState<T> state) {
+    final var instruction = streamInstruction(aggregateId, tenant, state, true);
     LOGGER.debug("Playing aggregate stream with instruction {}", instruction.toJson().encodePrettily());
     return infrastructure.eventStore().fetch(instruction)
       .map(events -> {
@@ -162,44 +169,39 @@ public class CommandHandler<T extends Aggregate> {
     final var state = new AggregateState<>(aggregateClass);
     final var instruction = eventStreamInstruction(loadAggregate);
     LOGGER.debug("Playing aggregate stream with instruction {}", instruction);
-    return infrastructure.eventStore().stream(instruction, event -> applyEvent(state, event))
-      .replaceWith(state);
+    return infrastructure.eventStore().stream(instruction, event -> applyEvent(state, event)).replaceWith(state);
   }
 
   private EventStream eventStreamInstruction(LoadAggregate loadAggregate) {
-    return EventStreamBuilder
-      .builder()
+    return EventStreamBuilder.builder()
       .aggregateIds(List.of(loadAggregate.aggregateId()))
       .tenantId(loadAggregate.tenant())
-      .offset(0L)
       .to(loadAggregate.dateTo())
       .versionTo(loadAggregate.versionTo())
       .build();
   }
 
-  private AggregateEventStream<T> streamInstruction(String aggregateId, String tenant, AggregateState<T> state) {
-    // todo use aggregate configuration to limit the size of the instruction
-    //  the log from the last compression can only be as long as the compression policy
-    // when policy is applied should trim and move events to secondary event-store
+  private AggregateEventStream<T> streamInstruction(String aggregateId, String tenant, AggregateState<T> state, Boolean replayFromSnapshot) {
     return new AggregateEventStream<>(
       aggregateId,
       tenant,
       state.currentVersion(),
       state.currentJournalOffset(),
-      SnapshotEvent.class,
+      replayFromSnapshot,
       aggregateConfiguration.snapshotThreshold()
     );
   }
 
-  private void applyEvents(final AggregateState<T> state, final List<io.es4j.infrastructure.models.Event> events) {
+  private void aggregateEvents(final AggregateState<T> state, final List<io.es4j.infrastructure.models.Event> events) {
     events.stream()
       .sorted(Comparator.comparingLong(io.es4j.infrastructure.models.Event::eventVersion))
       .forEachOrdered(event -> {
-          final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
+          final var aggregator = findAggregator(event.eventType());
+          final var parsedEvent = EventParser.getEvent(aggregator.eventClass(), event.event());
           final var isSnapshot = parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class);
           if (isSnapshot) {
             LOGGER.debug("Aggregating snapshot {}", event.event().encodePrettily());
-            applySnapshot(state, event, parsedEvent);
+            applySnapshot(state, event, parsedEvent, event.schemaVersion());
           } else {
             applyEvent(state, event, parsedEvent);
           }
@@ -212,7 +214,7 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   private void applyEvent(AggregateState<T> state, io.es4j.infrastructure.models.Event event, Event parsedEvent) {
-    final var newState = aggregateEvent(state.state(), parsedEvent);
+    final var newState = aggregateEvent(state.state(), parsedEvent, event.schemaVersion());
     if (state.knownCommands().stream().noneMatch(txId -> txId.equals(event.commandId()))) {
       LOGGER.debug("Acknowledging command {}", event.commandId());
       state.knownCommands().add(event.commandId());
@@ -220,29 +222,30 @@ public class CommandHandler<T extends Aggregate> {
     state.setState(newState);
   }
 
-  private void applySnapshot(AggregateState<T> state, io.es4j.infrastructure.models.Event event, Event parsedEvent) {
+  private void applySnapshot(AggregateState<T> state, io.es4j.infrastructure.models.Event event, Event parsedEvent, Integer eventSchemaVersion) {
     LOGGER.debug("Applying snapshot {}", JsonObject.mapFrom(event).encodePrettily());
-    if (parsedEvent.schemaVersion() != state.state().schemaVersion()) {
-      LOGGER.debug("Aggregate schema versionTo mismatch, migrating schema from {} to {}", parsedEvent.schemaVersion(), state.state().schemaVersion());
-      state.setState(state.aggregateClass().cast(state.state().transformSnapshot(parsedEvent.schemaVersion(), event.event())));
+    if (eventSchemaVersion != state.state().schemaVersion()) {
+      LOGGER.debug("Aggregate schema versionTo mismatch, migrating schema from {} to {}", eventSchemaVersion, state.state().schemaVersion());
+      state.setState(state.aggregateClass().cast(state.state().transformSnapshot(eventSchemaVersion, event.event())));
     } else {
-      LOGGER.debug("Applying snapshot with schema versionTo {} to aggregate with schema versionTo {}", parsedEvent.schemaVersion(), state.state().schemaVersion());
+      LOGGER.debug("Applying snapshot with schema versionTo {} to aggregate with schema versionTo {}", eventSchemaVersion, state.state().schemaVersion());
       state.setState(JsonObject.mapFrom(((SnapshotEvent) parsedEvent).state()).mapTo(state.aggregateClass()));
     }
   }
 
   private void applyEvent(final AggregateState<T> state, final io.es4j.infrastructure.models.Event event) {
-    LOGGER.info("Aggregating event {} ", event.eventClass());
-    final var parsedEvent = EventParser.getEvent(event.eventClass(), event.event());
-    if (parsedEvent.getClass().isAssignableFrom(SnapshotEvent.class)) {
-      final var snapshot = (SnapshotEvent) parsedEvent;
+    LOGGER.info("Aggregating event {} ", event);
+    if (event.eventType().equals("snapshot")) {
+      final var snapshot = event.event().mapTo(SnapshotEvent.class);
       state.knownCommands().clear();
       state.setState(JsonObject.mapFrom(snapshot.state()).mapTo(state.aggregateClass()))
         .addKnownCommands(snapshot.knownCommands())
         .setCurrentVersion(event.eventVersion())
         .setCurrentJournalOffset(event.journalOffset());
     } else {
-      final var newState = aggregateEvent(state.state(), parsedEvent);
+      final var aggregator = findAggregator(event.eventType());
+      final var parsedEvent = EventParser.getEvent(aggregator.eventClass(), event.event());
+      final var newState = aggregateEvent(state.state(), parsedEvent, event.schemaVersion());
       LOGGER.debug("State after aggregation {} ", JsonObject.mapFrom(newState).encodePrettily());
       state.setState(newState)
         .addKnownCommand(event.commandId())
@@ -259,21 +262,21 @@ public class CommandHandler<T extends Aggregate> {
     return resultingEvents;
   }
 
-  public static <X extends Aggregate> ArrayList<io.es4j.infrastructure.models.Event> transformEvents(AggregateState<X> state, Command finalCommand, Event[] array) {
+  public <X extends Aggregate> ArrayList<io.es4j.infrastructure.models.Event> transformEvents(AggregateState<X> state, Command finalCommand, Event[] array) {
     final var currentVersion = Objects.requireNonNullElse(state.currentVersion(), 0L);
     return new ArrayList<>(IntStream.range(1, array.length + 1)
       .mapToObj(index -> {
           final var ev = array[index - 1];
-          final var eventVersion = currentVersion + index;
+          final var aggregator = findAggregator(ev);
           return new io.es4j.infrastructure.models.Event(
             finalCommand.aggregateId(),
-            ev.getClass().getName(),
-            eventVersion,
+            aggregator.delegate().eventType(),
+            currentVersion + index,
             JsonObject.mapFrom(ev),
             finalCommand.tenant(),
             finalCommand.uniqueId(),
             ev.tags(),
-            ev.schemaVersion()
+            aggregator.delegate().schemaVersion()
           );
         }
       ).toList()
@@ -284,7 +287,6 @@ public class CommandHandler<T extends Aggregate> {
     if (state.state() != null && Objects.nonNull(aggregateConfiguration.snapshotThreshold())) {
       final var shouldSnapshot = aggregateConfiguration.snapshotThreshold() <= Math.floorMod(state.currentVersion(), aggregateConfiguration.snapshotThreshold());
       if (shouldSnapshot) {
-        state.setCurrentVersion(state.currentVersion() + 1);
         final var snapshotEvent = new SnapshotEvent(
           JsonObject.mapFrom(state.state()).getMap(),
           state.knownCommands().stream().toList(),
@@ -293,13 +295,13 @@ public class CommandHandler<T extends Aggregate> {
         LOGGER.debug("Appending a snapshot {}", JsonObject.mapFrom(snapshotEvent).encodePrettily());
         resultingEvents.add(new io.es4j.infrastructure.models.Event(
           finalCommand.aggregateId(),
-          SnapshotEvent.class.getName(),
-          state.currentVersion(),
+          "snapshot",
+          resultingEvents.stream().map(io.es4j.infrastructure.models.Event::eventVersion).max(Long::compareTo).orElseThrow() + 1,
           JsonObject.mapFrom(
             snapshotEvent),
           finalCommand.tenant(),
           finalCommand.uniqueId(),
-          List.of("system"),
+          List.of("system-snapshot"),
           state.state().schemaVersion()
         ));
       }
@@ -310,7 +312,7 @@ public class CommandHandler<T extends Aggregate> {
   private <C extends Command> Uni<AggregateState<T>> processCommand(final AggregateState<T> state, final C command) {
     checkCommandId(state, command);
     final var events = applyCommandBehaviour(state, command);
-    applyEvents(state, events);
+    aggregateEvents(state, events);
     return appendEvents(state, events)
       .map(avoid -> cacheState(state))
       .invoke(avoid -> publishToEventStream(state, events))
@@ -406,13 +408,13 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   private void dumpToSecondaryStore(AggregateState<T> state, List<io.es4j.infrastructure.models.Event> events) {
-    if (infrastructure.secondaryEventStore().isPresent() && events.stream().anyMatch(event -> event.eventClass().equals(SnapshotEvent.class.getName()))) {
+    if (infrastructure.secondaryEventStore().isPresent() && events.stream().anyMatch(event -> event.eventType().equals(SnapshotEvent.class.getName()))) {
       infrastructure.eventStore().fetch(new AggregateEventStream<>(
             state.state().aggregateId(),
             state.state().tenant(),
-            0L,
             null,
             null,
+            false,
             null
           )
         )
@@ -454,14 +456,18 @@ public class CommandHandler<T extends Aggregate> {
 
   private static Long findMaxSnapshotVersion(List<io.es4j.infrastructure.models.Event> eventsThatCanBeTrimmed) {
     return eventsThatCanBeTrimmed.stream()
-      .filter(ev -> ev.eventClass().equals(SnapshotEvent.class.getName()))
+      .filter(ev -> ev.eventType().equals(SnapshotEvent.class.getName()))
       .max(Comparator.comparingLong(io.es4j.infrastructure.models.Event::eventVersion))
       .map(io.es4j.infrastructure.models.Event::eventVersion)
       .orElseThrow(() -> new IllegalStateException("Snapshot not found"));
   }
 
-  private void logRejectedCommand(final Throwable throwable, final Command command) {
-    LOGGER.error("{} command rejected {}", command.getClass().getName(), JsonObject.mapFrom(command).encodePrettily(), throwable);
+  private void logRejectedCommand(final Throwable throwable, final Command command, AggregateState<T> aggregateState) {
+    final var json = new JsonObject();
+    json.put("command-type", camelToKebab(command.getClass().getSimpleName()));
+    json.put("command", JsonObject.mapFrom(command));
+    json.put("aggregate", aggregateState.toJson());
+    LOGGER.error("Command rejected {}", json.encodePrettily(), throwable);
   }
 
 

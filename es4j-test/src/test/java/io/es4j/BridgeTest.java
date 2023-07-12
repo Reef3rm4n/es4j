@@ -41,8 +41,8 @@ public class BridgeTest {
 //    eventBusPoxy.eventSubscribe(fakeAggregateAggregateState -> LOGGER.info("Incoming event {}", fakeAggregateAggregateState.toJson().encodePrettily()))
 //      .await().indefinitely();
 //    final var poller = new EventProjectionPoller(
-//      events -> {
-//        LOGGER.info("events {}", events);
+//      eventTypes -> {
+//        LOGGER.info("eventTypes {}", eventTypes);
 //        return Uni.createFrom().voidItem();
 //      },
 //      new PgEventStore(),

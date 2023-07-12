@@ -14,6 +14,10 @@ skinparam sequence {
     ActorFontSize 17
     ActorFontName Aapex
 }
+!define DEFAULT_MONO_FONT_SIZE 14
+
+skinparam monochrome true
+
 participant JournalCompressor as "Es4j"
 database MainEventStore
 database SecondaryEventStore

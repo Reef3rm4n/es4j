@@ -95,7 +95,7 @@ public class RedisEventStore implements EventStore {
     return Arrays.asList(
       streamName, String.valueOf(event.eventVersion()),
       TENANT_ID, event.tenantId(),
-      EVENT_CLASS, event.eventClass(),
+      EVENT_CLASS, event.eventType(),
       COMMAND_ID, event.commandId(),
       EVENT, event.event().encode(),
       TENANT_ID, event.tenantId(),

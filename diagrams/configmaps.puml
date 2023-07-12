@@ -1,0 +1,47 @@
+@startuml
+
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+!define DEFAULT_MONO_FONT_SIZE 14
+
+skinparam monochrome true
+
+participant "ES4J Node1" as A
+participant "ES4J Node2" as B
+participant "ES4J Node3" as C
+participant "ES4J Node4" as E
+participant "ES4J Node5" as F
+database "Kubernetes ConfigMap1" as D
+database "EventStore ConfigMap" as G
+
+A -> D: Put Watch
+activate D
+B -> D: Put Watch
+C -> D: Put Watch
+note right of D: Watches by 3 ES4J Nodes are active
+
+E -> G: Put Watch
+activate G
+F -> G: Put Watch
+A -> G: Put Watch
+B -> G: Put Watch
+C -> G: Put Watch
+note right of G: Watches by 5 ES4J Nodes are active
+
+@enduml

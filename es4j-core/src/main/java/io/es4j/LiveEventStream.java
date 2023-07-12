@@ -4,15 +4,15 @@ import io.es4j.infrastructure.models.Event;
 import io.smallrye.mutiny.Uni;
 
 /**
- * The LiveEventStream interface defines the structure for live streams of events
+ * The LiveEventStream interface defines the structure for live streams of eventTypes
  * within the framework. Implementors of this interface will be called in a best-effort
- * manner for emitted events.
+ * manner for emitted eventTypes.
  */
 public interface LiveEventStream {
 
   /**
    * Apply an Event to the live stream. This method will be called in a best-effort
-   * manner for emitted events.
+   * manner for emitted eventTypes.
    *
    * @param event the Event to apply
    * @return a Uni representing the completion of the operation

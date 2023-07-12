@@ -8,7 +8,7 @@ import java.util.List;
 
 @RecordBuilder
 public record EventFilter(
-  List<String> events,
+  List<String> eventTypes,
   List<String> aggregateIds,
   List<String> tags,
   String tenantId,

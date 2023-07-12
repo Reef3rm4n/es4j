@@ -10,7 +10,6 @@ import io.es4j.infrastructure.models.*;
 import io.es4j.sql.LiquibaseHandler;
 import io.es4j.sql.Repository;
 import io.es4j.sql.RepositoryHandler;
-import io.es4j.sql.exceptions.NotFound;
 import io.es4j.sql.models.BaseRecord;
 import io.es4j.sql.models.QueryOptions;
 import io.smallrye.mutiny.Uni;
@@ -19,7 +18,6 @@ import io.vertx.mutiny.core.Vertx;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -100,7 +98,7 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
     return appendInstruction.events().stream()
       .map(event -> new EventRecord(
           event.aggregateId(),
-          event.eventClass(),
+          event.eventType(),
           event.eventVersion(),
           event.event(),
           event.commandId(),
@@ -137,11 +135,9 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
   }
 
   private static <T extends Aggregate> String startingOffset(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.journalOffset() != null && aggregateEventStream.journalOffset() == 0) {
-      return String.valueOf(0);
-    } else if (aggregateEventStream.startFrom() != null) {
-      return "(select max(id) from event_journal where event_class = '" + aggregateEventStream.startFrom().getName() + "' and aggregateId = '" + aggregateEventStream.aggregateId() + "')";
-    } else {
+    if (aggregateEventStream.startFromSnapshot()) {
+      return "(select coalesce(max(id),0) from event_store where event_class = 'snapshot' and aggregate_id ilike any(#{aggregate_id}) and tenant = #{tenant})";
+    }  else {
       return null;
     }
   }
@@ -149,7 +145,7 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
   private EventRecordQuery eventJournalQuery(EventStream eventStream) {
     return new EventRecordQuery(
       eventStream.aggregateIds(),
-      eventStream.events() != null ? eventStream.events().stream().map(Class::getName).toList() : null,
+      eventStream.eventTypes(),
       null,
       eventStream.tags(),
       null,

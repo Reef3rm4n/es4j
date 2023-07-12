@@ -35,18 +35,21 @@
     <createIndex tableName="event_store" indexName="index-3" schemaName="${schema}">
       <column name="event_class"/>
       <column name="aggregate_id"/>
-      <column name="tags"/>
       <column name="tenant"/>
     </createIndex>
     <createIndex tableName="event_store" indexName="index-4" schemaName="${schema}">
       <column name="command_id"/>
       <column name="tenant"/>
     </createIndex>
-    <createIndex tableName="event_store" indexName="index-5" schemaName="${schema}">
-      <column name="tags"/>
-    </createIndex>
     <createIndex tableName="event_store" indexName="index-6" schemaName="${schema}">
+      <column name="tags"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="event_store" indexName="index-7" schemaName="${schema}">
       <column name="event_class"/>
+      <column name="aggregate_id"/>
+    </createIndex>
+    <createIndex tableName="event_store" indexName="index-8" schemaName="${schema}">
       <column name="aggregate_id"/>
     </createIndex>
   </changeSet>

@@ -139,7 +139,7 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
       state.state().aggregateId(),
       state.state().tenant()
     ));
-    // todo drop events ?
+    // todo drop eventTypes ?
   }
 
   private void addAggregate(GivenAggregate givenAggregate) {

@@ -12,7 +12,7 @@ import java.util.Objects;
 public record Event(
   Long journalOffset,
   String aggregateId,
-  String eventClass,
+  String eventType,
   Long eventVersion,
   JsonObject event,
   String tenantId,
@@ -28,7 +28,7 @@ public record Event(
 
   public Event {
     Objects.requireNonNull(aggregateId, "aggregateId must not be null");
-    Objects.requireNonNull(eventClass, "Event class must not be null");
+    Objects.requireNonNull(eventType, "Event class must not be null");
     Objects.requireNonNull(eventVersion, "Event versionTo must not be null");
     if (eventVersion < 0) {
       throw new IllegalArgumentException("Event versionTo must be greater than 0");

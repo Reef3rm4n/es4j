@@ -16,4 +16,9 @@ public class CreateAggregator implements Aggregator<FakeAggregate, DataCreated> 
       event.data()
     );
   }
+
+  @Override
+  public String eventType() {
+    return "data-created";
+  }
 }

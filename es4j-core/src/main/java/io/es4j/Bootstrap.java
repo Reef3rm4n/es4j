@@ -28,4 +28,8 @@ public interface Bootstrap {
     return Collections.emptyList();
   }
 
+  default List<String> tenants() {
+    return List.of("default");
+  }
+
 }

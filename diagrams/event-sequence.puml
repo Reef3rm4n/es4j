@@ -1,0 +1,50 @@
+@startuml
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+
+!define DEFAULT_MONO_FONT_SIZE 14
+skinparam monochrome true
+
+actor Client
+participant es4j as A
+database "Event Store" as C
+
+Client -> A : Sends Command with Aggregate Key(aggregateID, tenant)
+activate A
+A -> A : hash(AggregateKey)
+A -> A : handleCommand(Command)
+
+note over A: Generate 3 events
+A -> A: Event 1 with tuple (aggregateID, tenant, 1)
+A -> A: Event 2 with tuple (aggregateID, tenant,  2)
+A -> A: Event 3 with tuple (aggregateID, tenant,  3)
+
+A -> C : Persist Events to Event Store
+activate C
+deactivate A
+note right of C: Events are stored
+
+C --> A : Acknowledgement
+deactivate C
+activate A
+
+A --> Client : Return Aggregate State
+deactivate A
+
+@enduml

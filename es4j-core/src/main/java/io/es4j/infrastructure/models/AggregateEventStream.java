@@ -11,7 +11,7 @@ public record AggregateEventStream<T extends Aggregate>(
   String tenantId,
   Long eventVersionOffset,
   Long journalOffset,
-  Class<? extends Event> startFrom,
+  Boolean startFromSnapshot,
   Integer maxSize
 ) {
   public JsonObject toJson() {
@@ -20,7 +20,7 @@ public record AggregateEventStream<T extends Aggregate>(
       .put("tenant", tenantId)
       .put("eventVersionOffset", eventVersionOffset)
       .put("journalOffset", journalOffset)
-      .put("startFrom", startFrom)
+      .put("startFromSnapshot", startFromSnapshot)
       .put("maxSize", maxSize);
   }
 }
