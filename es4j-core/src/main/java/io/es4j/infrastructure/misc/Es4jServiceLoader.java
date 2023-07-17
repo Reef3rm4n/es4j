@@ -72,8 +72,8 @@ public class Es4jServiceLoader {
       .toList();
   }
 
-  public static List<Bootstrap> bootstrapList() {
-    return ServiceLoader.load(Bootstrap.class).stream()
+  public static List<Deployment> bootstrapList() {
+    return ServiceLoader.load(Deployment.class).stream()
       .map(ServiceLoader.Provider::get)
       .peek(aggregate -> {
         LOGGER.info("Bootstrapper found {}", aggregate);

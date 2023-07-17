@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -84,7 +85,30 @@ public class Es4jConfigurationHandler {
       CONFIG_RETRIEVERS.add(retriever);
     }
   }
-
+  public static Uni<Void> startConfiguration(Vertx vertx, String file, Consumer<JsonObject> configurationConsumer) {
+    if (Objects.nonNull(file)) {
+      final var promise = Promise.promise();
+      configure(
+        vertx,
+        file,
+        newConfiguration -> {
+          try {
+           configurationConsumer.accept(newConfiguration);
+            if (Objects.nonNull(promise)) {
+              promise.complete();
+            }
+          } catch (Exception e) {
+            LOGGER.error("Unable to consume file configuration {} {}", file, newConfiguration, e);
+            if (Objects.nonNull(promise)) {
+              promise.fail(e);
+            }
+          }
+        }
+      );
+      return promise.future().replaceWithVoid();
+    }
+    return Uni.createFrom().voidItem();
+  }
   public static Uni<Void> fsConfigurations(Vertx vertx, List<String> files) {
     if (!files.isEmpty()) {
       final var promiseMap = files.stream().map(cfg -> Map.entry(cfg, Promise.promise()))

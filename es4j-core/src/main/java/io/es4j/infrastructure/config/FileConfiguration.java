@@ -3,7 +3,7 @@ package io.es4j.infrastructure.config;
 
 import io.vertx.core.json.JsonObject;
 
-public class FileBusinessRule {
+public class FileConfiguration {
   public static <T> T get(Class<T> tClass, String fileName) {
     return FileConfigurationCache.get(fileName).mapTo(tClass);
   }

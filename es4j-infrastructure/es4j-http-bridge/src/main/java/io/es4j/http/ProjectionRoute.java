@@ -13,7 +13,7 @@ import io.vertx.mutiny.ext.web.Router;
 
 
 import io.es4j.Aggregate;
-import io.es4j.Bootstrap;
+import io.es4j.Deployment;
 import io.es4j.infrastructure.models.EventFilter;
 import io.es4j.infrastructure.proxy.AggregateEventBusPoxy;
 import io.vertx.core.json.JsonArray;
@@ -29,14 +29,14 @@ public class ProjectionRoute implements HttpRoute {
 
   @Override
   public Uni<Void> start(Vertx vertx, JsonObject configuration) {
-    Es4jMain.AGGREGATES.stream().map(Bootstrap::aggregateClass)
+    Es4jMain.AGGREGATES.stream().map(Deployment::aggregateClass)
       .forEach(aggregateClass -> proxies.put(aggregateClass, new AggregateEventBusPoxy<>(vertx, aggregateClass)));
     return Uni.createFrom().voidItem();
   }
 
   @Override
   public void registerRoutes(Router router) {
-    Es4jMain.AGGREGATES.stream().map(Bootstrap::aggregateClass).forEach(
+    Es4jMain.AGGREGATES.stream().map(Deployment::aggregateClass).forEach(
       aClass -> {
         router.post(Es4jService.fetchEventsAddress(aClass))
           .consumes(Constants.APPLICATION_JSON)

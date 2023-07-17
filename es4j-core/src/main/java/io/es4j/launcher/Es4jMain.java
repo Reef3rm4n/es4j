@@ -1,9 +1,6 @@
 package io.es4j.launcher;
 
 import io.es4j.*;
-import io.es4j.core.tasks.AggregateHeartbeat;
-import io.es4j.core.tasks.EventProjectionPoller;
-import io.es4j.core.tasks.StateProjectionPoller;
 import io.es4j.core.verticles.AggregateBridge;
 import io.es4j.infrastructure.config.Es4jConfigurationHandler;
 import io.es4j.infrastructure.misc.Es4jServiceLoader;
@@ -38,15 +35,12 @@ import static io.es4j.core.CommandHandler.camelToKebab;
 public class Es4jMain extends AbstractVerticle implements Resource {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(Es4jMain.class);
-  public static final List<Bootstrap> AGGREGATES = Es4jServiceLoader.bootstrapList();
+  public static final List<Deployment> AGGREGATES = Es4jServiceLoader.bootstrapList();
   private CronTaskDeployer cronTaskDeployer;
   private TimerTaskDeployer timerTaskDeployer;
-  public static final List<EventProjectionPoller> EVENT_PROJECTIONS = new ArrayList<>();
-  public static final List<StateProjectionPoller> STATE_PROJECTIONS = new ArrayList<>();
   private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final Map<Class<? extends Aggregate>, List<Class<? extends Command>>> AGGREGATE_COMMANDS = new HashMap<>();
   public static final Map<Class<? extends Aggregate>, List<Class<Event>>> AGGREGATE_EVENTS = new HashMap<>();
-  public static final List<AggregateHeartbeat<? extends Aggregate>> HEARTBEATS = new ArrayList<>();
 
   public Es4jMain() {
     Core.getGlobalContext().register(this);
@@ -114,8 +108,8 @@ public class Es4jMain extends AbstractVerticle implements Resource {
   private void startAggregateResources(final Promise<Void> startPromise) {
     AGGREGATES.stream()
       .map(aClass -> new AggregateDeployer<>(
-          aClass.fileConfigurations(),
           aClass.aggregateClass(),
+          aClass,
           vertx,
           context.deploymentID()
         )
@@ -133,8 +127,6 @@ public class Es4jMain extends AbstractVerticle implements Resource {
       throw new IllegalStateException("Aggregates not found");
     }
     Uni.join().all(aggregatesDeployment).andFailFast()
-      .invoke(avoid -> deployHeartBeat())
-      .invoke(avoid -> deployProjections())
       .flatMap(avoid -> deployBridges())
       .subscribe()
       .with(
@@ -150,14 +142,7 @@ public class Es4jMain extends AbstractVerticle implements Resource {
       );
   }
 
-  private void deployProjections() {
-    EVENT_PROJECTIONS.forEach(cronTaskDeployer::deploy);
-    STATE_PROJECTIONS.forEach(cronTaskDeployer::deploy);
-  }
 
-  private void deployHeartBeat() {
-    HEARTBEATS.forEach(timerTaskDeployer::deploy);
-  }
 
   private Uni<Void> deployBridges() {
     return vertx.deployVerticle(
@@ -169,7 +154,7 @@ public class Es4jMain extends AbstractVerticle implements Resource {
   }
 
   private void handleException(Throwable throwable) {
-    LOGGER.error("[-- Event.x Main had to drop the following exception --]", throwable);
+    LOGGER.error("[-- Es4j  Main had to drop the following exception --]", throwable);
   }
 
   @Override

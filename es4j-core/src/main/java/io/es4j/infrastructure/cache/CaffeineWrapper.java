@@ -22,7 +22,7 @@ public class CaffeineWrapper {
   public static synchronized void setUp(AggregateConfiguration aggregateConfiguration) {
     if (Objects.isNull(CAFFEINE)) {
       CAFFEINE = Caffeine.newBuilder()
-        .expireAfterAccess(aggregateConfiguration.ttl())
+        .expireAfterAccess(aggregateConfiguration.cacheTtl())
         .initialCapacity(500)
         .evictionListener((key, value, reason) -> logger.info("Aggregate evicted from cache {}", new JsonObject().put("reason", reason).put("key", key).encodePrettily()))
         .removalListener((key, value, reason) -> logger.info("Aggregate removed from cache {}", new JsonObject().put("reason", reason).put("key", key).encodePrettily()))

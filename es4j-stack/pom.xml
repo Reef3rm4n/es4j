@@ -27,7 +27,7 @@
 
   <dependencyManagement>
     <dependencies>
-      <!--      Event.x Framework -->
+      <!--      Es4j Framework -->
       <dependency>
         <groupId>io.es4j</groupId>
         <artifactId>es4j-core</artifactId>

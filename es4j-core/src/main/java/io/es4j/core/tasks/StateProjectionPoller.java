@@ -48,7 +48,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     // polling would have to be done one aggregate at the time
     // polling will have to be moved to a queue
     // a new entry must be inserted in the queue for each one of the updated streams
-    stateProjectionWrapper.logger().debug("Polling eventTypes");
+    stateProjectionWrapper.logger().debug("Polling events");
     return offsetStore.get(new OffsetKey(stateProjectionWrapper.pollingStateProjection().getClass().getName(), "default"))
       .flatMap(journalOffset -> {
           stateProjectionWrapper.logger().debug("Journal idOffset at {}", journalOffset.idOffSet());

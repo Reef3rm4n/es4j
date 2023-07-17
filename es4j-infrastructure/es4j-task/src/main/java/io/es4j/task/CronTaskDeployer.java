@@ -28,6 +28,7 @@ public class CronTaskDeployer {
 
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
+    timers.clear();
   }
 
   public void deploy(CronTask timerTask) {

@@ -13,7 +13,6 @@ import io.es4j.core.exceptions.Es4jException;
 import io.es4j.infrastructure.Infrastructure;
 import io.es4j.infrastructure.bus.AggregateBus;
 import io.es4j.launcher.Es4jMain;
-import io.vertx.core.Promise;
 import io.es4j.Command;
 import io.es4j.Behaviour;
 import io.es4j.Aggregate;
@@ -21,27 +20,24 @@ import io.es4j.Aggregator;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.mutiny.core.eventbus.Message;
-import org.crac.Context;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.eventbus.DeliveryContext;
-import org.crac.Resource;
 
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
 
 import static io.es4j.core.CommandHandler.camelToKebab;
 
-public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle implements Resource {
+public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateVerticle.class);
 
   public static final String ACTION = "action";
   private final Class<T> aggregateClass;
-  private final String deploymentID;
+  private final String nodeDeploymentID;
   private AggregateConfiguration aggregateConfiguration;
   private CommandHandler<T> commandHandler;
   private List<BehaviourWrap> behaviourWraps;
@@ -51,18 +47,17 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
 
   public AggregateVerticle(
     final Class<T> aggregateClass,
-    final String deploymentID
+    final String nodeDeploymentID
   ) {
     this.aggregateClass = aggregateClass;
-    this.deploymentID = deploymentID;
-    org.crac.Core.getGlobalContext().register(this);
+    this.nodeDeploymentID = nodeDeploymentID;
   }
 
   @Override
   public Uni<Void> asyncStart() {
     config().put("schema", camelToKebab(aggregateClass.getSimpleName()));
     this.aggregateConfiguration = config().getJsonObject("aggregate-configuration", new JsonObject()).mapTo(AggregateConfiguration.class);
-    LOGGER.info("Event.x starting {}::{}", aggregateClass.getSimpleName(), this.deploymentID);
+    LOGGER.info("Es4j starting aggregate {} nodeID={} verticleID={}", aggregateClass.getSimpleName(), this.nodeDeploymentID, this.localDeploymentID);
     this.aggregatorWraps = loadAggregators(aggregateClass);
     this.behaviourWraps = loadBehaviours(aggregateClass);
     this.infrastructure = new Infrastructure(
@@ -98,13 +93,13 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
         cmdBehaviour -> AggregateBus.registerCommandConsumer(
           vertx,
           aggregateClass,
-          deploymentID,
+          nodeDeploymentID,
           message -> messageHandler(cmdBehaviour, message),
           cmdBehaviour.commandClass()
         )
       )
       .collect().asList()
-      .flatMap(avoid -> AggregateBus.waitForRegistration(deploymentID, aggregateClass))
+      .flatMap(avoid -> AggregateBus.waitForRegistration(nodeDeploymentID, aggregateClass))
       .replaceWithVoid();
   }
 
@@ -249,28 +244,16 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle imp
 
   @Override
   public Uni<Void> asyncStop() {
-    LOGGER.info("Stopping {} {}", aggregateClass.getSimpleName(), deploymentID);
-    AggregateBus.stop(vertx, aggregateClass, deploymentID);
+    LOGGER.info("Stopping {} {}", aggregateClass.getSimpleName(), nodeDeploymentID);
+    AggregateBus.stop(vertx, aggregateClass, nodeDeploymentID);
     return infrastructure.stop();
   }
 
+  private final String localDeploymentID = UUID.randomUUID().toString();
 
   @Override
-  public void beforeCheckpoint(Context<? extends Resource> context) throws Exception {
-    Promise<Void> p = Promise.promise();
-    stop(p);
-    CountDownLatch latch = new CountDownLatch(1);
-    p.future().onComplete(event -> latch.countDown());
-    latch.await();
-  }
-
-  @Override
-  public void afterRestore(Context<? extends Resource> context) throws Exception {
-    Promise<Void> p = Promise.promise();
-    start(p);
-    CountDownLatch latch = new CountDownLatch(1);
-    p.future().onComplete(event -> latch.countDown());
-    latch.await();
+  public String deploymentID() {
+    return localDeploymentID;
   }
 
 }

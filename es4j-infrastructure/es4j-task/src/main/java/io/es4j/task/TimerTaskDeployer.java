@@ -28,6 +28,7 @@ public class TimerTaskDeployer {
 
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
+    timers.clear();
   }
 
   public void deploy(TimerTask timerTask) {
@@ -63,7 +64,7 @@ public class TimerTaskDeployer {
                 taskWrapper.logger().info("Interrupted, backing off for {}", taskWrapper.task().configuration().interruptionBackOff());
                 triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().interruptionBackOff());
               } else if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
-                taskWrapper.logger().info("Unable to acquire lock, will back off for {}",taskWrapper.task().configuration().lockBackOff());
+                taskWrapper.logger().info("Unable to acquire lock, will back off for {}", taskWrapper.task().configuration().lockBackOff());
                 triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().lockBackOff());
               } else {
                 taskWrapper.logger().info("Error handling task, will back off for {}", taskWrapper.task().configuration().errorBackOff(), throwable);

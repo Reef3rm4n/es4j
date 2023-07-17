@@ -107,7 +107,7 @@ In the above example, the `DepositBehaviour` processes a `DepositCommand` for th
 
 # EventBehaviour Interface
 
-The `EventBehaviour` interface plays a vital role in event.x, managing how events apply to aggregates.
+The `EventBehaviour` interface plays a vital role in es4j, managing how events apply to aggregates.
 
 ## Type Parameters
 

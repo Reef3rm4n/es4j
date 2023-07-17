@@ -26,7 +26,7 @@ public class Es4jLauncher extends Launcher {
 
   @Override
   public void beforeStartingVertx(VertxOptions vertxOptions) {
-    logger.info("--- Starting Event.x -----");
+    logger.info("--- Starting Es4j -----");
     vertxOptions
       .setPreferNativeTransport(true)
       .setMetricsOptions(
@@ -39,6 +39,7 @@ public class Es4jLauncher extends Launcher {
           .setEnabled(true)
       );
   }
+
 
 
 
