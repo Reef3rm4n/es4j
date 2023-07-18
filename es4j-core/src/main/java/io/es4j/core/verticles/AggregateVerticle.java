@@ -1,22 +1,19 @@
 package io.es4j.core.verticles;
 
 
+import io.es4j.*;
+import io.es4j.Event;
 import io.es4j.core.objects.*;
 import io.es4j.infrastructure.bus.Es4jService;
 import io.es4j.infrastructure.misc.Es4jServiceLoader;
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.tuples.Tuple2;
-import io.es4j.Event;
 import io.es4j.core.CommandHandler;
 import io.es4j.core.exceptions.Es4jException;
 import io.es4j.infrastructure.Infrastructure;
 import io.es4j.infrastructure.bus.AggregateBus;
 import io.es4j.launcher.Es4jMain;
-import io.es4j.Command;
-import io.es4j.Behaviour;
-import io.es4j.Aggregate;
-import io.es4j.Aggregator;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
 import io.vertx.mutiny.core.eventbus.Message;
@@ -38,7 +35,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   public static final String ACTION = "action";
   private final Class<T> aggregateClass;
   private final String nodeDeploymentID;
-  private AggregateConfiguration aggregateConfiguration;
+  private final Deployment deployment;
   private CommandHandler<T> commandHandler;
   private List<BehaviourWrap> behaviourWraps;
   private List<AggregatorWrap> aggregatorWraps;
@@ -46,9 +43,11 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   private Es4jService es4jService;
 
   public AggregateVerticle(
+    final Deployment deployment,
     final Class<T> aggregateClass,
     final String nodeDeploymentID
   ) {
+    this.deployment= deployment;
     this.aggregateClass = aggregateClass;
     this.nodeDeploymentID = nodeDeploymentID;
   }
@@ -56,7 +55,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   @Override
   public Uni<Void> asyncStart() {
     config().put("schema", camelToKebab(aggregateClass.getSimpleName()));
-    this.aggregateConfiguration = config().getJsonObject("aggregate-configuration", new JsonObject()).mapTo(AggregateConfiguration.class);
     LOGGER.info("Es4j starting aggregate {} nodeID={} verticleID={}", aggregateClass.getSimpleName(), this.nodeDeploymentID, this.localDeploymentID);
     this.aggregatorWraps = loadAggregators(aggregateClass);
     this.behaviourWraps = loadBehaviours(aggregateClass);
@@ -66,7 +64,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       Optional.empty(),
       Es4jServiceLoader.loadOffsetStore()
     );
-    infrastructure.start(aggregateClass, vertx, config());
+    infrastructure.start(deployment, vertx, config());
     vertx.eventBus().addInboundInterceptor(this::addContextualData);
     this.commandHandler = new CommandHandler<>(
       vertx,
@@ -74,7 +72,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       aggregatorWraps,
       behaviourWraps,
       infrastructure,
-      aggregateConfiguration
+      deployment.aggregateConfiguration()
     );
     this.es4jService = new Es4jService(
       infrastructure.offsetStore(),

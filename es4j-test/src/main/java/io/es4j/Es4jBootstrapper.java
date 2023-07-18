@@ -26,6 +26,7 @@ import static io.es4j.core.CommandHandler.camelToKebab;
 
 
 class Es4jBootstrapper<T extends Aggregate> {
+  private final String infraConfig;
   public AggregateEventBusPoxy<T> eventBusPoxy;
   public AggregateHttpClient<T> httpClient;
   private static Network network = Network.newNetwork();
@@ -49,22 +50,30 @@ class Es4jBootstrapper<T extends Aggregate> {
   public OffsetStore offsetStore;
 
   public Es4jBootstrapper(
-    Class<T> aggregateClass
+    Class<T> aggregateClass,
+    String infraConfig
   ) {
     vertx = Vertx.vertx();
+    this.infraConfig = infraConfig;
     this.aggregateClass = aggregateClass;
   }
 
   public void bootstrap() {
-    config = configuration(aggregateClass).put("schema", camelToKebab(aggregateClass.getSimpleName()));
+    final var deployment = new Deployment() {
+      @Override
+      public Class<? extends Aggregate> aggregateClass() {
+        return aggregateClass;
+      }
+    };
+    config = configuration().put("schema", camelToKebab(aggregateClass.getSimpleName()));
     if (Boolean.TRUE.equals(infrastructure())) {
+      this.eventStore = Es4jServiceLoader.loadEventStore();
       deployPgContainer();
       vertx.deployVerticle(Es4jMain::new, new DeploymentOptions().setInstances(1).setConfig(config)).await().indefinitely();
       this.cache = new CaffeineAggregateCache();
-      this.eventStore = Es4jServiceLoader.loadEventStore();
-      eventStore.start(aggregateClass, vertx, config);
+      eventStore.start(deployment, vertx, config);
       this.offsetStore = Es4jServiceLoader.loadOffsetStore();
-      offsetStore.start(aggregateClass, vertx, config);
+      offsetStore.start(deployment, vertx, config);
     }
     this.httpClient = new AggregateHttpClient<>(
       WebClient.create(vertx, new WebClientOptions()
@@ -97,8 +106,8 @@ class Es4jBootstrapper<T extends Aggregate> {
   }
 
 
-  public JsonObject configuration(Class<? extends Aggregate> aggregateClass) {
-    return vertx.fileSystem().readFileBlocking(camelToKebab(aggregateClass.getSimpleName()) + ".json").toJsonObject();
+  public JsonObject configuration() {
+    return vertx.fileSystem().readFileBlocking(infraConfig + ".json").toJsonObject();
   }
 
   private void deployRedisContainer() {
@@ -109,7 +118,7 @@ class Es4jBootstrapper<T extends Aggregate> {
     redis.start();
     config.put("redisHost", redis.getHost());
     config.put("redisPort", redis.getFirstMappedPort());
-    vertx.fileSystem().writeFileBlocking(camelToKebab(aggregateClass.getSimpleName()) + ".json", Buffer.newInstance(config.toBuffer()));
+    vertx.fileSystem().writeFileBlocking(infraConfig + ".json", Buffer.newInstance(config.toBuffer()));
     LOGGER.debug("Configuration after container bootstrap {}", config);
   }
 
@@ -124,7 +133,7 @@ class Es4jBootstrapper<T extends Aggregate> {
       .put(Constants.PG_PASSWORD, postgreSQLContainer.getPassword())
       .put(Constants.PG_DATABASE, postgreSQLContainer.getDatabaseName())
       .put(Constants.JDBC_URL, postgreSQLContainer.getJdbcUrl());
-    vertx.fileSystem().writeFileBlocking(camelToKebab(aggregateClass.getSimpleName()) + ".json", Buffer.newInstance(config.toBuffer()));
+    vertx.fileSystem().writeFileBlocking(infraConfig + ".json", Buffer.newInstance(config.toBuffer()));
     LOGGER.debug("Configuration after container bootstrap {}", config);
   }
 

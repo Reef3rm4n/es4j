@@ -1,6 +1,7 @@
 package io.es4j.infrastructure;
 
 import io.es4j.Aggregate;
+import io.es4j.Deployment;
 import io.es4j.core.objects.AggregateConfiguration;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.json.JsonObject;
@@ -25,19 +26,19 @@ public record Infrastructure(
     return Uni.join().all(list).andFailFast().replaceWithVoid();
   }
 
-  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Deployment deployment, Vertx vertx, JsonObject infrastructureConfiguration) {
     final var list = new ArrayList<Uni<Void>>();
-    cache.ifPresent(cache -> list.add(cache.setup(aggregateClass, configuration.getJsonObject("aggregate-configuration", new JsonObject()).mapTo(AggregateConfiguration.class))));
-    secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.setup(aggregateClass, vertx, configuration)));
-    list.add(eventStore.setup(aggregateClass, vertx, configuration));
-    list.add(offsetStore.setup(aggregateClass, vertx, configuration));
+    cache.ifPresent(cache -> list.add(cache.setup(deployment.aggregateClass(), deployment.aggregateConfiguration())));
+    secondaryEventStore.ifPresent(secondaryEventStore -> list.add(secondaryEventStore.setup(deployment, vertx, infrastructureConfiguration)));
+    list.add(eventStore.setup(deployment, vertx, infrastructureConfiguration));
+    list.add(offsetStore.setup(deployment, vertx, infrastructureConfiguration));
     return Uni.join().all(list).andFailFast().replaceWithVoid();
   }
 
 
-  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
-    eventStore.start(aggregateClass, vertx, configuration);
-    offsetStore.start(aggregateClass, vertx, configuration);
-    secondaryEventStore.ifPresent(ses -> ses.start(aggregateClass, vertx, configuration));
+  public void start(Deployment deployment, Vertx vertx, JsonObject configuration) {
+    eventStore.start(deployment, vertx, configuration);
+    offsetStore.start(deployment, vertx, configuration);
+    secondaryEventStore.ifPresent(ses -> ses.start(deployment, vertx, configuration));
   }
 }

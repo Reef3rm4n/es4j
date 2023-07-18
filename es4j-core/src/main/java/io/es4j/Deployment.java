@@ -46,7 +46,7 @@ public interface Deployment {
   }
 
   default String infrastructureConfiguration() {
-    return camelToKebab(aggregateClass().getSimpleName());
+    return "infrastructure";
   }
 
 

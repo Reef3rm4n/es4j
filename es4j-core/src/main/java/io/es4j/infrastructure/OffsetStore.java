@@ -1,6 +1,7 @@
 package io.es4j.infrastructure;
 
-import io.es4j.Aggregate;
+
+import io.es4j.Deployment;
 import io.es4j.core.objects.Offset;
 import io.es4j.infrastructure.models.OffsetFilter;
 import io.smallrye.mutiny.Uni;
@@ -18,6 +19,6 @@ public interface OffsetStore {
 
   Uni<List<Offset>> projections(OffsetFilter offsetFilter);
   Uni<Void> stop();
-  void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
-  Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  void start(Deployment deployment, Vertx vertx, JsonObject configuration);
+  Uni<Void> setup(Deployment deployment, Vertx vertx, JsonObject configuration);
 }

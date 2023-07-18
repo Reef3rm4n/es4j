@@ -2,6 +2,7 @@ package io.es4j.infra.redis;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
+import io.es4j.Deployment;
 import io.es4j.core.objects.ErrorSource;
 import io.es4j.core.objects.Es4jErrorBuilder;
 import io.es4j.infrastructure.EventStore;
@@ -162,8 +163,7 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
-    this.aggregateClass = aggregateClass;
+  public void start(Deployment deployment, Vertx vertx, JsonObject configuration) {
     this.redisClient = Redis.createClient(vertx,
       new RedisOptions()
         .setMaxPoolSize(CpuCoreSensor.availableProcessors())
@@ -183,7 +183,7 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Deployment aggregateClass, Vertx vertx, JsonObject configuration) {
     return null;
   }
 

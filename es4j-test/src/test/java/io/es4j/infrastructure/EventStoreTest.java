@@ -1,5 +1,7 @@
 package io.es4j.infrastructure;
 
+
+import io.es4j.Deployment;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.infra.pg.PgEventStore;
 import io.es4j.infrastructure.models.AggregateEventStreamBuilder;
@@ -27,6 +29,7 @@ import java.util.stream.Stream;
 class EventStoreTest {
 
   public static final String TENANT_ID = "default";
+  public static final Deployment DEPLOYMENT = () -> FakeAggregate.class;
   private static PostgreSQLContainer POSTGRES_CONTAINER;
   private static final Vertx vertx = Vertx.vertx();
   private static final JsonObject CONFIGURATION = new JsonObject();
@@ -46,8 +49,8 @@ class EventStoreTest {
   @ParameterizedTest
   @MethodSource("eventStores")
   void append_ensure_uniqueness(EventStore eventStore) {
-    eventStore.setup(FakeAggregate.class, vertx, CONFIGURATION).await().indefinitely();
-    eventStore.start(FakeAggregate.class, vertx, CONFIGURATION);
+    eventStore.setup(DEPLOYMENT, vertx, CONFIGURATION).await().indefinitely();
+    eventStore.start(DEPLOYMENT, vertx, CONFIGURATION);
     // Define eventTypes and append instructions
     final var aggregateId = UUID.randomUUID().toString();
     final var goodAppend = createAppendInstruction(aggregateId);
@@ -66,8 +69,8 @@ class EventStoreTest {
   @ParameterizedTest
   @MethodSource("eventStores")
   void append_and_fetch(EventStore eventStore) {
-    eventStore.setup(FakeAggregate.class, vertx, CONFIGURATION).await().indefinitely();
-    eventStore.start(FakeAggregate.class, vertx, CONFIGURATION);
+    eventStore.setup(DEPLOYMENT, vertx, CONFIGURATION).await().indefinitely();
+    eventStore.start(DEPLOYMENT, vertx, CONFIGURATION);
     // Define eventTypes and append instructions
     final var aggregateId = UUID.randomUUID().toString();
     int numberOfEvents = 100;
@@ -90,8 +93,8 @@ class EventStoreTest {
   @ParameterizedTest
   @MethodSource("eventStores")
   void append_and_stream(EventStore eventStore) {
-    eventStore.setup(FakeAggregate.class, vertx, CONFIGURATION).await().indefinitely();
-    eventStore.start(FakeAggregate.class, vertx, CONFIGURATION);
+    eventStore.setup(DEPLOYMENT, vertx, CONFIGURATION).await().indefinitely();
+    eventStore.start(DEPLOYMENT, vertx, CONFIGURATION);
     // Define eventTypes and append instructions
     final var aggregateId = UUID.randomUUID().toString();
     int numberOfEvents = 100;

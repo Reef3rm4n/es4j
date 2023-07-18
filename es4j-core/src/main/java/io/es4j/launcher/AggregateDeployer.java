@@ -72,7 +72,7 @@ public class AggregateDeployer<T extends Aggregate> {
           .call(injector -> {
               addHeartBeat();
               addProjections();
-              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(deploymentConfiguration.aggregateClass(), nodeDeploymentID);
+              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(deploymentConfiguration, aggregateClass, nodeDeploymentID);
               return startChannel(vertx, deploymentConfiguration.aggregateClass(), nodeDeploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
                       .setConfig(infrastructureConfiguration)
@@ -127,7 +127,7 @@ public class AggregateDeployer<T extends Aggregate> {
     if (Objects.isNull(timerTaskDeployer)) {
       timerTaskDeployer = new TimerTaskDeployer(vertx);
     }
-    return infrastructure.setup(deploymentConfiguration.aggregateClass(), vertx, configuration);
+    return infrastructure.setup(deploymentConfiguration, vertx, configuration);
   }
 
 
