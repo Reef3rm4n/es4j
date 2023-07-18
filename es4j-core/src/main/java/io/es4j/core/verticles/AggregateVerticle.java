@@ -102,7 +102,6 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   }
 
   private <A extends Aggregate, C extends Command> void messageHandler(BehaviourWrap<A, C> cmdBehaviour, Message<JsonObject> message) {
-    // todo add command name to contextual data
     commandHandler.process(parseCommand(cmdBehaviour.commandClass(), message))
       .subscribe()
       .with(
@@ -120,7 +119,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
 
   private static Command parseCommand(Class<? extends Command> cmdClass, Message<JsonObject> message) {
     try {
-      LOGGER.debug("Incoming command {} {}", cmdClass.getName(), message.body().encodePrettily());
+      LOGGER.debug("Parsing command {} {}", cmdClass.getName(), message.body().encodePrettily());
       return message.body().mapTo(cmdClass);
     } catch (Exception e) {
       message.fail(400, JsonObject.mapFrom(

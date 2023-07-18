@@ -16,7 +16,7 @@
   <modules>
     <module>es4j-sql</module>
     <module>es4j-task</module>
-    <module>es4j-queue</module>
+    <module>es4j-postgres-message-broker</module>
     <module>es4j-http-bridge</module>
     <module>es4j-config-storage</module>
     <module>es4j-postgres-storage</module>

@@ -127,7 +127,8 @@ public class AggregateDeployer<T extends Aggregate> {
     if (Objects.isNull(timerTaskDeployer)) {
       timerTaskDeployer = new TimerTaskDeployer(vertx);
     }
-    return infrastructure.setup(deploymentConfiguration, vertx, configuration);
+    return infrastructure.setup(deploymentConfiguration, vertx, configuration)
+      .invoke(avoid -> infrastructure.start(deploymentConfiguration, vertx, configuration));
   }
 
 
@@ -173,11 +174,14 @@ public class AggregateDeployer<T extends Aggregate> {
     if (Objects.nonNull(timerTaskDeployer)) {
       timerTaskDeployer.close();
     }
+    if (!aggregateServices.isEmpty()) {
+      closeUnis.addAll(aggregateServices.stream().map(AggregateServices::stop).toList());
+    }
     if (!deployed.isEmpty()) {
       closeUnis.add(Multi.createFrom().iterable(deployed)
-        .onItem().transformToUniAndMerge(deploymentID -> vertx.undeploy(deploymentID)
-          .map(avoid -> deployed.remove(deploymentID)))
+        .onItem().transformToUniAndMerge(vertx::undeploy)
         .collect().asList()
+        .invoke(avoid -> deployed.clear())
         .replaceWithVoid()
       );
     }

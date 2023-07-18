@@ -25,6 +25,8 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static io.es4j.core.CommandHandler.camelToKebab;
+
 
 @AutoService(EventStore.class)
 public class RedisEventStore implements EventStore {
@@ -164,12 +166,13 @@ public class RedisEventStore implements EventStore {
 
   @Override
   public void start(Deployment deployment, Vertx vertx, JsonObject configuration) {
+    this.aggregateClass = deployment.aggregateClass();
     this.redisClient = Redis.createClient(vertx,
       new RedisOptions()
         .setMaxPoolSize(CpuCoreSensor.availableProcessors())
         .setMaxWaitingHandlers(CpuCoreSensor.availableProcessors() * 4)
         .setPassword(configuration.getString("redisPassword"))
-        .setPoolName(aggregateClass.getSimpleName())
+        .setPoolName(camelToKebab(deployment.aggregateClass().getSimpleName()))
         .setConnectionString("redis://:%s@%s:%s/%s".formatted(
           configuration.getString("redisPassword"),
           configuration.getString("redisHost"),

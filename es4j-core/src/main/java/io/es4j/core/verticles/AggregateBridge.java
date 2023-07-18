@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import io.es4j.infrastructure.Bridge;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 
 public class AggregateBridge extends AbstractVerticle implements Resource {
@@ -65,4 +66,10 @@ public class AggregateBridge extends AbstractVerticle implements Resource {
       .replaceWithVoid();
   }
 
+  private final String DEPLOYMENT_ID = UUID.randomUUID().toString();
+
+  @Override
+  public String deploymentID() {
+    return DEPLOYMENT_ID;
+  }
 }

@@ -5,8 +5,6 @@ import io.es4j.core.verticles.AggregateBridge;
 import io.es4j.infrastructure.config.Es4jConfigurationHandler;
 import io.es4j.infrastructure.misc.Es4jServiceLoader;
 import io.es4j.infrastructure.models.AvailableAggregate;
-import io.es4j.task.CronTaskDeployer;
-import io.es4j.task.TimerTaskDeployer;
 import io.reactiverse.contextual.logging.ContextualData;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
@@ -36,11 +34,10 @@ public class Es4jMain extends AbstractVerticle implements Resource {
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(Es4jMain.class);
   public static final List<Deployment> AGGREGATES = Es4jServiceLoader.bootstrapList();
-  private CronTaskDeployer cronTaskDeployer;
-  private TimerTaskDeployer timerTaskDeployer;
   private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final Map<Class<? extends Aggregate>, List<Class<? extends Command>>> AGGREGATE_COMMANDS = new HashMap<>();
   public static final Map<Class<? extends Aggregate>, List<Class<Event>>> AGGREGATE_EVENTS = new HashMap<>();
+  public static final Set<String> bridges = new HashSet<>();
 
   public Es4jMain() {
     Core.getGlobalContext().register(this);
@@ -68,10 +65,8 @@ public class Es4jMain extends AbstractVerticle implements Resource {
   @Override
   public void start(final Promise<Void> startPromise) {
     LOGGER.info(" ---- Starting {}::{} ---- ", this.getClass().getName(), context.deploymentID());
-    Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Event.x]  had to drop the following exception --]", throwable));
+    Infrastructure.setDroppedExceptionHandler(throwable -> LOGGER.error("[-- [Es4j]  had to drop the following exception --]", throwable));
     vertx.exceptionHandler(this::handleException);
-    this.cronTaskDeployer = new CronTaskDeployer(vertx);
-    this.timerTaskDeployer = new TimerTaskDeployer(vertx);
     addEventBusInterceptors();
     vertx.eventBus().consumer("/es4j/available-aggregates", this::availableAggregates);
     startAggregateResources(startPromise);
@@ -150,6 +145,7 @@ public class Es4jMain extends AbstractVerticle implements Resource {
         new DeploymentOptions()
           .setInstances(CpuCoreSensor.availableProcessors() * 2)
       )
+      .map(bridges::add)
       .replaceWithVoid();
   }
 
@@ -168,8 +164,13 @@ public class Es4jMain extends AbstractVerticle implements Resource {
 
   private Uni<Void> close() {
     Es4jConfigurationHandler.close();
-    timerTaskDeployer.close();
-    cronTaskDeployer.close();
+    final var unis = new ArrayList<Uni<Void>>();
+    if (!bridges.isEmpty()) {
+      unis.add(Multi.createFrom().iterable(bridges)
+        .onItem().transformToUniAndMerge(vertx::undeploy)
+        .collect().asList()
+        .replaceWithVoid());
+    }
     return Multi.createFrom().iterable(AGGREGATE_DEPLOYERS)
       .onItem().transformToUniAndMerge(AggregateDeployer::close)
       .collect().asList()
