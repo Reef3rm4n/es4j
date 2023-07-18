@@ -1,10 +1,11 @@
-package io.es4j.queue.postgres.models;
+package io.es4j.infrastructure.messagebroker.postgres.models;
 
+import io.es4j.infrastructure.messagebroker.models.MessageState;
 import io.es4j.sql.models.BaseRecord;
 import io.es4j.sql.models.RepositoryRecord;
 import io.soabase.recordbuilder.core.RecordBuilder;
 import io.vertx.core.json.JsonObject;
-import io.es4j.queue.models.MessageState;
+
 
 import java.time.Instant;
 import java.util.Map;
