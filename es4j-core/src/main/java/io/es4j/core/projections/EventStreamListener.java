@@ -1,7 +1,7 @@
 package io.es4j.core.projections;
 
 import io.es4j.Aggregate;
-import io.es4j.LiveEventStream;
+import io.es4j.InlineProjection;
 import io.smallrye.mutiny.Uni;
 import io.vertx.mutiny.core.Vertx;
 import org.slf4j.Logger;
@@ -13,15 +13,15 @@ public class EventStreamListener {
 
   private final Vertx vertx;
   private final Class<? extends Aggregate> aggregateClass;
-  private final List<LiveEventStream> liveEventStreamConsumer;
+  private final List<InlineProjection> inlineProjectionConsumer;
 
   protected static final Logger LOGGER = LoggerFactory.getLogger(EventStreamListener.class);
 
 
-  public EventStreamListener(Vertx vertx, Class<? extends Aggregate> aggregateClass, List<LiveEventStream> liveEventStreamConsumer) {
+  public EventStreamListener(Vertx vertx, Class<? extends Aggregate> aggregateClass, List<InlineProjection> inlineProjectionConsumer) {
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
-    this.liveEventStreamConsumer = liveEventStreamConsumer;
+    this.inlineProjectionConsumer = inlineProjectionConsumer;
   }
 
 
@@ -41,7 +41,7 @@ public class EventStreamListener {
 //      .replaceWithVoid();
   }
 
-  public static void handle(Throwable throwable, LiveEventStream consumer) {
+  public static void handle(Throwable throwable, InlineProjection consumer) {
     LOGGER.error("Error in live event stream {}::{}", consumer.getClass().getName(), consumer.tenant(), throwable);
   }
 

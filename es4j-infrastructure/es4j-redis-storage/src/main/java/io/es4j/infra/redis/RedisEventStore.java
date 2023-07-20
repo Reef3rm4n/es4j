@@ -2,7 +2,7 @@ package io.es4j.infra.redis;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
-import io.es4j.Deployment;
+import io.es4j.Es4jDeployment;
 import io.es4j.core.objects.ErrorSource;
 import io.es4j.core.objects.Es4jErrorBuilder;
 import io.es4j.infrastructure.EventStore;
@@ -165,14 +165,14 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public void start(Deployment deployment, Vertx vertx, JsonObject configuration) {
-    this.aggregateClass = deployment.aggregateClass();
+  public void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
+    this.aggregateClass = es4jDeployment.aggregateClass();
     this.redisClient = Redis.createClient(vertx,
       new RedisOptions()
         .setMaxPoolSize(CpuCoreSensor.availableProcessors())
         .setMaxWaitingHandlers(CpuCoreSensor.availableProcessors() * 4)
         .setPassword(configuration.getString("redisPassword"))
-        .setPoolName(camelToKebab(deployment.aggregateClass().getSimpleName()))
+        .setPoolName(camelToKebab(es4jDeployment.aggregateClass().getSimpleName()))
         .setConnectionString("redis://:%s@%s:%s/%s".formatted(
           configuration.getString("redisPassword"),
           configuration.getString("redisHost"),
@@ -186,7 +186,7 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public Uni<Void> setup(Deployment aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Es4jDeployment aggregateClass, Vertx vertx, JsonObject configuration) {
     return null;
   }
 

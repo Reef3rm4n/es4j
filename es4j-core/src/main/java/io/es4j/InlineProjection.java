@@ -8,7 +8,7 @@ import io.smallrye.mutiny.Uni;
  * within the framework. Implementors of this interface will be called in a best-effort
  * manner for emitted eventTypes.
  */
-public interface LiveEventStream {
+public interface InlineProjection {
 
   /**
    * Apply an Event to the live stream. This method will be called in a best-effort

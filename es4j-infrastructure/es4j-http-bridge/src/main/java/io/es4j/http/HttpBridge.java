@@ -3,7 +3,7 @@ package io.es4j.http;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
-import io.es4j.Deployment;
+import io.es4j.Es4jDeployment;
 import io.es4j.Command;
 import io.es4j.core.objects.DefaultFilters;
 import io.es4j.core.objects.Es4jError;
@@ -147,7 +147,7 @@ public class HttpBridge implements Bridge {
     final var options = new SockJSHandlerOptions().setRegisterWriteHandler(true);
     final var bridgeOptions = new SockJSBridgeOptions();
     //todo add web-socket command ingress
-    Es4jMain.AGGREGATES.stream().map(Deployment::aggregateClass).forEach(
+    Es4jMain.AGGREGATES.stream().map(Es4jDeployment::aggregateClass).forEach(
       aClass -> bridgeOptions
         .addInboundPermitted(permission(AggregateBus.COMMAND_BRIDGE, aClass))
         .addOutboundPermitted(permission(EventbusLiveStreams.STATE_STREAM, aClass))

@@ -2,7 +2,7 @@ package io.es4j.infra.pg;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
-import io.es4j.Deployment;
+import io.es4j.Es4jDeployment;
 import io.es4j.infra.pg.models.EventRecordKey;
 import io.es4j.infra.pg.models.EventRecordQuery;
 import io.es4j.infrastructure.models.*;
@@ -37,7 +37,7 @@ public class PgEventStore implements EventStore {
 
 
   @Override
-  public void start(Deployment deployment, Vertx vertx, JsonObject configuration) {
+  public void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
     this.eventJournal = new Repository<>(EventStoreMapper.INSTANCE, RepositoryHandler.leasePool(configuration, vertx));
   }
 
@@ -136,8 +136,8 @@ public class PgEventStore implements EventStore {
 
 
   @Override
-  public Uni<Void> setup(Deployment deployment, Vertx vertx, JsonObject configuration) {
-    final var schema = camelToKebab(deployment.aggregateClass().getSimpleName());
+  public Uni<Void> setup(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
+    final var schema = camelToKebab(es4jDeployment.aggregateClass().getSimpleName());
     LOGGER.debug("Migrating postgres schema {} configuration {}", schema, configuration);
     configuration.put("schema", schema);
     return LiquibaseHandler.liquibaseString(

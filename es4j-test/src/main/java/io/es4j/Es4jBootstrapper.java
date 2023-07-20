@@ -59,7 +59,7 @@ class Es4jBootstrapper<T extends Aggregate> {
   }
 
   public void bootstrap() {
-    final var deployment = new Deployment() {
+    final var deployment = new Es4jDeployment() {
       @Override
       public Class<? extends Aggregate> aggregateClass() {
         return aggregateClass;

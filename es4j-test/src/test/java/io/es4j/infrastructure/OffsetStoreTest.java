@@ -1,6 +1,6 @@
 package io.es4j.infrastructure;
 
-import io.es4j.Deployment;
+import io.es4j.Es4jDeployment;
 import io.es4j.core.objects.Offset;
 import io.es4j.core.objects.OffsetBuilder;
 import io.es4j.core.objects.OffsetKeyBuilder;
@@ -24,7 +24,7 @@ class OffsetStoreTest {
 
   public static final String TENANT_ID = "default";
   private static PostgreSQLContainer POSTGRES_CONTAINER;
-  private static final Deployment DEPLOYMENT = () -> FakeAggregate.class;
+  private static final Es4jDeployment ES_4_J_DEPLOYMENT = () -> FakeAggregate.class;
   private static final Vertx vertx = Vertx.vertx();
   private static final JsonObject CONFIGURATION = new JsonObject();
 
@@ -43,8 +43,8 @@ class OffsetStoreTest {
   @ParameterizedTest
   @MethodSource("offsetStores")
   void test_offset_store(OffsetStore offsetStore) {
-    offsetStore.setup(DEPLOYMENT, vertx, CONFIGURATION).await().indefinitely();
-    offsetStore.start(DEPLOYMENT, vertx, CONFIGURATION);
+    offsetStore.setup(ES_4_J_DEPLOYMENT, vertx, CONFIGURATION).await().indefinitely();
+    offsetStore.start(ES_4_J_DEPLOYMENT, vertx, CONFIGURATION);
     final var name = "fake-consumer";
     final var offset = Assertions.assertDoesNotThrow(
       () -> offsetStore.put(createOffset(name)).await().indefinitely()

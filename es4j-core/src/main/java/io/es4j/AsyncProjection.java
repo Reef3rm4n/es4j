@@ -17,7 +17,7 @@ import java.util.Optional;
  * The PollingEventProjection interface defines the structure for event projections
  * that use a polling strategy.
  */
-public interface PollingEventProjection {
+public interface AsyncProjection {
 
   /**
    * Apply the list of AggregateEvent objects to the projection.
@@ -34,15 +34,6 @@ public interface PollingEventProjection {
    */
   default Optional<EventJournalFilter> filter() {
     return Optional.empty();
-  }
-
-  /**
-   * Retrieve the tenant associated with the projection.
-   *
-   * @return a String representing the tenant. Defaults to "default".
-   */
-  default String tenant() {
-    return "default";
   }
 
   /**

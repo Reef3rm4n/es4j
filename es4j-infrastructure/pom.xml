@@ -25,16 +25,17 @@
   </modules>
 
   <dependencyManagement>
-  <dependencies>
-    <dependency>
-      <groupId>io.es4j</groupId>
-      <artifactId>es4j-dependencies</artifactId>
-      <version>${project.version}</version>
-      <type>pom</type>
-      <scope>import</scope>
-    </dependency>
-  </dependencies>
-</dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.es4j</groupId>
+        <artifactId>es4j-dependencies</artifactId>
+        <version>${project.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>

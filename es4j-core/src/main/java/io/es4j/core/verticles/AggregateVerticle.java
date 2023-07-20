@@ -35,7 +35,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   public static final String ACTION = "action";
   private final Class<T> aggregateClass;
   private final String nodeDeploymentID;
-  private final Deployment deployment;
+  private final Es4jDeployment es4jDeployment;
   private CommandHandler<T> commandHandler;
   private List<BehaviourWrap> behaviourWraps;
   private List<AggregatorWrap> aggregatorWraps;
@@ -43,11 +43,11 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
   private Es4jService es4jService;
 
   public AggregateVerticle(
-    final Deployment deployment,
+    final Es4jDeployment es4jDeployment,
     final Class<T> aggregateClass,
     final String nodeDeploymentID
   ) {
-    this.deployment= deployment;
+    this.es4jDeployment = es4jDeployment;
     this.aggregateClass = aggregateClass;
     this.nodeDeploymentID = nodeDeploymentID;
   }
@@ -64,7 +64,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       Optional.empty(),
       Es4jServiceLoader.loadOffsetStore()
     );
-    infrastructure.start(deployment, vertx, config());
+    infrastructure.start(es4jDeployment, vertx, config());
     vertx.eventBus().addInboundInterceptor(this::addContextualData);
     this.commandHandler = new CommandHandler<>(
       vertx,
@@ -72,7 +72,7 @@ public class AggregateVerticle<T extends Aggregate> extends AbstractVerticle {
       aggregatorWraps,
       behaviourWraps,
       infrastructure,
-      deployment.aggregateConfiguration()
+      es4jDeployment.aggregateConfiguration()
     );
     this.es4jService = new Es4jService(
       infrastructure.offsetStore(),

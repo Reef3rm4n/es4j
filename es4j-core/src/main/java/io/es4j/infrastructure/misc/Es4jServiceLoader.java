@@ -35,26 +35,26 @@ public class Es4jServiceLoader {
       .orElseThrow(() -> new IllegalStateException("EventStore not found"));
   }
 
-  public static List<PollingStateProjection> stateProjections() {
-    return ServiceLoader.load(PollingStateProjection.class).stream()
+  public static List<AsyncStateTransfer> stateProjections() {
+    return ServiceLoader.load(AsyncStateTransfer.class).stream()
       .map(ServiceLoader.Provider::get)
       .toList();
   }
 
-  public static List<PollingEventProjection> pollingEventProjections() {
-    return ServiceLoader.load(PollingEventProjection.class).stream()
+  public static List<AsyncProjection> pollingEventProjections() {
+    return ServiceLoader.load(AsyncProjection.class).stream()
       .map(ServiceLoader.Provider::get)
       .toList();
   }
 
-  public static List<LiveEventStream> liveEventProjections() {
-    return ServiceLoader.load(LiveEventStream.class).stream()
+  public static List<InlineProjection> liveEventProjections() {
+    return ServiceLoader.load(InlineProjection.class).stream()
       .map(ServiceLoader.Provider::get)
       .toList();
   }
 
-  public static List<LiveStateStream> liveStateProjections() {
-    return ServiceLoader.load(LiveStateStream.class).stream()
+  public static List<InlineStateTransfer> liveStateProjections() {
+    return ServiceLoader.load(InlineStateTransfer.class).stream()
       .map(ServiceLoader.Provider::get)
       .toList();
   }
@@ -72,8 +72,8 @@ public class Es4jServiceLoader {
       .toList();
   }
 
-  public static List<Deployment> bootstrapList() {
-    return ServiceLoader.load(Deployment.class).stream()
+  public static List<Es4jDeployment> bootstrapList() {
+    return ServiceLoader.load(Es4jDeployment.class).stream()
       .map(ServiceLoader.Provider::get)
       .peek(aggregate -> {
         LOGGER.info("Bootstrapper found {}", aggregate);

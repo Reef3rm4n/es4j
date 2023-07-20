@@ -6,14 +6,12 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 
-import static io.es4j.core.CommandHandler.camelToKebab;
-
 /**
  * The Bootstrap interface is responsible for providing the framework
  * with the necessary information regarding the aggregate roots that
  * need to be taken into consideration.
  */
-public interface Deployment {
+public interface Es4jDeployment {
 
   /**
    * Provides the class of the aggregate root that should be taken into

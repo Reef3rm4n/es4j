@@ -4,7 +4,7 @@ import io.es4j.core.objects.AggregateState;
 import io.smallrye.mutiny.Uni;
 
 // create javadoc for this interface
-public interface LiveStateStream<T extends Aggregate> {
+public interface InlineStateTransfer<T extends Aggregate> {
 
   Uni<Void> update(AggregateState<T> currentState);
 

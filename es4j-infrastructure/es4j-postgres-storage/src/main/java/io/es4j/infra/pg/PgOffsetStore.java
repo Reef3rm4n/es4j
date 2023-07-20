@@ -1,8 +1,7 @@
 package io.es4j.infra.pg;
 
 import com.google.auto.service.AutoService;
-import io.es4j.Aggregate;
-import io.es4j.Deployment;
+import io.es4j.Es4jDeployment;
 import io.es4j.core.objects.OffsetBuilder;
 import io.es4j.core.objects.OffsetKey;
 import io.es4j.infra.pg.mappers.JournalOffsetMapper;
@@ -45,7 +44,7 @@ public class PgOffsetStore implements OffsetStore {
   }
 
   @Override
-  public void start(Deployment deployment, Vertx vertx, JsonObject config) {
+  public void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject config) {
     this.repository = new Repository<>(JournalOffsetMapper.INSTANCE, RepositoryHandler.leasePool(config, vertx));
   }
 
@@ -122,8 +121,8 @@ public class PgOffsetStore implements OffsetStore {
   }
 
   @Override
-  public Uni<Void> setup(Deployment deployment, Vertx vertx, JsonObject configuration) {
-    final var schema = camelToKebab(deployment.aggregateClass().getSimpleName());
+  public Uni<Void> setup(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
+    final var schema = camelToKebab(es4jDeployment.aggregateClass().getSimpleName());
     LOGGER.debug("Migrating postgres schema {} configuration {}", schema, configuration);
     configuration.put("schema", schema);
     return LiquibaseHandler.liquibaseString(

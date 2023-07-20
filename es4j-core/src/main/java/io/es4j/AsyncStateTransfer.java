@@ -19,7 +19,7 @@ import io.smallrye.mutiny.Uni;
  *
  * @param <T> the type of the aggregate
  */
-public interface PollingStateProjection<T extends Aggregate> {
+public interface AsyncStateTransfer<T extends Aggregate> {
 
   /**
    * Updates the current state of an aggregate.
@@ -29,16 +29,6 @@ public interface PollingStateProjection<T extends Aggregate> {
    */
   Uni<Void> update(AggregateState<T> currentState);
 
-  /**
-   * Returns the tenant for this polling state projection.
-   *
-   * <p>The default implementation returns "default", but this can be overridden by subclasses.</p>
-   *
-   * @return a string representing the tenant
-   */
-  default String tenant() {
-    return "default";
-  }
 
   /**
    * Returns the polling policy for this polling state projection.

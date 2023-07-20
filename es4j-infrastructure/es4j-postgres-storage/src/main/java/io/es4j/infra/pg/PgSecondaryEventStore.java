@@ -1,7 +1,7 @@
 package io.es4j.infra.pg;
 
 import io.es4j.Aggregate;
-import io.es4j.Deployment;
+import io.es4j.Es4jDeployment;
 import io.es4j.infra.pg.mappers.EventStoreMapper;
 import io.es4j.infra.pg.models.EventRecord;
 import io.es4j.infra.pg.models.EventRecordKey;
@@ -80,18 +80,18 @@ public class PgSecondaryEventStore implements SecondaryEventStore {
   }
 
   @Override
-  public void start(Deployment deployment, Vertx vertx, JsonObject configuration) {
+  public void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
     this.eventJournal = new Repository<>(EventStoreMapper.INSTANCE, RepositoryHandler.leasePool(configuration, vertx));
 
   }
 
   @Override
-  public Uni<Void> setup(Deployment deployment, Vertx vertx, JsonObject configuration) {
-    LOGGER.debug("Migrating database for {} with configuration {}", deployment.aggregateClass().getSimpleName(), configuration);
+  public Uni<Void> setup(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
+    LOGGER.debug("Migrating database for {} with configuration {}", es4jDeployment.aggregateClass().getSimpleName(), configuration);
     return LiquibaseHandler.liquibaseString(
       eventJournal.repositoryHandler(),
       "pg-event-store.xml",
-      Map.of("schema", camelToKebab(deployment.aggregateClass().getSimpleName()))
+      Map.of("schema", camelToKebab(es4jDeployment.aggregateClass().getSimpleName()))
     );
   }
 

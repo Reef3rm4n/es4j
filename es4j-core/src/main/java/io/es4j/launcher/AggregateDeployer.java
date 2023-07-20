@@ -3,8 +3,8 @@ package io.es4j.launcher;
 import io.es4j.Aggregate;
 
 
-import io.es4j.Deployment;
-import io.es4j.PollingStateProjection;
+import io.es4j.Es4jDeployment;
+import io.es4j.AsyncStateTransfer;
 import io.es4j.core.tasks.AggregateHeartbeat;
 import io.es4j.core.verticles.AggregateVerticle;
 import io.es4j.infrastructure.*;
@@ -39,7 +39,7 @@ public class AggregateDeployer<T extends Aggregate> {
   protected static final Logger LOGGER = LoggerFactory.getLogger(AggregateDeployer.class);
   private final Vertx vertx;
   private final String nodeDeploymentID;
-  private final Deployment deploymentConfiguration;
+  private final Es4jDeployment es4jDeploymentConfiguration;
   private final Class<T> aggregateClass;
   private Infrastructure infrastructure;
   private List<AggregateServices> aggregateServices;
@@ -49,11 +49,11 @@ public class AggregateDeployer<T extends Aggregate> {
 
   public AggregateDeployer(
     final Class<T> aggregateClass,
-    final Deployment deployment,
+    final Es4jDeployment es4jDeployment,
     final Vertx vertx,
     final String nodeDeploymentID
   ) {
-    this.deploymentConfiguration = deployment;
+    this.es4jDeploymentConfiguration = es4jDeployment;
     this.vertx = vertx;
     this.aggregateClass = aggregateClass;
     this.nodeDeploymentID = nodeDeploymentID;
@@ -62,18 +62,18 @@ public class AggregateDeployer<T extends Aggregate> {
   public void deploy(final Promise<Void> startPromise) {
     Es4jConfigurationHandler.configure(
       vertx,
-      deploymentConfiguration.infrastructureConfiguration(),
+      es4jDeploymentConfiguration.infrastructureConfiguration(),
       infrastructureConfiguration -> {
-        infrastructureConfiguration.put("schema", camelToKebab(deploymentConfiguration.aggregateClass().getSimpleName()));
-        LOGGER.info("--- Es4j starting  {}::{} --- {}", deploymentConfiguration.infrastructureConfiguration(), this.nodeDeploymentID, infrastructureConfiguration.encodePrettily());
+        infrastructureConfiguration.put("schema", camelToKebab(es4jDeploymentConfiguration.aggregateClass().getSimpleName()));
+        LOGGER.info("--- Es4j starting  {}::{} --- {}", es4jDeploymentConfiguration.infrastructureConfiguration(), this.nodeDeploymentID, infrastructureConfiguration.encodePrettily());
         close()
           .flatMap(avoid -> infrastructure(vertx, infrastructureConfiguration)
           )
           .call(injector -> {
               addHeartBeat();
               addProjections();
-              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(deploymentConfiguration, aggregateClass, nodeDeploymentID);
-              return startChannel(vertx, deploymentConfiguration.aggregateClass(), nodeDeploymentID)
+              final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(es4jDeploymentConfiguration, aggregateClass, nodeDeploymentID);
+              return startChannel(vertx, es4jDeploymentConfiguration.aggregateClass(), nodeDeploymentID)
                 .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
                       .setConfig(infrastructureConfiguration)
                       .setInstances(CpuCoreSensor.availableProcessors() * 2)
@@ -82,10 +82,10 @@ public class AggregateDeployer<T extends Aggregate> {
                 )
                 .call(avoid -> {
                     this.aggregateServices = Es4jServiceLoader.loadAggregateServices();
-                    return Es4jConfigurationHandler.fsConfigurations(vertx, deploymentConfiguration.fileBusinessRules())
+                    return Es4jConfigurationHandler.fsConfigurations(vertx, es4jDeploymentConfiguration.fileBusinessRules())
                       .flatMap(av -> Multi.createFrom().iterable(aggregateServices)
                         .onItem().transformToUniAndMerge(
-                          service -> service.start(deploymentConfiguration.aggregateClass(), vertx, infrastructureConfiguration)
+                          service -> service.start(es4jDeploymentConfiguration.aggregateClass(), vertx, infrastructureConfiguration)
                         )
                         .collect().asList()
                         .replaceWithVoid()
@@ -98,10 +98,10 @@ public class AggregateDeployer<T extends Aggregate> {
           .with(
             aVoid -> {
               startPromise.complete();
-              LOGGER.info("--- Es4j  {} started ---", deploymentConfiguration.aggregateClass().getSimpleName());
+              LOGGER.info("--- Es4j  {} started ---", es4jDeploymentConfiguration.aggregateClass().getSimpleName());
             }
             , throwable -> {
-              LOGGER.error("--- Es4j {} failed to start ---", deploymentConfiguration.aggregateClass().getSimpleName(), throwable);
+              LOGGER.error("--- Es4j {} failed to start ---", es4jDeploymentConfiguration.aggregateClass().getSimpleName(), throwable);
               startPromise.fail(throwable);
             }
           );
@@ -110,7 +110,7 @@ public class AggregateDeployer<T extends Aggregate> {
   }
 
   private void addHeartBeat() {
-    timerTaskDeployer.deploy(new AggregateHeartbeat<>(vertx, deploymentConfiguration.aggregateClass()));
+    timerTaskDeployer.deploy(new AggregateHeartbeat<>(vertx, es4jDeploymentConfiguration.aggregateClass()));
   }
 
   private Uni<Void> infrastructure(Vertx vertx, JsonObject configuration) {
@@ -127,15 +127,15 @@ public class AggregateDeployer<T extends Aggregate> {
     if (Objects.isNull(timerTaskDeployer)) {
       timerTaskDeployer = new TimerTaskDeployer(vertx);
     }
-    return infrastructure.setup(deploymentConfiguration, vertx, configuration)
-      .invoke(avoid -> infrastructure.start(deploymentConfiguration, vertx, configuration));
+    return infrastructure.setup(es4jDeploymentConfiguration, vertx, configuration)
+      .invoke(avoid -> infrastructure.start(es4jDeploymentConfiguration, vertx, configuration));
   }
 
 
   private void addProjections() {
     final var aggregateProxy = new AggregateEventBusPoxy<>(vertx, aggregateClass);
     final var stateProjections = Es4jServiceLoader.stateProjections().stream()
-      .filter(cc -> Es4jServiceLoader.getFirstGenericType(cc).isAssignableFrom(deploymentConfiguration.aggregateClass()))
+      .filter(cc -> Es4jServiceLoader.getFirstGenericType(cc).isAssignableFrom(es4jDeploymentConfiguration.aggregateClass()))
       .map(cc -> gettStateProjectionWrapper(cc, aggregateClass))
       .map(tStateProjectionWrapper -> new StateProjectionPoller<T>(
         aggregateClass,
@@ -146,7 +146,7 @@ public class AggregateDeployer<T extends Aggregate> {
       ))
       .toList();
     final var eventProjections = Es4jServiceLoader.pollingEventProjections().stream()
-      .filter(cc -> cc.aggregateClass().isAssignableFrom(deploymentConfiguration.aggregateClass()))
+      .filter(cc -> cc.aggregateClass().isAssignableFrom(es4jDeploymentConfiguration.aggregateClass()))
       .map(eventProjection -> new EventProjectionPoller(
           eventProjection,
           infrastructure.eventStore(),
@@ -158,7 +158,7 @@ public class AggregateDeployer<T extends Aggregate> {
     stateProjections.forEach(cronTaskDeployer::deploy);
   }
 
-  private StateProjectionWrapper<T> gettStateProjectionWrapper(PollingStateProjection cc, Class<T> aggregateClass) {
+  private StateProjectionWrapper<T> gettStateProjectionWrapper(AsyncStateTransfer cc, Class<T> aggregateClass) {
     return new StateProjectionWrapper<T>(
       cc,
       aggregateClass,

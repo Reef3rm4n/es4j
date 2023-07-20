@@ -43,7 +43,7 @@
     </dependency>
     <dependency>
       <groupId>io.es4j</groupId>
-      <artifactId>es4j-postgres-queue</artifactId>
+      <artifactId>es4j-postgres-message-broker</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
