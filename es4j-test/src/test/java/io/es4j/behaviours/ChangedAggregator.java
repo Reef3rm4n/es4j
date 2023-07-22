@@ -16,7 +16,10 @@ public class ChangedAggregator implements Aggregator<FakeAggregate, DataChanged>
     return aggregateState.replaceData(event.newData());
   }
 
-
+  @Override
+  public String eventType() {
+    return "data-changed";
+  }
 
 
 }

@@ -28,11 +28,18 @@ public class QueryFilters<T> {
     this.params = params;
     return this;
   }
+
   public QueryFilters<T> filterParams(T... params) {
     this.params = unpackValues(params);
     return this;
   }
 
+  public QueryFilters<T> filterParam(T param) {
+    if (param != null) {
+      this.params = List.of(param);
+    }
+    return this;
+  }
 
 
   public QueryFilters(Class<T> paramType) {
@@ -52,7 +59,7 @@ public class QueryFilters<T> {
   }
 
   public QueryFilters validate() {
-    Objects.requireNonNull(column,"Column shouldn't be null !");
+    Objects.requireNonNull(column, "Column shouldn't be null !");
     return this;
   }
 

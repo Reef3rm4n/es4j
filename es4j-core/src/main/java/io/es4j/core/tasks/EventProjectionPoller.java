@@ -8,13 +8,12 @@ import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.models.Event;
 import io.es4j.infrastructure.models.EventStreamBuilder;
-import io.es4j.sql.exceptions.NotFound;
 import io.es4j.task.CronTask;
 import io.es4j.task.CronTaskConfiguration;
 import io.es4j.task.CronTaskConfigurationBuilder;
 import io.es4j.task.LockLevel;
 import io.smallrye.mutiny.Uni;
-import io.es4j.PollingEventProjection;
+import io.es4j.AsyncProjection;
 import io.es4j.infrastructure.misc.EventParser;
 import io.es4j.infrastructure.models.EventStream;
 
@@ -26,18 +25,17 @@ import java.util.concurrent.atomic.AtomicReference;
 
 
 public class EventProjectionPoller implements CronTask {
-
   private static final Logger logger = LoggerFactory.getLogger(EventProjectionPoller.class);
-  private final PollingEventProjection pollingEventProjection;
+  private final AsyncProjection asyncProjection;
   private final EventStore eventStore;
   private final OffsetStore offsetStore;
 
   public EventProjectionPoller(
-    PollingEventProjection pollingEventProjections,
+    AsyncProjection asyncProjections,
     EventStore eventStore,
     OffsetStore offsetStore
   ) {
-    this.pollingEventProjection = pollingEventProjections;
+    this.asyncProjection = asyncProjections;
     this.eventStore = eventStore;
     this.offsetStore = offsetStore;
   }
@@ -45,26 +43,26 @@ public class EventProjectionPoller implements CronTask {
   @Override
   public Uni<Void> performTask() {
     return offsetStore.get(getOffset())
-      .flatMap(journalOffset -> eventStore.fetch(streamStatement(pollingEventProjection, journalOffset))
-        .flatMap(events -> pollingEventProjection.apply(parseEvents(events))
+      .flatMap(journalOffset -> eventStore.fetch(streamStatement(asyncProjection, journalOffset))
+        .flatMap(events -> asyncProjection.apply(parseEvents(events))
           .flatMap(avoid -> offsetStore.put(journalOffset.updateOffset(events)))
         )
       )
-      .onFailure().invoke(throwable -> logger.error("Unable to update projection {}", pollingEventProjection.getClass().getName(), throwable))
+      .onFailure().invoke(throwable -> logger.error("Unable to update projection {}", asyncProjection.getClass().getName(), throwable))
       .replaceWithVoid();
   }
 
   private OffsetKey getOffset() {
-    return new OffsetKey(pollingEventProjection.getClass().getName(), pollingEventProjection.tenant());
+    return new OffsetKey(asyncProjection.getClass().getName(), "default");
   }
 
-  private static EventStream streamStatement(PollingEventProjection pollingEventProjection, Offset offset) {
+  private static EventStream streamStatement(AsyncProjection asyncProjection, Offset offset) {
     AtomicReference<EventStream> eventStream = new AtomicReference<>();
-    pollingEventProjection.filter().ifPresentOrElse(
+    asyncProjection.filter().ifPresentOrElse(
       filter -> eventStream.set(
         EventStreamBuilder.builder()
-          .events(filter.events())
-          .tenantId(pollingEventProjection.tenant())
+          .eventTypes(filter.eventTypes())
+          .tenantId(filter.tenant())
           .offset(offset.idOffSet())
           .batchSize(1000)
           .tags(filter.tags())
@@ -72,7 +70,6 @@ public class EventProjectionPoller implements CronTask {
       ),
       () -> eventStream.set(
         EventStreamBuilder.builder()
-          .tenantId(pollingEventProjection.tenant())
           .offset(offset.idOffSet())
           .batchSize(1000)
           .build()
@@ -89,7 +86,7 @@ public class EventProjectionPoller implements CronTask {
           event.tenantId(),
           event.journalOffset(),
           event.eventVersion(),
-          EventParser.getEvent(event.eventClass(), event.event())
+          EventParser.getEvent(event.eventType(), event.event())
         )
       )
       .toList();
@@ -98,9 +95,8 @@ public class EventProjectionPoller implements CronTask {
   @Override
   public CronTaskConfiguration configuration() {
     return CronTaskConfigurationBuilder.builder()
-      .knownInterruptions(List.of(NotFound.class))
       .lockLevel(LockLevel.CLUSTER_WIDE)
-      .cron(pollingEventProjection.pollingPolicy())
+      .cron(asyncProjection.pollingPolicy())
       .build();
   }
 

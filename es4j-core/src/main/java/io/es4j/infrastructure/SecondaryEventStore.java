@@ -1,7 +1,7 @@
 package io.es4j.infrastructure;
 
 import io.es4j.Aggregate;
-import io.es4j.infrastructure.models.AggregateEventStream;
+import io.es4j.Es4jDeployment;
 import io.es4j.infrastructure.models.AppendInstruction;
 import io.es4j.infrastructure.models.Event;
 import io.es4j.infrastructure.models.EventStream;
@@ -23,9 +23,9 @@ public interface SecondaryEventStore {
 
   Uni<Void> stop();
 
-  void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration);
 
-  Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration);
+  Uni<Void> setup(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration);
 
 
 }

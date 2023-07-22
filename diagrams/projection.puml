@@ -1,0 +1,49 @@
+@startuml
+
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+!define DEFAULT_MONO_FONT_SIZE 14
+
+skinparam monochrome true
+
+actor Client
+participant Bridge
+participant CommandHandler
+database EventStore
+participant Projection
+
+Client -> Bridge: Issue Command
+activate Bridge
+Bridge -> CommandHandler: Proxy Command
+activate CommandHandler
+CommandHandler -> EventStore: Append Event
+activate EventStore
+EventStore --> CommandHandler: Confirm Event Appended
+deactivate CommandHandler
+EventStore -> Projection: Project Event
+activate Projection
+Projection --> EventStore: Confirm Projection Updated
+deactivate EventStore
+Client -> Projection: Query Projection
+Projection --> Client: Return Query Result
+deactivate Projection
+Bridge --> Client: Reply to Command
+deactivate Bridge
+
+@enduml

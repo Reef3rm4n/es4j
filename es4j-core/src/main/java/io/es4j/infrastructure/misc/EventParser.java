@@ -20,5 +20,14 @@ public class EventParser {
     }
   }
 
+  public static <T extends Event> T getEvent(final Class<T> eventClazz, JsonObject event) {
+    try {
+      return event.mapTo(eventClazz);
+    } catch (Exception e) {
+      LOGGER.error("Unable to parse event %s error => %s".formatted(event.encode(), e.getMessage()), e);
+      throw new IllegalArgumentException(e);
+    }
+  }
+
 
 }

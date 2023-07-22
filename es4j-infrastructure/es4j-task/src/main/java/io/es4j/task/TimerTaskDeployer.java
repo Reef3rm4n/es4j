@@ -28,6 +28,7 @@ public class TimerTaskDeployer {
 
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
+    timers.clear();
   }
 
   public void deploy(TimerTask timerTask) {
@@ -37,7 +38,7 @@ public class TimerTaskDeployer {
 
   public static void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Duration throttle) {
     timers.remove(taskWrapper.task().getClass());
-    taskWrapper.logger().info("Starting task");
+    taskWrapper.logger().debug("Starting task");
     final var timerId = vertx.setTimer(
       throttle.toMillis(),
       delay -> {
@@ -53,23 +54,20 @@ public class TimerTaskDeployer {
           .with(avoid -> {
               final var end = Instant.now();
               final var emptyTaskBackOff = taskWrapper.task().configuration().throttle();
-              taskWrapper.logger().info("Task ran in " + Duration.between(start, end).toMillis() + "ms. Next execution in " + emptyTaskBackOff.getSeconds() + "s");
+              taskWrapper.logger().debug("Task ran in " + Duration.between(start, end).toMillis() + "ms. Next execution in " + emptyTaskBackOff.getSeconds() + "s");
               triggerTask(taskWrapper, vertx, emptyTaskBackOff);
             },
             throwable -> {
               final var end = Instant.now();
-              if (taskWrapper.task.configuration().knownInterruptions().stream().anyMatch(t -> t.isAssignableFrom(throwable.getClass()))) {
-                taskWrapper.logger().debug("Task interrupted by" + throwable.getClass().getSimpleName() + " after " + Duration.between(start, end).toMillis() + "ms");
-                taskWrapper.logger().info("Interrupted, backing off for {}", taskWrapper.task().configuration().interruptionBackOff());
-                triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().interruptionBackOff());
+              if (taskWrapper.task.configuration().finalInterruption().isPresent() && taskWrapper.task.configuration().finalInterruption().get().isAssignableFrom(throwable.getClass())) {
+                taskWrapper.logger().info("Final interruption {} reached, task wont be rescheduled", throwable.getClass().getSimpleName());
               } else if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
-                taskWrapper.logger().info("Unable to acquire lock, will back off for {}",taskWrapper.task().configuration().lockBackOff());
+                taskWrapper.logger().debug("Unable to acquire lock after {}ms, will back off for {}", Duration.between(start, end).toMillis(), taskWrapper.task().configuration().lockBackOff());
                 triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().lockBackOff());
               } else {
-                taskWrapper.logger().info("Error handling task, will back off for {}", taskWrapper.task().configuration().errorBackOff(), throwable);
+                taskWrapper.logger().debug("Error handling task after {}ms, will back off for {}", Duration.between(start, end).toMillis(), taskWrapper.task().configuration().errorBackOff(), throwable);
                 triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().errorBackOff());
               }
-
             }
           );
       }

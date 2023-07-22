@@ -28,6 +28,7 @@ public class CronTaskDeployer {
 
   public void close() {
     timers.forEach((tClass, timerId) -> vertx.cancelTimer(timerId));
+    timers.clear();
   }
 
   public void deploy(CronTask timerTask) {
@@ -56,9 +57,7 @@ public class CronTaskDeployer {
             },
             throwable -> {
               taskWrapper.logger().info("cron-task ran in {}", Duration.between(start, Instant.now()).toMillis());
-              if (taskWrapper.task.configuration().knownInterruptions().stream().anyMatch(t -> t.isAssignableFrom(throwable.getClass()))) {
-                taskWrapper.logger().debug("Interrupted by {} ", throwable.getClass().getSimpleName());
-              } else if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
+              if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
                 taskWrapper.logger().debug("Unable to acquire lock");
               } else {
                 taskWrapper.logger().error("Error handling cron-task", throwable);

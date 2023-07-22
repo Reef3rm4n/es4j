@@ -34,7 +34,7 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
     extensionContext.getTestClass().ifPresent(
       testClass -> {
         Es4jTest annotation = testClass.getAnnotation(Es4jTest.class);
-        es4jBootstrapper = new Es4jBootstrapper<>(annotation.aggregate())
+        es4jBootstrapper = new Es4jBootstrapper<>(annotation.aggregate(), annotation.infraConfig())
           .setPostgres(annotation.infrastructure())
           .setRemoteHost(annotation.host())
           .setRemotePort(annotation.port());
@@ -139,7 +139,7 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
       state.state().aggregateId(),
       state.state().tenant()
     ));
-    // todo drop events ?
+    // todo drop eventTypes ?
   }
 
   private void addAggregate(GivenAggregate givenAggregate) {

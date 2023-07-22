@@ -9,7 +9,7 @@ import io.es4j.domain.FakeAggregate;
 import io.es4j.events.DataChanged;
 import io.es4j.commands.ChangeDataWithConfig;
 import io.es4j.http.OpenApiDocs;
-import io.es4j.infrastructure.config.FileBusinessRule;
+import io.es4j.infrastructure.config.FileConfiguration;
 
 
 import java.util.List;
@@ -22,7 +22,7 @@ public class ChangeBehaviourWithConfiguration implements Behaviour<FakeAggregate
 
   @Override
   public List<Event> process(final FakeAggregate state, final ChangeDataWithConfig command) {
-    final var dataConfiguration = FileBusinessRule.get(DataFileBusinessRule.class, "data-configuration");
+    final var dataConfiguration = FileConfiguration.get(DataFileBusinessRule.class, "data-configuration");
     Objects.requireNonNull(dataConfiguration.rule(), "configuration not present");
     return List.of(new DataChanged(command.newData()));
   }

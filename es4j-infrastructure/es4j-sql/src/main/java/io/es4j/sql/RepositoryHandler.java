@@ -81,7 +81,7 @@ public record RepositoryHandler(
       .setConnectionTimeoutUnit(TimeUnit.SECONDS)
       .setConnectionTimeout(config.getInteger("pgConnectionTimeOut", EnvVars.PG_CONNECTION_TIMEOUT))
       .setPoolCleanerPeriod(config.getInteger("pgPoolCleanerPeriod", EnvVars.PG_CLEANER_PERIOD))
-      .setMaxSize(config.getInteger("pgPoolMaxSize", CpuCoreSensor.availableProcessors() * 2))
+      .setMaxSize(config.getInteger("pgPoolMaxSize", CpuCoreSensor.availableProcessors() * 8))
       .setMaxWaitQueueSize(config.getInteger("pgMaxWaitQueueSize", -1))
       .setShared(true)
       .setName(config.getString("schema", EnvVars.SCHEMA) + "-postgres-pooled");
@@ -249,7 +249,7 @@ public record RepositoryHandler(
     return upstreamSupplier -> upstreamSupplier.get()
       .map(row -> {
           final var end = Instant.now();
-          logger.info(" Inserted in " + Duration.between(start, end).toMillis() + "ms");
+          logger.debug(" Inserted in " + Duration.between(start, end).toMillis() + "ms");
 //          return row != null && row.iterator().hasNext() ? row.iterator().next().getLong(ID) : null;
           return row.rowCount() == 0 ? null : (long) row.rowCount();
         }

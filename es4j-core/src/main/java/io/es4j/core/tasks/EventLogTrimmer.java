@@ -14,7 +14,7 @@ public class EventLogTrimmer implements CronTask {
   // 1) marks the id idOffset in the event-journal where it is safe to chop
   //  - first draft will determine the safety by querying the event-log for the lowest id for any given aggregateId stream where the Snapshot.class event is not present.
   //  - second draft will could the determine whe above for each existent aggregate
-  // 2) add to the infrastructure an optional interface called EventStoreDump.class classes implementing this interface would handle offloading of events
+  // 2) add to the infrastructure an optional interface called EventStoreDump.class classes implementing this interface would handle offloading of eventTypes
   //  - implementations would have to be idempotent
   // 3) adds chopping process related methods to the EventStore.class interface
   //  - this must be called from a single actor during its entire duration

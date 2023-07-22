@@ -127,7 +127,7 @@ public class OpenApiGenerator extends AbstractProcessor {
 
         builder.append("    @POST\n");
         builder.append("    @Path(\"/").append(camelToKebab(aggregateSimpleName)).append("/projection/next").append("\")\n");
-        builder.append("    @Operation(summary = \"Fetches events for a given projection id \")\n");
+        builder.append("    @Operation(summary = \"Fetches eventTypes for a given projection id \")\n");
         builder.append("    @APIResponse(responseCode = \"200\", description = \"Events fetched\")\n");
         builder.append("    @APIResponse(responseCode = \"400\", description = \"Unable to fetch\", content = @Content(schema = @Schema(implementation = io.es4j.core.objects.Es4jError.class)))\n");
         builder.append("    @APIResponse(responseCode = \"500\", description = \"Unable to fetch\", content = @Content(schema = @Schema(implementation = io.es4j.core.objects.Es4jError.class)))\n");

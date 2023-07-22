@@ -2,11 +2,13 @@ package io.es4j.infra.pg;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
+import io.es4j.Es4jDeployment;
 import io.es4j.infra.pg.models.EventRecordKey;
 import io.es4j.infra.pg.models.EventRecordQuery;
 import io.es4j.infrastructure.models.*;
 import io.es4j.sql.LiquibaseHandler;
 import io.es4j.sql.RepositoryHandler;
+import io.es4j.sql.exceptions.Conflict;
 import io.es4j.sql.exceptions.NotFound;
 import io.es4j.sql.models.QueryOptions;
 import io.smallrye.mutiny.Uni;
@@ -36,7 +38,7 @@ public class PgEventStore implements EventStore {
 
 
   @Override
-  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
     this.eventJournal = new Repository<>(EventStoreMapper.INSTANCE, RepositoryHandler.leasePool(configuration, vertx));
   }
 
@@ -120,7 +122,14 @@ public class PgEventStore implements EventStore {
 
   @Override
   public <T extends Aggregate> Uni<Void> append(AppendInstruction<T> appendInstruction) {
-    return eventJournal.insertBatch(parseInstruction(appendInstruction));
+    return eventJournal.insertBatch(parseInstruction(appendInstruction))
+      .onFailure().transform(throwable -> {
+        if (throwable instanceof Conflict conflict) {
+          throw new ConcurrentAppend(conflict);
+        } else {
+          throw new EventStoreExeception(throwable);
+        }
+      });
   }
 
   @Override
@@ -135,8 +144,8 @@ public class PgEventStore implements EventStore {
 
 
   @Override
-  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
-    final var schema = camelToKebab(aggregateClass.getSimpleName());
+  public Uni<Void> setup(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
+    final var schema = camelToKebab(es4jDeployment.aggregateClass().getSimpleName());
     LOGGER.debug("Migrating postgres schema {} configuration {}", schema, configuration);
     configuration.put("schema", schema);
     return LiquibaseHandler.liquibaseString(
@@ -156,7 +165,7 @@ public class PgEventStore implements EventStore {
     return appendInstruction.events().stream()
       .map(event -> new EventRecord(
           event.aggregateId(),
-          event.eventClass(),
+          event.eventType(),
           event.eventVersion(),
           event.event(),
           event.commandId(),
@@ -193,22 +202,19 @@ public class PgEventStore implements EventStore {
   }
 
   private static <T extends Aggregate> String startingOffset(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.journalOffset() != null && aggregateEventStream.journalOffset() == 0) {
-      return String.valueOf(0);
-    } else if (aggregateEventStream.startFrom() != null) {
-      return "(select max(id) from event_journal where event_class = '" + aggregateEventStream.startFrom().getName() + "' and aggregateId = '" + aggregateEventStream.aggregateId() + "')";
-    } else {
-      return null;
+    if (aggregateEventStream.startFromSnapshot()) {
+      return "(select coalesce(max(id),0) from event_store where event_class = 'snapshot' and aggregate_id ilike any(#{aggregate_id}) and tenant = #{tenant})";
     }
+    return null;
   }
 
   private EventRecordQuery eventJournalQuery(EventStream eventStream) {
     return new EventRecordQuery(
       eventStream.aggregateIds(),
-      eventStream.events() != null ? eventStream.events().stream().map(Class::getName).toList() : null,
+      eventStream.eventTypes(),
       null,
       eventStream.tags(),
-      null,
+      eventStream.versionFrom(),
       eventStream.versionTo(),
       eventStream.offset(),
       null,
@@ -219,8 +225,8 @@ public class PgEventStore implements EventStore {
         eventStream.to(),
         null,
         null,
-        null,
-        null,
+        0,
+        eventStream.batchSize(),
         null,
         eventStream.tenantId()
       )

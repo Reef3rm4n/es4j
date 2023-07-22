@@ -14,8 +14,11 @@ skinparam sequence {
     ActorFontSize 17
     ActorFontName Aapex
 }
+!define DEFAULT_MONO_FONT_SIZE 14
 
-participant "Event.x Bus" as LB
+skinparam monochrome true
+
+participant "Es4j Bus" as LB
 note over LB: the bus is embeded in each node \n this is just to make the visualization easier
 database "Node 1" as N1
 database "Node 2" as N2

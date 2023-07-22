@@ -9,8 +9,7 @@ import java.util.List;
 @RecordBuilder
 public record CronTaskConfiguration(
   Cron cron,
-  LockLevel lockLevel,
-  List<Class<? extends Throwable>> knownInterruptions
+  LockLevel lockLevel
 ) {
 
 }

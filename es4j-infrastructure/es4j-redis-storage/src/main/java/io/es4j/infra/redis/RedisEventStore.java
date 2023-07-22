@@ -2,11 +2,11 @@ package io.es4j.infra.redis;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Aggregate;
+import io.es4j.Es4jDeployment;
 import io.es4j.core.objects.ErrorSource;
 import io.es4j.core.objects.Es4jErrorBuilder;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.models.*;
-import io.es4j.sql.LiquibaseHandler;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
@@ -24,6 +24,8 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static io.es4j.core.CommandHandler.camelToKebab;
+
 
 @AutoService(EventStore.class)
 public class RedisEventStore implements EventStore {
@@ -33,7 +35,7 @@ public class RedisEventStore implements EventStore {
   public static final String EVENT = "event";
   public static final String TAGS = "tags";
   public static final String SCHEMA_VERSION = "schema-version";
-  private static final Logger LOGGER = LoggerFactory.getLogger(LiquibaseHandler.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(RedisEventStore.class);
   private Redis redisClient;
   private RedisAPI redisApi;
   private Class<? extends Aggregate> aggregateClass;
@@ -95,7 +97,7 @@ public class RedisEventStore implements EventStore {
     return Arrays.asList(
       streamName, String.valueOf(event.eventVersion()),
       TENANT_ID, event.tenantId(),
-      EVENT_CLASS, event.eventClass(),
+      EVENT_CLASS, event.eventType(),
       COMMAND_ID, event.commandId(),
       EVENT, event.event().encode(),
       TENANT_ID, event.tenantId(),
@@ -162,14 +164,14 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public void start(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
-    this.aggregateClass = aggregateClass;
+  public void start(Es4jDeployment es4jDeployment, Vertx vertx, JsonObject configuration) {
+    this.aggregateClass = es4jDeployment.aggregateClass();
     this.redisClient = Redis.createClient(vertx,
       new RedisOptions()
         .setMaxPoolSize(CpuCoreSensor.availableProcessors())
         .setMaxWaitingHandlers(CpuCoreSensor.availableProcessors() * 4)
         .setPassword(configuration.getString("redisPassword"))
-        .setPoolName(aggregateClass.getSimpleName())
+        .setPoolName(camelToKebab(es4jDeployment.aggregateClass().getSimpleName()))
         .setConnectionString("redis://:%s@%s:%s/%s".formatted(
           configuration.getString("redisPassword"),
           configuration.getString("redisHost"),
@@ -183,7 +185,7 @@ public class RedisEventStore implements EventStore {
   }
 
   @Override
-  public Uni<Void> setup(Class<? extends Aggregate> aggregateClass, Vertx vertx, JsonObject configuration) {
+  public Uni<Void> setup(Es4jDeployment aggregateClass, Vertx vertx, JsonObject configuration) {
     return null;
   }
 

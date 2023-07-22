@@ -1,0 +1,54 @@
+@startuml
+skinparam sequence {
+    ArrowColor DeepSkyBlue
+    ActorBorderColor DeepSkyBlue
+    LifeLineBorderColor blue
+    LifeLineBackgroundColor #A9DCDF
+    ParticipantBorderColor DeepSkyBlue
+    ParticipantBackgroundColor DodgerBlue
+    ParticipantFontName Impact
+    ParticipantFontSize 17
+    ParticipantFontColor #A9DCDF
+    ActorBackgroundColor aqua
+    ActorFontColor DeepSkyBlue
+    ActorFontSize 17
+    ActorFontName Aapex
+    NoteBackgroundColor wheat
+    NoteBorderColor sienna
+    NoteFontColor black
+}
+!define DEFAULT_MONO_FONT_SIZE 14
+skinparam monochrome true
+
+actor Client
+component HashingFunction
+node Node1 as "Es4j Node"
+node Node2 as "Es4j Node"
+node Node3 as "Es4j Node"
+database Aggregate1_1
+database Aggregate1_2
+database Aggregate1_3
+database Aggregate2_1
+database Aggregate2_2
+database Aggregate2_3
+database Aggregate3_1
+database Aggregate3_2
+database Aggregate3_3
+
+Client --> HashingFunction : Sends Command with Aggregate Key
+HashingFunction --> Node1 : Directs command for Node1 Aggregates
+HashingFunction --> Node2 : Directs command for Node2 Aggregates
+HashingFunction --> Node3 : Directs command for Node3 Aggregates
+
+Node1 --> Aggregate1_1 : Executes command
+Node1 --> Aggregate1_2 : Executes command
+Node1 --> Aggregate1_3 : Executes command
+
+Node2 --> Aggregate2_1 : Executes command
+Node2 --> Aggregate2_2 : Executes command
+Node2 --> Aggregate2_3 : Executes command
+
+Node3 --> Aggregate3_1 : Executes command
+Node3 --> Aggregate3_2 : Executes command
+Node3 --> Aggregate3_3 : Executes command
+@enduml

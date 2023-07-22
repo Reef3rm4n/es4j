@@ -4,7 +4,6 @@ import io.es4j.Aggregate;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.models.EventStreamBuilder;
-import io.es4j.sql.exceptions.NotFound;
 import io.es4j.task.CronTask;
 import io.es4j.task.CronTaskConfiguration;
 import io.es4j.task.CronTaskConfigurationBuilder;
@@ -49,7 +48,7 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
     // polling will have to be moved to a queue
     // a new entry must be inserted in the queue for each one of the updated streams
     stateProjectionWrapper.logger().debug("Polling events");
-    return offsetStore.get(new OffsetKey(stateProjectionWrapper.pollingStateProjection().getClass().getName(), "default"))
+    return offsetStore.get(new OffsetKey(stateProjectionWrapper.asyncStateTransfer().getClass().getName(), "default"))
       .flatMap(journalOffset -> {
           stateProjectionWrapper.logger().debug("Journal idOffset at {}", journalOffset.idOffSet());
           return eventStore.fetch(EventStreamBuilder.builder()
@@ -85,9 +84,8 @@ public class StateProjectionPoller<T extends Aggregate> implements CronTask {
   @Override
   public CronTaskConfiguration configuration() {
     return CronTaskConfigurationBuilder.builder()
-      .knownInterruptions(List.of(NotFound.class))
       .lockLevel(LockLevel.CLUSTER_WIDE)
-      .cron(stateProjectionWrapper.pollingStateProjection().pollingPolicy())
+      .cron(stateProjectionWrapper.asyncStateTransfer().pollingPolicy())
       .build();
   }
 

@@ -21,6 +21,8 @@ public @interface Es4jTest {
 
   boolean secondaryEventStore() default false;
 
+   String infraConfig() default "infrastructure";
+
   String host() default "localhost";
 
   int port() default 8080;
