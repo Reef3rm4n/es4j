@@ -87,8 +87,8 @@
                 </execution>
               </executions>
               <configuration>
-                <excludePackageNames>io.es4j.core.objects</excludePackageNames>
-                <excludePackageNames>io.es4j.infrastructure.models</excludePackageNames>
+                <excludePackageNames>io.es4j.*</excludePackageNames>
+                <excludePackageNames>io.es4j</excludePackageNames>
               </configuration>
             </plugin>
             <plugin>
