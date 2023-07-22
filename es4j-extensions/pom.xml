@@ -11,7 +11,6 @@
 
   <packaging>pom</packaging>
   <modules>
-    <module>es4j-notifications</module>
     <module>es4j-config-storage</module>
   </modules>
 
