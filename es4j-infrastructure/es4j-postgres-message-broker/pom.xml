@@ -21,6 +21,11 @@
   <dependencies>
     <dependency>
       <groupId>io.es4j</groupId>
+      <artifactId>es4j-core</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>io.es4j</groupId>
       <artifactId>es4j-sql</artifactId>
       <version>${project.version}</version>
     </dependency>

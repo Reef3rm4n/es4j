@@ -8,6 +8,7 @@ import io.es4j.infra.pg.models.EventRecordQuery;
 import io.es4j.infrastructure.models.*;
 import io.es4j.sql.LiquibaseHandler;
 import io.es4j.sql.RepositoryHandler;
+import io.es4j.sql.exceptions.Conflict;
 import io.es4j.sql.exceptions.NotFound;
 import io.es4j.sql.models.QueryOptions;
 import io.smallrye.mutiny.Uni;
@@ -121,7 +122,14 @@ public class PgEventStore implements EventStore {
 
   @Override
   public <T extends Aggregate> Uni<Void> append(AppendInstruction<T> appendInstruction) {
-    return eventJournal.insertBatch(parseInstruction(appendInstruction));
+    return eventJournal.insertBatch(parseInstruction(appendInstruction))
+      .onFailure().transform(throwable -> {
+        if (throwable instanceof Conflict conflict) {
+          throw new ConcurrentAppend(conflict);
+        } else {
+          throw new EventStoreExeception(throwable);
+        }
+      });
   }
 
   @Override

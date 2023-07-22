@@ -32,19 +32,13 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.es4j</groupId>
-      <artifactId>es4j-sql</artifactId>
-      <version>${project.version}</version>
+      <groupId>io.smallrye.reactive</groupId>
+      <artifactId>smallrye-mutiny-vertx-core</artifactId>
     </dependency>
     <dependency>
       <groupId>com.cronutils</groupId>
       <artifactId>cron-utils</artifactId>
       <version>9.2.0</version>
-    </dependency>
-    <dependency>
-      <groupId>io.es4j</groupId>
-      <artifactId>es4j-postgres-message-broker</artifactId>
-      <version>${project.version}</version>
     </dependency>
     <dependency>
       <groupId>io.soabase.record-builder</groupId>

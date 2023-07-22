@@ -6,7 +6,6 @@ import io.es4j.Event;
 import io.es4j.core.objects.*;
 import io.es4j.infrastructure.Infrastructure;
 import io.es4j.infrastructure.models.*;
-import io.es4j.sql.exceptions.Conflict;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.tracing.TracingPolicy;
@@ -75,10 +74,10 @@ public class CommandHandler<T extends Aggregate> {
   private Uni<JsonObject> replayAndAppend(Command command) {
     return replayAggregateAndCache(command.aggregateId(), command.tenant())
       .flatMap(aggregateState -> processCommand(aggregateState, command)
-        .onFailure(Conflict.class).recoverWithUni(
+        .onFailure(ConcurrentAppend.class).recoverWithUni(
           () -> playFromLastSnapshot(command.aggregateId(), command.tenant(), aggregateState)
             .flatMap(reconstructedState -> processCommand(reconstructedState, command))
-            .onFailure(Conflict.class).retry().atMost(5)
+            .onFailure(ConcurrentAppend.class).retry().atMost(5)
         )
         .onFailure().invoke(throwable -> logRejectedCommand(throwable, command, aggregateState))
       )

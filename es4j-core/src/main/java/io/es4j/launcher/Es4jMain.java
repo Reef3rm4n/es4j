@@ -32,7 +32,7 @@ import static io.es4j.core.CommandHandler.camelToKebab;
 
 public class Es4jMain extends AbstractVerticle implements Resource {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(Es4jMain.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(Es4jMain.class);
   public static final List<Es4jDeployment> AGGREGATES = Es4jServiceLoader.bootstrapList();
   private static final List<AggregateDeployer<? extends Aggregate>> AGGREGATE_DEPLOYERS = new ArrayList<>();
   public static final Map<Class<? extends Aggregate>, List<Class<? extends Command>>> AGGREGATE_COMMANDS = new HashMap<>();

@@ -8,7 +8,6 @@ import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
 import io.es4j.infrastructure.models.Event;
 import io.es4j.infrastructure.models.EventStreamBuilder;
-import io.es4j.sql.exceptions.NotFound;
 import io.es4j.task.CronTask;
 import io.es4j.task.CronTaskConfiguration;
 import io.es4j.task.CronTaskConfigurationBuilder;
@@ -96,7 +95,6 @@ public class EventProjectionPoller implements CronTask {
   @Override
   public CronTaskConfiguration configuration() {
     return CronTaskConfigurationBuilder.builder()
-      .knownInterruptions(List.of(NotFound.class))
       .lockLevel(LockLevel.CLUSTER_WIDE)
       .cron(asyncProjection.pollingPolicy())
       .build();

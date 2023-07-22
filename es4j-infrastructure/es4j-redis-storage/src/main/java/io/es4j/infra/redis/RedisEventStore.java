@@ -7,7 +7,6 @@ import io.es4j.core.objects.ErrorSource;
 import io.es4j.core.objects.Es4jErrorBuilder;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.models.*;
-import io.es4j.sql.LiquibaseHandler;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.vertx.core.impl.cpu.CpuCoreSensor;
@@ -36,7 +35,7 @@ public class RedisEventStore implements EventStore {
   public static final String EVENT = "event";
   public static final String TAGS = "tags";
   public static final String SCHEMA_VERSION = "schema-version";
-  private static final Logger LOGGER = LoggerFactory.getLogger(LiquibaseHandler.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(RedisEventStore.class);
   private Redis redisClient;
   private RedisAPI redisApi;
   private Class<? extends Aggregate> aggregateClass;

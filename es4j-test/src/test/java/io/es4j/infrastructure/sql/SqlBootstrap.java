@@ -45,7 +45,9 @@ public class SqlBootstrap {
   public void start() {
     vertx = Vertx.vertx();
     CONFIGURATION = configuration().put("schema", schema);
-    deployPgContainer();
+    if (postgres) {
+      deployPgContainer();
+    }
     REPOSITORY_HANDLER = RepositoryHandler.leasePool(CONFIGURATION, vertx);
     if (!liquibase.isEmpty()) {
       Multi.createFrom().iterable(liquibase.entrySet())

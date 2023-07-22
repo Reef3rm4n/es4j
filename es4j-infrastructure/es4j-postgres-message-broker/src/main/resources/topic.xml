@@ -1,0 +1,147 @@
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+  http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
+>
+
+
+  <!-- TOPIC CHANGESET -->
+  <changeSet id="topic-table" author="reeferman" context="vertx">
+    <createTable tableName="topic" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="topic_name"/>
+      <column type="timestamp" name="scheduled"/>
+      <column type="timestamp" name="expiration"/>
+      <column type="integer" name="priority" defaultValue="0"/>
+      <column type="integer" name="retry_counter" defaultValue="0"/>
+      <column type="text" name="state"/>
+      <column type="jsonb" name="payload"/>
+      <column type="jsonb" name="failure"/>
+      <column type="text" name="verticle_id"/>
+      <column type="text" name="partition_id"/>
+      <column type="text" name="partition_key"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="topic-index" author="reeferman" context="vertx">
+    <addPrimaryKey tableName="topic" columnNames="message_id, tenant" schemaName="${schema}"/>
+    <createIndex tableName="topic" indexName="pg-topic-index" schemaName="${schema}">
+      <column name="state"/>
+      <column name="retry_counter"/>
+      <column name="updated"/>
+      <column name="priority"/>
+      <column name="scheduled"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+  <!-- Topic Function -->
+  <changeSet id="topic_pub_function" author="reeferman" context="vertx">
+    <sql splitStatements="false">
+      CREATE
+      OR REPLACE FUNCTION
+      ${schema}
+      .
+      topic_channel_publisher
+      (
+      )
+      RETURNS
+      trigger
+      AS
+      $$
+      BEGIN
+        PERFORM
+      pg_notify('${schema}-topic-channel', NEW.partition_id::text);
+      RETURN NEW;
+      END;
+      $$
+      LANGUAGE plpgsql;
+    </sql>
+  </changeSet>
+  <!--  -->
+  <!-- Topic Function -->
+  <changeSet id="topic_trigger" author="reeferman" context="vertx">
+    <sql splitStatements="false">
+      CREATE TRIGGER topic_trigger
+        AFTER INSERT OR
+      UPDATE OF rec_version
+      ON ${schema}.topic
+        FOR EACH ROW EXECUTE PROCEDURE topic_channel_publisher();
+    </sql>
+  </changeSet>
+  <!--  -->
+
+  <!-- Transaction Log -->
+  <changeSet id="topic-tx-table" author="reeferman" context="vertx">
+    <createTable tableName="topic_tx" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="processor"/>
+      <column type="text" name="message_class"/>
+      <column type="text" name="type"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="topic_tx-index" author="reeferman" context="vertx">
+    <addPrimaryKey tableName="topic_tx" columnNames="message_id, tenant" schemaName="${schema}"/>
+    <createIndex tableName="topic_tx" indexName="topic-tx-index-1" schemaName="${schema}">
+      <column name="message_id"/>
+      <column name="processor"/>
+      <column name="type"/>
+      <column name="tenant"/>
+    </createIndex>
+    <createIndex tableName="topic_tx" indexName="topic-tx-index-2" schemaName="${schema}">
+      <column name="message_id"/>
+      <column name="processor"/>
+      <column name="type"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+
+  <!--  Dead Letter -->
+  <changeSet id="topic-dead-letter-table" author="reeferman" context="vertx">
+    <createTable tableName="topic_dead_letter" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="payload_class"/>
+      <column type="timestamp" name="scheduled"/>
+      <column type="timestamp" name="expiration"/>
+      <column type="integer" name="priority" defaultValue="0"/>
+      <column type="integer" name="retry_counter" defaultValue="0"/>
+      <column type="text" name="state"/>
+      <column type="jsonb" name="payload"/>
+      <column type="jsonb" name="failure"/>
+      <column type="text" name="verticle_id"/>
+      <column type="text" name="partition_id"/>
+      <column type="text" name="partition_key"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+
+  <!--  -->
+
+  <!--  Topic Partition  -->
+  <changeSet id="topic-partition-table" author="reeferman" context="vertx">
+    <createTable tableName="topic_partition" schemaName="${schema}">
+      <column type="text" name="partition_id"/>
+      <column type="boolean" name="locked"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+    <addPrimaryKey tableName="topic_partition" columnNames="partition_id" schemaName="${schema}"/>
+  </changeSet>
+  <!--  -->
+</databaseChangeLog>

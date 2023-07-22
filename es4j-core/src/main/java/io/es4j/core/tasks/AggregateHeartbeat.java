@@ -13,6 +13,7 @@ import io.es4j.task.TimerTaskConfiguration;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
 
 public class AggregateHeartbeat<T extends Aggregate> implements TimerTask {
@@ -42,8 +43,7 @@ public class AggregateHeartbeat<T extends Aggregate> implements TimerTask {
       Duration.ofSeconds(5),
       Duration.ofMinutes(1),
       Duration.ofMinutes(1),
-      Duration.ofMinutes(1),
-      List.of()
+      Optional.empty()
     );
   }
 
