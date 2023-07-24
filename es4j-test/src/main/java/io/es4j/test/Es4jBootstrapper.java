@@ -1,5 +1,8 @@
-package io.es4j;
+package io.es4j.test;
 
+import io.es4j.Aggregate;
+import io.es4j.client.AggregateHttpClient;
+import io.es4j.Es4jDeployment;
 import io.es4j.infrastructure.AggregateCache;
 import io.es4j.infrastructure.EventStore;
 import io.es4j.infrastructure.OffsetStore;
@@ -25,7 +28,7 @@ import org.testcontainers.utility.DockerImageName;
 import static io.es4j.core.CommandHandler.camelToKebab;
 
 
-class Es4jBootstrapper<T extends Aggregate> {
+public class Es4jBootstrapper<T extends Aggregate> {
   private final String infraConfig;
   public AggregateEventBusPoxy<T> eventBusPoxy;
   public AggregateHttpClient<T> httpClient;

@@ -1,7 +1,5 @@
-package io.es4j;
+package io.es4j.test;
 
-
-import io.es4j.config.DatabaseConfiguration;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -11,11 +9,12 @@ import java.lang.annotation.Target;
 
 @Target({ ElementType.TYPE, ElementType.METHOD })
 @Retention(RetentionPolicy.RUNTIME)
-public @interface DatabaseBusinessRule {
-  Class<? extends DatabaseConfiguration> configurationClass();
+public @interface FileBusinessRule {
+  /**
+   * File business rules for aggregates
+   * @return
+   */
   String fileName();
-  String tenant() default "default";
-  int version() default 0;
 
 }
 

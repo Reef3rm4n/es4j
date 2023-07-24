@@ -1,6 +1,7 @@
 package io.es4j;
 
 
+import io.es4j.client.AggregateHttpClient;
 import io.es4j.commands.ChangeData;
 import io.es4j.commands.ChangeDataWithConfig;
 import io.es4j.commands.ChangeDataWithDbConfig;
@@ -9,6 +10,9 @@ import io.es4j.core.objects.AggregateState;
 import io.es4j.domain.DataBusinessRule;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.infrastructure.proxy.AggregateEventBusPoxy;
+import io.es4j.test.DatabaseBusinessRule;
+import io.es4j.test.Es4jTest;
+import io.es4j.test.FileBusinessRule;
 import io.smallrye.mutiny.Uni;
 import io.es4j.core.objects.LoadAggregate;
 import io.vertx.junit5.VertxTestContext;

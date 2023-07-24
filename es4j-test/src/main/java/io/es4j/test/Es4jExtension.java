@@ -1,6 +1,8 @@
-package io.es4j;
+package io.es4j.test;
 
 
+import io.es4j.Aggregate;
+import io.es4j.client.AggregateHttpClient;
 import io.es4j.config.DatabaseConfiguration;
 import io.es4j.config.DatabaseConfigurationCache;
 import io.es4j.config.orm.ConfigurationKey;
@@ -82,7 +84,7 @@ public class Es4jExtension implements BeforeAllCallback, AfterAllCallback, Exten
   private List<Tuple4<Class<? extends DatabaseConfiguration>, String, String, Integer>> databaseConfigurations(Method testMethod) {
     LOGGER.debug("Getting business rules from method {}", testMethod);
     List<Tuple4<Class<? extends DatabaseConfiguration>, String, String, Integer>> configurationTuples = new ArrayList<>();
-    io.es4j.DatabaseBusinessRule[] annotations = testMethod.getAnnotationsByType(io.es4j.DatabaseBusinessRule.class);
+    DatabaseBusinessRule[] annotations = testMethod.getAnnotationsByType(DatabaseBusinessRule.class);
     if (annotations != null && !Arrays.stream(annotations).toList().isEmpty()) {
       Arrays.stream(annotations).forEach(a -> configurationTuples.add(Tuple4.of(a.configurationClass(), a.fileName(), a.tenant(), a.version())));
       return configurationTuples;

@@ -1,5 +1,7 @@
-package io.es4j;
+package io.es4j.client;
 
+import io.es4j.Aggregate;
+import io.es4j.Command;
 import io.es4j.core.CommandHandler;
 import io.es4j.core.objects.AggregateState;
 import io.es4j.core.objects.Es4jError;
@@ -20,7 +22,7 @@ public class AggregateHttpClient<T extends Aggregate> {
   private final WebClient webClient;
   private final Class<T> aggregateClass;
 
-  protected AggregateHttpClient(
+  public AggregateHttpClient(
     final WebClient webClient,
     final Class<T> aggregateClass
   ) {
@@ -30,6 +32,12 @@ public class AggregateHttpClient<T extends Aggregate> {
 
   private static final Logger logger = LoggerFactory.getLogger(AggregateHttpClient.class);
 
+  /**
+   * Forwards command to aggregate
+   * @param command
+   * @return
+   * @param <C>
+   */
   public <C extends Command> Uni<AggregateState<T>> forward(C command) {
     return webClient.post(parsePath(aggregateClass, command.getClass()))
       .sendJson(JsonObject.mapFrom(Objects.requireNonNull(command, "command must not be null")))
