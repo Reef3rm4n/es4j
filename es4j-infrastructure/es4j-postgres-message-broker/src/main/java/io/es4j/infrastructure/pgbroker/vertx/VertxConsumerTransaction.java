@@ -9,23 +9,24 @@ import io.es4j.sql.RepositoryHandler;
 import io.es4j.sql.exceptions.Conflict;
 import io.es4j.sql.models.BaseRecord;
 import io.smallrye.mutiny.Uni;
+
 import java.util.function.BiFunction;
 
 public class VertxConsumerTransaction implements ConsumerTransactionProvider {
-  private Repository<MessageTransactionID, MessageTransaction, MessageTransactionQuery> transactionStore;
+  private Repository<ConsumerTransactionKey, ConsumerTransactionRecord, ConsumerTransactionQuery> transactionStore;
 
   @Override
   public void start(RepositoryHandler repositoryHandler) {
     this.transactionStore = new Repository<>(MessageTransactionMapper.INSTANCE, repositoryHandler);
   }
 
+
   @Override
-  public <M> Uni<Void> transaction(String processorClass, Message<M> message, BiFunction<Message<M>, ConsumerTransaction, Uni<Void>> function) {
+  public <T> Uni<T> transaction(String consumer, RawMessage message, BiFunction<RawMessage, ConsumerTransaction, Uni<T>> function) {
     return transactionStore.transaction(sqlConnection -> transactionStore.insert(
-          new MessageTransaction(
+          new ConsumerTransactionRecord(
             message.messageId(),
-            processorClass,
-            message.payload().getClass().getName(),
+            consumer,
             BaseRecord.newRecord(message.tenant())
           ),
           sqlConnection

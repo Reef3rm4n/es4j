@@ -1,0 +1,12 @@
+@startuml
+participant "Database" as D #LightBlue
+participant "Es4j Postgres Message Broker" as EPMB
+
+EPMB -> D : Claim partition
+note over EPMB, D: The library claims a partition in the database
+
+loop every 30 seconds
+    EPMB -> D : Heartbeat
+    note over EPMB, D: A heartbeat is sent every 30 seconds to maintain the partition session alive
+end loop
+@enduml

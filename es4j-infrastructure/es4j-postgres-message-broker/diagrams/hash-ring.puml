@@ -1,0 +1,16 @@
+@startuml
+participant "Es4j Postgres Message Broker" as EPMB
+participant "Database" as D #LightBlue
+
+EPMB -> EPMB : Startup
+note over EPMB: The broker starts up
+
+EPMB -> D : Read available partitions
+note over D, EPMB: The broker reads all available partitions from the database
+
+D --> EPMB : Return partitions
+note over EPMB: The database returns the list of available partitions
+
+EPMB -> EPMB : Add partitions to hash ring
+note over EPMB: The broker adds the partitions to its internal hash ring
+@enduml

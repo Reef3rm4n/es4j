@@ -2,35 +2,35 @@ package io.es4j.infrastructure.pgbroker;
 
 
 import io.es4j.infrastructure.misc.Es4jServiceLoader;
-import io.es4j.infrastructure.pgbroker.mappers.DeadLetterMapper;
-import io.es4j.infrastructure.pgbroker.mappers.MessageQueueMapper;
-import io.es4j.infrastructure.pgbroker.mappers.QueuePartitionMapper;
-import io.es4j.infrastructure.pgbroker.messagebroker.PgChannel;
-import io.es4j.infrastructure.pgbroker.models.ConsumerManager;
-import io.es4j.infrastructure.pgbroker.models.ConsumerWrap;
-import io.es4j.infrastructure.pgbroker.models.PgBrokerConfiguration;
+import io.es4j.infrastructure.pgbroker.mappers.ConsumerFailureMapper;
+import io.es4j.infrastructure.pgbroker.mappers.MessageMapper;
+import io.es4j.infrastructure.pgbroker.mappers.MessageTransactionMapper;
+import io.es4j.infrastructure.pgbroker.mappers.BrokerPartitionMapper;
+import io.es4j.infrastructure.pgbroker.core.PgChannel;
+import io.es4j.infrastructure.pgbroker.models.BrokerConfiguration;
+import io.es4j.infrastructure.pgbroker.models.ConsumerRouter;
+import io.es4j.infrastructure.pgbroker.models.QueueConsumerWrapper;
+import io.es4j.infrastructure.pgbroker.models.TopicSubscriberWrapper;
 import io.es4j.sql.Repository;
 import io.es4j.sql.RepositoryHandler;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.vertx.core.AbstractVerticle;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
+import java.util.regex.Pattern;
 
-import static java.util.stream.Collectors.groupingBy;
 
 public class PgBrokerVerticle extends AbstractVerticle {
 
-  private final PgBrokerConfiguration configuration;
+  private final BrokerConfiguration configuration;
   private PgChannel pgChannel;
   private RepositoryHandler repositoryHandler;
   private static final Logger LOGGER = LoggerFactory.getLogger(PgBrokerVerticle.class);
 
-  public PgBrokerVerticle(PgBrokerConfiguration configuration) {
+  public PgBrokerVerticle(BrokerConfiguration configuration) {
     this.configuration = configuration;
   }
 
@@ -44,6 +44,7 @@ public class PgBrokerVerticle extends AbstractVerticle {
 
   @Override
   public Uni<Void> asyncStop() {
+    LOGGER.info("stopping pg broker {}", deploymentID());
     return pgChannel.stop()
       .flatMap(avoid -> repositoryHandler.close())
       .replaceWithVoid();
@@ -58,21 +59,22 @@ public class PgBrokerVerticle extends AbstractVerticle {
 
   public Uni<Void> deploy() {
     try {
-      final var consumers = ServiceLoader.load(QueueConsumer.class).stream().map(ServiceLoader.Provider::get).toList();
+      final var topicConsumers = ServiceLoader.load(TopicSubscription.class).stream().map(ServiceLoader.Provider::get).toList();
+      final var queueConsumers = ServiceLoader.load(QueueConsumer.class).stream().map(ServiceLoader.Provider::get).toList();
       final var consumerTransactionProvider = configuration.consumerTransactionProvider();
       consumerTransactionProvider.start(repositoryHandler);
-      return Multi.createFrom().iterable(consumers)
-        .onItem().transformToUniAndMerge(m -> m.start(vertx, config()))
-        .collect().asList()
-        .replaceWithVoid()
+      return startTopicConsumers(topicConsumers)
+        .flatMap(__ -> startQueueConsumers(queueConsumers))
         .flatMap(avoid -> pgChannel.start(
-          new ConsumerManager(
-            configuration,
-            wrap(deploymentID, consumers),
-            consumerTransactionProvider,
-            repositoryHandler.vertx()
-          )));
-
+            new ConsumerRouter(
+              configuration,
+              wrapTopic(topicConsumers),
+              wrapQueue(queueConsumers),
+              consumerTransactionProvider,
+              repositoryHandler.vertx()
+            )
+          )
+        );
     } catch (Exception e) {
       return Uni.createFrom().failure(e);
     }
@@ -85,55 +87,47 @@ public class PgBrokerVerticle extends AbstractVerticle {
     );
     infraPgSubscriber.reconnectPolicy(integer -> 0L);
     return new PgChannel(
-      new Repository<>(MessageQueueMapper.INSTANCE, repositoryHandler),
-      new Repository<>(DeadLetterMapper.INSTANCE, repositoryHandler),
-      new Repository<>(QueuePartitionMapper.INSTANCE, repositoryHandler),
+      new Repository<>(MessageTransactionMapper.INSTANCE, repositoryHandler),
+      new Repository<>(MessageMapper.INSTANCE, repositoryHandler),
+      new Repository<>(ConsumerFailureMapper.INSTANCE, repositoryHandler),
+      new Repository<>(BrokerPartitionMapper.INSTANCE, repositoryHandler),
       infraPgSubscriber,
-      Objects.requireNonNullElse(repositoryHandler.vertx().getOrCreateContext().deploymentID(), UUID.randomUUID().toString())
+      deploymentID()
     );
   }
 
-  public List<ConsumerWrap> wrap(String deploymentId, List<QueueConsumer> queueConsumers) {
-    final var queueMap = queueConsumers.stream()
+  private List<QueueConsumerWrapper> wrapQueue(List<QueueConsumer> queueConsumers) {
+    return queueConsumers.stream()
       .map(impl -> {
-        Class<?> firstGenericType = Es4jServiceLoader.getFirstGenericType(impl);
-        return ImmutablePair.of(firstGenericType, impl);
-      })
-      .collect(Collectors.groupingBy(ImmutablePair::getLeft, Collectors.mapping(ImmutablePair::getRight, Collectors.toList())));
-    return queueMap.entrySet().stream()
-      .map(entry -> {
-          final var tClass = entry.getKey();
-          validateProcessors(entry.getValue(), tClass);
-          final var defaultProcessor = entry.getValue().stream().filter(p -> p.tenants() == null).findFirst().orElseThrow();
-          final var customProcessors = entry.getValue().stream()
-            .filter(p -> p.tenants() != null)
-            .collect(groupingBy(QueueConsumer::tenants));
-          final var processorWrapper = new ConsumerWrap(
-            deploymentId,
-            defaultProcessor,
-            customProcessors,
-            tClass
-          );
-          return processorWrapper;
+          Class<?> firstGenericType = Es4jServiceLoader.getFirstGenericType(impl);
+          return new QueueConsumerWrapper(impl, firstGenericType);
         }
-      )
-      .toList();
+      ).toList();
   }
 
-  private static void validateProcessors(List<QueueConsumer> queues, Class<?> tClass) {
-    if (queues.stream().filter(
-      p -> p.tenants() == null
-    ).toList().size() > 1) {
-      throw new IllegalStateException("More than one default implementation for -> " + tClass);
-    }
-    queues.stream()
-      .filter(p -> p.tenants() != null)
-      .collect(groupingBy(QueueConsumer::tenants))
-      .forEach((key, value) -> {
-          if (value.size() > 1) {
-            throw new IllegalStateException("More than one custom implementation for tenant " + key + " queue -> " + tClass);
-          }
+  public List<TopicSubscriberWrapper> wrapTopic(List<TopicSubscription> consumers) {
+    return consumers.stream()
+      .map(impl -> {
+          Class<?> firstGenericType = Es4jServiceLoader.getFirstGenericType(impl);
+          final var pattern = Pattern.compile(impl.address());
+          return new TopicSubscriberWrapper<>(impl, firstGenericType, pattern);
         }
-      );
+      ).toList();
   }
+
+  private Uni<Void> startQueueConsumers(List<QueueConsumer> queueConsumers) {
+    return Multi.createFrom().iterable(queueConsumers)
+      .onItem().transformToUniAndMerge(m -> m.start(vertx, config()))
+      .collect().asList()
+      .replaceWithVoid();
+  }
+
+  private Uni<Void> startTopicConsumers(List<TopicSubscription> topicConsumers) {
+    return Multi.createFrom().iterable(topicConsumers)
+      .onItem().transformToUniAndMerge(m -> m.start(vertx, config()))
+      .collect().asList()
+      .replaceWithVoid();
+  }
+
+
 }

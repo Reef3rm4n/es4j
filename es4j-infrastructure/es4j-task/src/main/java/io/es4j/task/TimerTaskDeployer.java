@@ -15,15 +15,14 @@ import java.util.Map;
 
 public class TimerTaskDeployer {
 
-  protected static final Logger LOGGER = LoggerFactory.getLogger(TimerTaskDeployer.class);
-
-  public static final Map<Class<?>, Long> timers = new HashMap<>();
+  private final Map<Class<?>, Long> timers;
   private final Vertx vertx;
 
   public TimerTaskDeployer(
     Vertx vertx
   ) {
     this.vertx = vertx;
+    this.timers = new HashMap<>();
   }
 
   public void close() {
@@ -36,9 +35,8 @@ public class TimerTaskDeployer {
     triggerTask(wrapper, vertx, Duration.ofMillis(100));
   }
 
-  public static void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Duration throttle) {
+  public void triggerTask(TaskWrapper taskWrapper, Vertx vertx, Duration throttle) {
     timers.remove(taskWrapper.task().getClass());
-    taskWrapper.logger().debug("Starting task");
     final var timerId = vertx.setTimer(
       throttle.toMillis(),
       delay -> {
@@ -54,7 +52,7 @@ public class TimerTaskDeployer {
           .with(avoid -> {
               final var end = Instant.now();
               final var emptyTaskBackOff = taskWrapper.task().configuration().throttle();
-              taskWrapper.logger().debug("Task ran in " + Duration.between(start, end).toMillis() + "ms. Next execution in " + emptyTaskBackOff.getSeconds() + "s");
+//              taskWrapper.logger().debug("Task ran in " + Duration.between(start, end).toMillis() + "ms. Next execution in " + emptyTaskBackOff.getSeconds() + "s");
               triggerTask(taskWrapper, vertx, emptyTaskBackOff);
             },
             throwable -> {
@@ -62,10 +60,10 @@ public class TimerTaskDeployer {
               if (taskWrapper.task.configuration().finalInterruption().isPresent() && taskWrapper.task.configuration().finalInterruption().get().isAssignableFrom(throwable.getClass())) {
                 taskWrapper.logger().info("Final interruption {} reached, task wont be rescheduled", throwable.getClass().getSimpleName());
               } else if (throwable instanceof NoStackTraceThrowable noStackTraceThrowable && noStackTraceThrowable.getMessage().contains("Timed out waiting to get lock")) {
-                taskWrapper.logger().debug("Unable to acquire lock after {}ms, will back off for {}", Duration.between(start, end).toMillis(), taskWrapper.task().configuration().lockBackOff());
+//                taskWrapper.logger().debug("Unable to acquire lock after {}ms, will back off for {}", Duration.between(start, end).toMillis(), taskWrapper.task().configuration().lockBackOff());
                 triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().lockBackOff());
               } else {
-                taskWrapper.logger().debug("Error handling task after {}ms, will back off for {}", Duration.between(start, end).toMillis(), taskWrapper.task().configuration().errorBackOff(), throwable);
+//                taskWrapper.logger().debug("Error handling task after {}ms, will back off for {}", Duration.between(start, end).toMillis(), taskWrapper.task().configuration().errorBackOff(), throwable);
                 triggerTask(taskWrapper, vertx, taskWrapper.task().configuration().errorBackOff());
               }
             }

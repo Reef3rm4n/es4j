@@ -109,6 +109,7 @@ class EventStoreTest {
       () -> eventStore.stream(AggregateEventStreamBuilder.builder()
           .aggregateId(aggregateId)
           .tenantId(TENANT_ID)
+          .startFromSnapshot(false)
           .build(),
         event -> atomicInt.incrementAndGet()
       ).await().indefinitely()
