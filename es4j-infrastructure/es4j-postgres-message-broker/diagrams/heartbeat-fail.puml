@@ -1,0 +1,30 @@
+@startuml
+participant "Database" as D #LightBlue
+participant "Es4j Postgres Message Broker 1" as EPMB1
+participant "Es4j Postgres Message Broker 2" as EPMB2
+participant "Business Logic" as C4
+"EPMB1" -> "EPMB1": trigger message consumers timer task
+C4 -> "EPMB1": sendMessage(partition-1)
+EPMB1 -> D : Claim partition
+note over EPMB1, D: The broker claims a partition in the database
+note over EPMB1: TimerTask is trigger for checking the availability of messages
+note over EPMB1: TimerTask is trigger heartbeat
+
+
+loop every 30 seconds
+    alt Heartbeat Successful
+        EPMB1 -> D : Heartbeat
+        note over EPMB1, D: A heartbeat is sent every 30 seconds to maintain the connection
+    else Heartbeat Fails
+        EPMB1 -> D : Heartbeat
+        note over EPMB1, D: Heartbeat failed
+
+        EPMB2 -> D : Claim partition on channel signal
+        note over EPMB2, D: The second broker claims the partition
+        C4 -> EPMB2 : sendMessage(partition-1)
+        "EPMB1" -> "Database": insertMessage
+        "Database" -> EPMB2: message in partition
+        EPMB2 -> "Database": startSession(partition-1)
+    end
+end loop
+@enduml

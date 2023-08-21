@@ -23,7 +23,6 @@
       <groupId>io.es4j</groupId>
       <artifactId>es4j-sql</artifactId>
       <version>${project.version}</version>
-      <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>io.es4j</groupId>

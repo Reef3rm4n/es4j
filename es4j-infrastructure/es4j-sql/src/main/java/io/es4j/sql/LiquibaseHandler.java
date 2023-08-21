@@ -349,7 +349,7 @@ public class LiquibaseHandler {
     Connection conn;
     try {
       conn = DriverManager.getConnection(url, props);
-      conn.createStatement().execute("create schema if not exists \"" + schema + "\";");
+      conn.createStatement().execute("create schema if not exists \"%s\";".formatted(schema));
       conn.setSchema(schema);
     } catch (Exception e) {
       throw new IllegalArgumentException(e);

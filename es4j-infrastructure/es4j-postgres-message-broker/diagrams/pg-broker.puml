@@ -1,0 +1,26 @@
+@startuml
+participant "Business Logic" as C4
+participant "Es4j Postgres Broker 1" as C1
+participant "Es4j Postgres Broker 2" as C2
+participant "Es4j Postgres Broker 3" as C3
+participant "Database" as D #LightBlue
+
+C4 -> C1 : send(Message)
+
+C1 -> C1 : calculate_partition(Message)
+
+C1 -> D : Message (partition-1)
+
+D -> C1 : message(partition-1)
+note over C1: startSession(partition-1)
+note over C1: pollOnce = true
+
+D -> C2 : message(partition-1)
+note over C2: startSession(partition-1)
+note over C2: partition-1 already claimed
+
+D -> C3 : message(partition-1)
+note over C3: startSession(partition-1)
+note over C3: partition-1 already claimed
+
+@enduml

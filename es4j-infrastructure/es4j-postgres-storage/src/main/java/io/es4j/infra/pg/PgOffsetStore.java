@@ -2,6 +2,7 @@ package io.es4j.infra.pg;
 
 import com.google.auto.service.AutoService;
 import io.es4j.Es4jDeployment;
+
 import io.es4j.core.objects.OffsetBuilder;
 import io.es4j.core.objects.OffsetKey;
 import io.es4j.infra.pg.mappers.JournalOffsetMapper;
@@ -70,7 +71,8 @@ public class PgOffsetStore implements OffsetStore {
   public Uni<Offset> get(OffsetKey journalOffset) {
     return repository.selectByKey(new EventJournalOffSetKey(journalOffset.consumer(), journalOffset.tenantId()))
       .map(PgOffsetStore::getJournalOffset)
-      .onFailure(NotFound.class).recoverWithUni(put(OffsetBuilder.builder()
+      .onFailure(NotFound.class).recoverWithUni(put(
+        OffsetBuilder.builder()
           .eventVersionOffset(0L)
           .idOffSet(0L)
           .tenantId(journalOffset.tenantId())

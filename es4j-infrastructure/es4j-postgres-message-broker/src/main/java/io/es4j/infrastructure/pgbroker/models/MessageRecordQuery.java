@@ -17,9 +17,6 @@ public record MessageRecordQuery(
   Instant expirationTo,
   Integer priorityFrom,
   Integer priorityTo,
-  Integer retryCounterFrom,
-  Integer retryCounterTo,
-  String payloadClass,
   String partition,
   String partitionKey,
   QueryOptions options

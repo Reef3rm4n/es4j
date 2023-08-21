@@ -551,13 +551,13 @@ public final class Repository<K extends RepositoryRecordKey, V extends Repositor
 
   private void logOperation(String operation, String statement, Map<String, Object> paramMap) {
     if (logger.isDebugEnabled()) {
-      logger.debug(operation + " record with statement -> " + new JsonObject().put("statement", statement).put("params", paramMap).encodePrettily());
+      logger.debug(operation + " record with statement : {} params : {}", statement, paramMap);
     }
   }
 
   private void logOperation(String operation, String statement, Tuple paramMap) {
     if (logger.isDebugEnabled())
-      logger.debug(operation + " record with statement -> " + new JsonObject().put("statement", statement).put("params", paramMap).encodePrettily());
+      logger.debug(operation + " record with statement : {} params : {}", statement, paramMap);
   }
 
   private void logOperations(String operation, String statement, List<Map<String, Object>> paramMap) {

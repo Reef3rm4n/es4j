@@ -1,0 +1,148 @@
+<databaseChangeLog
+  xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+  http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.4.xsd"
+>
+
+
+  <!-- BROKER CHANGESET -->
+  <changeSet id="message-broker-table-seq" author="reeferman" context="vertx">
+    <createSequence sequenceName="message_broker_seq" schemaName="${schema}"/>
+  </changeSet>
+  <changeSet id="message_broker-table" author="reeferman" context="vertx">
+    <createTable tableName="message_broker" schemaName="${schema}">
+      <column type="bigint" name="message_sequence" defaultValueSequenceNext="message_broker_seq"/>
+      <column type="text" name="message_id"/>
+      <column type="text" name="message_address"/>
+      <column type="text" name="state"/>
+      <column type="text" name="partition_id" defaultValue="none"/>
+      <column type="text" name="partition_key"/>
+      <column type="jsonb" name="payload"/>
+      <column type="integer" name="schema_version" defaultValueNumeric="0"/>
+      <column type="timestamp" name="scheduled"/>
+      <column type="timestamp" name="expiration"/>
+      <column type="integer" name="priority" defaultValue="0"/>
+      <column type="text" name="verticle_id"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant" defaultValue="default"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="message_broker-index" author="reeferman" context="vertx">
+    <addPrimaryKey tableName="message_broker" columnNames="message_id" schemaName="${schema}"/>
+    <createIndex tableName="message_broker" indexName="message_broker-index-1" schemaName="${schema}">
+      <column name="state"/>
+      <column name="scheduled"/>
+      <column name="partition_id"/>
+    </createIndex>
+    <createIndex tableName="message_broker" indexName="message_broker-index-2" schemaName="${schema}">
+      <column name="state"/>
+      <column name="partition_id"/>
+    </createIndex>
+  </changeSet>
+  <!--  -->
+
+  <!-- Broker Function -->
+  <changeSet id="broker_ch_pub_function" author="reeferman" context="vertx">
+    <sql splitStatements="false">
+      CREATE
+      OR REPLACE FUNCTION ${schema}.message_broker_channel_pub()
+      RETURNS
+      trigger
+      AS
+      $$
+      BEGIN
+        PERFORM pg_notify('${schema}-message-broker-channel', NEW.partition_id::text);
+      RETURN NEW;
+      END;
+      $$
+      LANGUAGE plpgsql;
+    </sql>
+  </changeSet>
+  <!--  -->
+  <!-- Broker Function -->
+  <changeSet id="message_broker_trigger" author="reeferman" context="vertx">
+    <sql splitStatements="false">
+      CREATE TRIGGER msg_broker_trg
+        AFTER INSERT OR
+      UPDATE OF rec_version
+      ON ${schema}.message_broker
+        FOR EACH ROW EXECUTE PROCEDURE message_broker_channel_pub();
+    </sql>
+  </changeSet>
+  <!--  -->
+
+  <!-- Transaction Log -->
+  <changeSet id="message_broker-tx-table" author="reeferman" context="vertx">
+    <createTable tableName="message_broker_tx" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="consumer"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant" defaultValue="default"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+  </changeSet>
+  <changeSet id="message_broker_tx-index" author="reeferman" context="vertx">
+    <addPrimaryKey tableName="message_broker_tx" columnNames="message_id, consumer, tenant" schemaName="${schema}"/>
+  </changeSet>
+  <!--  -->
+
+  <!--  Consumer Failures -->
+  <changeSet id="message-broker-consumer-failure-table" author="reeferman" context="vertx">
+    <createTable tableName="message_broker_consumer_failure" schemaName="${schema}">
+      <column type="text" name="message_id"/>
+      <column type="text" name="consumer"/>
+      <column type="jsonb" name="error"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant" defaultValue="default"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+    <addPrimaryKey tableName="message_broker_consumer_failure" columnNames="message_id, consumer" schemaName="${schema}"/>
+
+  </changeSet>
+  <!--  -->
+
+  <!--  Message Broker Partition  -->
+  <changeSet id="message_broker_partition-table" author="reeferman" context="vertx">
+    <createTable tableName="message_broker_partition" schemaName="${schema}">
+      <column type="text" name="partition_id"/>
+      <column type="text" name="verticle_id"/>
+      <column type="boolean" name="locked" defaultValueBoolean="false"/>
+      <!--  Base Record    -->
+      <column type="text" name="tenant" defaultValue="default"/>
+      <column type="timestamp" name="inserted" defaultValueComputed="current_timestamp"/>
+      <column type="timestamp" name="updated" defaultValueComputed="current_timestamp"/>
+      <column type="int" name="rec_version" defaultValue="0"/>
+    </createTable>
+    <addPrimaryKey tableName="message_broker_partition" columnNames="partition_id" schemaName="${schema}"/>
+  </changeSet>
+  <!--  -->
+
+<!--  Partitions -->
+  <changeSet id="default-partitions" author="reeferman" context="vertx">
+    <sql>
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-0');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-1');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-2');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-3');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-4');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-5');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-6');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-7');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-8');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-9');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-10');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-11');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-12');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-13');
+      INSERT INTO ${schema}.message_broker_partition (partition_id) VALUES ('partition-14');
+    </sql>
+  </changeSet>
+</databaseChangeLog>

@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Consumer;
 
 import static io.es4j.core.CommandHandler.camelToKebab;
@@ -202,7 +203,7 @@ public class PgEventStore implements EventStore {
   }
 
   private static <T extends Aggregate> String startingOffset(AggregateEventStream<T> aggregateEventStream) {
-    if (aggregateEventStream.startFromSnapshot()) {
+    if (Objects.nonNull(aggregateEventStream.startFromSnapshot()) && aggregateEventStream.startFromSnapshot()) {
       return "(select coalesce(max(id),0) from event_store where event_class = 'snapshot' and aggregate_id ilike any(#{aggregate_id}) and tenant = #{tenant})";
     }
     return null;

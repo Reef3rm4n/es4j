@@ -81,18 +81,26 @@ public interface RecordMapper<K extends RepositoryRecordKey, V extends Repositor
 
   default BaseRecord baseRecord(Row row) {
     return new BaseRecord(
-      row.getString(Constants.TENANT),
+      getTenant(row),
       getVersion(row),
       row.getLocalDateTime(Constants.CREATION_DATE).toInstant(ZoneOffset.UTC),
       row.getLocalDateTime(Constants.LAST_UPDATE).toInstant(ZoneOffset.UTC)
     );
   }
 
+  private static String getTenant(Row row) {
+    try {
+      return row.getString(Constants.TENANT);
+    } catch (Exception e) {
+      return "default";
+    }
+  }
+
   private static Integer getVersion(Row row) {
     try {
       return row.getInteger(VERSION);
     } catch (Exception e) {
-      return null;
+      return 0;
     }
 
   }

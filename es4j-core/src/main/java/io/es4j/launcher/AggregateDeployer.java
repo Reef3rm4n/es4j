@@ -43,7 +43,7 @@ public class AggregateDeployer<T extends Aggregate> {
   private final Class<T> aggregateClass;
   private Infrastructure infrastructure;
   private List<AggregateServices> aggregateServices;
-  private final Set<String> deployed = new HashSet<>();
+  private final Stack<String> deployed = new Stack<>();
   private CronTaskDeployer cronTaskDeployer;
   private TimerTaskDeployer timerTaskDeployer;
 
@@ -74,13 +74,12 @@ public class AggregateDeployer<T extends Aggregate> {
               addProjections();
               final Supplier<Verticle> supplier = () -> new AggregateVerticle<>(es4jDeploymentConfiguration, aggregateClass, nodeDeploymentID);
               return startChannel(vertx, es4jDeploymentConfiguration.aggregateClass(), nodeDeploymentID)
-                .flatMap(avoid -> vertx.deployVerticle(supplier, new DeploymentOptions()
+                .flatMap(avoid -> Multi.createBy().repeating().uni(() ->vertx.deployVerticle(supplier, new DeploymentOptions()
                       .setConfig(infrastructureConfiguration)
-                      .setInstances(CpuCoreSensor.availableProcessors() * 2)
                     )
-                    .map(deployed::add)
-                )
-                .call(avoid -> {
+                    .map(deployed::push)
+                ).atMost(CpuCoreSensor.availableProcessors() * 2L).collect().asList()
+                .call(__ -> {
                     this.aggregateServices = Es4jServiceLoader.loadAggregateServices();
                     return Es4jConfigurationHandler.fsConfigurations(vertx, es4jDeploymentConfiguration.fileBusinessRules())
                       .flatMap(av -> Multi.createFrom().iterable(aggregateServices)
@@ -91,6 +90,7 @@ public class AggregateDeployer<T extends Aggregate> {
                         .replaceWithVoid()
                       );
                   }
+                )
                 );
             }
           )
@@ -174,18 +174,17 @@ public class AggregateDeployer<T extends Aggregate> {
     if (Objects.nonNull(timerTaskDeployer)) {
       timerTaskDeployer.close();
     }
-    if (!aggregateServices.isEmpty()) {
+    if (Objects.nonNull(aggregateServices) && !aggregateServices.isEmpty()) {
       closeUnis.addAll(aggregateServices.stream().map(AggregateServices::stop).toList());
     }
     if (!deployed.isEmpty()) {
-      closeUnis.add(Multi.createFrom().iterable(deployed)
+      closeUnis.add(Multi.createBy().repeating().supplier(deployed::pop).whilst(__ -> !deployed.isEmpty())
         .onItem().transformToUniAndMerge(vertx::undeploy)
         .collect().asList()
-        .invoke(avoid -> deployed.clear())
         .replaceWithVoid()
       );
     }
-    if (infrastructure != null) {
+    if (Objects.nonNull(infrastructure)) {
       closeUnis.add(infrastructure.stop());
     }
     if (!closeUnis.isEmpty()) {
