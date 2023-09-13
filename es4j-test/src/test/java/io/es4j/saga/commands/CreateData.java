@@ -1,4 +1,4 @@
-package io.es4j.commands;
+package io.es4j.saga.commands;
 
 import io.es4j.Command;
 

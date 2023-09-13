@@ -14,13 +14,13 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The PollingEventProjection interface defines the structure for event projections
+ * The AsyncProjection interface defines the structure for event projections
  * that use a polling strategy.
  */
 public interface AsyncProjection {
 
   /**
-   * Apply the list of AggregateEvent objects to the projection.
+   * Apply the list of event objects to the projection.
    *
    * @param events the list of AggregateEvent objects to apply
    * @return a Uni representing the completion of the operation
@@ -28,7 +28,7 @@ public interface AsyncProjection {
   Uni<Void> apply(List<AggregateEvent> events);
 
   /**
-   * Optional filter for the event journal.
+   * Optional filter to be applied to the event journal.
    *
    * @return an Optional containing the EventJournalFilter, if one is defined
    */

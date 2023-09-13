@@ -7,7 +7,7 @@ import io.es4j.Event;
 import io.es4j.config.DatabaseConfigurationFetcher;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.events.DataChanged;
-import io.es4j.commands.ChangeDataWithDbConfig;
+import io.es4j.saga.commands.ChangeDataWithDbConfig;
 import io.es4j.domain.DataBusinessRule;
 import io.es4j.http.OpenApiDocs;
 

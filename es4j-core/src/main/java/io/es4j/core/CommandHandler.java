@@ -61,6 +61,9 @@ public class CommandHandler<T extends Aggregate> {
   }
 
   public Uni<JsonObject> process(Command command) {
+    // todo should not return aggregate state but instead void
+    // todo add fire and forget command
+    // todo add rejected command store
     if (command instanceof LoadAggregate loadAggregate) {
       return replay(loadAggregate);
     }
@@ -101,7 +104,7 @@ public class CommandHandler<T extends Aggregate> {
     LOGGER.debug("Applying {} schema versionTo {} ", aggregator.delegate().getClass().getSimpleName(), aggregator.delegate().schemaVersion());
     if (aggregator.delegate().schemaVersion() != eventSchemaVersion) {
       LOGGER.debug("Schema versionTo mismatch, migrating event {} {} ", event.getClass().getName(), JsonObject.mapFrom(event).encodePrettily());
-      finalEvent = aggregator.delegate().transformFrom(eventSchemaVersion, JsonObject.mapFrom(event));
+      finalEvent = aggregator.delegate().migrate(eventSchemaVersion, JsonObject.mapFrom(event));
     }
     final var newAggregateState = (T) aggregator.delegate().apply(aggregateState, finalEvent);
     LOGGER.debug("State after aggregation {}", newAggregateState);

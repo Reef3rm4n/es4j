@@ -21,6 +21,7 @@
     <module>es4j-postgres-storage</module>
     <module>es4j-redis-storage</module>
     <module>es4j-http-client</module>
+      <module>es4j-postgres-cdc</module>
   </modules>
 
   <dependencyManagement>

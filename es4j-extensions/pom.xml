@@ -12,6 +12,7 @@
   <packaging>pom</packaging>
   <modules>
     <module>es4j-config-storage</module>
+      <module>es4j-saga</module>
   </modules>
 
   <artifactId>es4j-extensions</artifactId>

@@ -7,7 +7,7 @@ import io.es4j.Event;
 import io.es4j.domain.DataFileBusinessRule;
 import io.es4j.domain.FakeAggregate;
 import io.es4j.events.DataChanged;
-import io.es4j.commands.ChangeDataWithConfig;
+import io.es4j.saga.commands.ChangeDataWithConfig;
 import io.es4j.http.OpenApiDocs;
 import io.es4j.infrastructure.config.FileConfiguration;
 

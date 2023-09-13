@@ -36,7 +36,7 @@ public interface Aggregator<T extends Aggregate, E extends Event> {
   }
 
   /**
-   * Transforms the event based on the specified schema version.
+   * Migrates the event based on the specified schema version.
    * The default implementation of this method throws an UnknownEvent exception,
    * indicating that the event version transformation is not supported.
    *
@@ -45,13 +45,13 @@ public interface Aggregator<T extends Aggregate, E extends Event> {
    * @return The transformed event, if the transformation is supported.
    * @throws UnknownEvent if the event version transformation is not supported.
    */
-  default E transformFrom(int schemaVersion, JsonObject event) {
+  default E migrate(int schemaVersion, JsonObject event) {
     throw new UnknownEvent(new Es4jError(
       ErrorSource.LOGIC,
       Aggregator.class.getName(),
-      "missing schema versionTo " + schemaVersion,
-      "could not transform event %s to schema version %d".formatted(event, schemaVersion),
-      "aggregate.event.transform",
+      "Unable to migrate event schema",
+      "Unable not migrate event %s to schema version %d".formatted(event, schemaVersion),
+      "aggregate.event.migration",
       500
     )
     );

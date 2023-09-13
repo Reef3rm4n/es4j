@@ -2,10 +2,10 @@ package io.es4j;
 
 
 import io.es4j.client.AggregateHttpClient;
-import io.es4j.commands.ChangeData;
-import io.es4j.commands.ChangeDataWithConfig;
-import io.es4j.commands.ChangeDataWithDbConfig;
-import io.es4j.commands.CreateData;
+import io.es4j.saga.commands.ChangeData;
+import io.es4j.saga.commands.ChangeDataWithConfig;
+import io.es4j.saga.commands.ChangeDataWithDbConfig;
+import io.es4j.saga.commands.CreateData;
 import io.es4j.core.objects.AggregateState;
 import io.es4j.domain.DataBusinessRule;
 import io.es4j.domain.FakeAggregate;
